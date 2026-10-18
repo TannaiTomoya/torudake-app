@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>撮って送るだけ帳簿 発表台本</title>
+<style>
+  @page { size: A4; margin: 16mm 16mm 18mm; }
+  :root { --ink:#1F2A33; --sub:#55626A; --line:#D5D9D3; --paper:#FBFAF6; --accent:#A8520F; --orange:#E8862E; --tint:#F4F1EA; }
+  * { box-sizing: border-box; }
+  body { font-family: "Arial Unicode MS", sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.6; margin: 0; background:#fff; }
+  h1 { font-size: 26pt; line-height: 1.3; margin: 0 0 6mm; }
+  h2 { font-size: 14pt; margin: 0 0 3mm; padding-bottom: 2mm; border-bottom: 2px solid var(--ink); }
+  h3 { font-size: 12pt; margin: 0; }
+  p { margin: 0 0 2.5mm; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .cover { height: 255mm; display:flex; flex-direction:column; justify-content:space-between; border-left: 6mm solid var(--orange); padding-left: 10mm; }
+  .eyebrow { color: var(--accent); font-weight: 700; letter-spacing: .1em; font-size: 10pt; }
+  .lead { font-size: 13pt; color: var(--sub); }
+  .muted { color: var(--sub); font-size: 9.5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5mm 0 4mm; font-size: 9pt; }
+  th, td { border: 1px solid var(--line); padding: 1.1mm 2mm; text-align: left; vertical-align: top; }
+  th { background: var(--ink); color: #F4F1EA; font-weight: 700; }
+  tr:nth-child(even) td { background: var(--tint); }
+  .num { text-align: right; white-space: nowrap; }
+  .block { border: 1px solid var(--line); border-radius: 3mm; margin: 0 0 4.5mm; break-inside: avoid; overflow: hidden; }
+  .block-head { display:flex; justify-content:space-between; align-items:baseline; background: var(--ink); color:#F4F1EA; padding: 2mm 4mm; }
+  .block-head .time { font-weight:700; color:#F0A35C; font-size: 10pt; }
+  .block-body { padding: 3mm 4mm; }
+  .say { font-size: 10.5pt; line-height: 1.8; }
+  .pause { color: var(--accent); font-weight: 700; font-size: 9.5pt; }
+  .key { background: #FBE3CC; font-weight: 700; padding: 0 1mm; }
+  .notes { display:flex; gap: 3mm; margin-top: 2mm; }
+  .note { flex:1; background: var(--tint); border-radius: 2mm; padding: 2mm 3mm; font-size: 9.2pt; line-height: 1.6; }
+  .note b { color: var(--accent); }
+  .laravel { border: 2px solid var(--orange); }
+  .tag { display:inline-block; background: var(--orange); color: var(--ink); font-weight:700; font-size: 8.5pt; border-radius: 99px; padding: 0 2.5mm; margin-left: 2mm; }
+  .qa { break-inside: avoid; margin: 0 0 2.2mm; padding: 1.8mm 3mm; border-left: 3px solid var(--orange); background: var(--paper); }
+  .qa .q { font-weight: 700; }
+  .qa .a { margin: 1mm 0 0; }
+  ul { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1mm; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .card { border: 1px solid var(--line); border-radius: 2mm; padding: 3mm 4mm; break-inside: avoid; }
+  .card h3 { margin-bottom: 1.5mm; }
+  code { font-family: Menlo, monospace; font-size: 9pt; background: var(--tint); padding: 0 1mm; border-radius: 1mm; }
+  * { font-weight: normal !important; font-style: normal !important; }
+  b, .line, strong { color: #A8520F; }
+</style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<section class="page cover">
+  <div>
+    <p class="eyebrow">発表台本（発表7分＋質疑3分）</p>
+    <h1>撮って送るだけ帳簿<br>― レシートは、撮って送るだけ。</h1>
+    <p class="lead">家族で回す、小さな会社の経理アプリ</p>
+  </div>
+  <div>
+    <table>
+      <tr><th style="width:30%">使う資料</th><td>スライド本編 1〜11枚目、付録 12〜18枚目（質疑で使用）</td></tr>
+      <tr><th>時間</th><td>発表 7分00秒（約2,000字・1分あたり約300字）／質疑 3分</td></tr>
+      <tr><th>覚えて帰ってもらう一言</th><td><span class="key">レシートは、撮って送るだけ。</span>（表紙・コンセプト・機能・まとめで4回くり返す）</td></tr>
+      <tr><th>文章術の出典</th><td>Dラボ（メンタリストDaiGo）『人を操る禁断の文章術』関連の解説動画。最終ページに一覧</td></tr>
+    </table>
+    <p class="muted">丹内 智弥・2026年10月　版0.1</p>
+  </div>
+</section>
+
+<!-- 設計 -->
+<section class="page">
+  <h2>1. この台本の組み立て方</h2>
+  <p>dlab の文章術の解説から、発表に使う原則を6つ選び、どのスライドで使うかを決めた。</p>
+  <table>
+    <tr><th style="width:30%">原則</th><th style="width:44%">中身</th><th style="width:26%">使う場所</th></tr>
+    <tr><td>書かない三原則①<br>あれこれ書かない</td><td>伝えたいことを1つに絞り、くり返す。キーフレーズを再利用すると覚えてもらいやすい</td><td>「撮って送るだけ」を4回</td></tr>
+    <tr><td>書かない三原則②<br>きれいに書かない</td><td>事務的な説明より、感情と感覚に届く言葉を使う</td><td>「くしゃっと」「パシャっと」「月末の夜」</td></tr>
+    <tr><td>書かない三原則③<br>結論の位置を変える</td><td>聞き手がまだ興味を持っていないときは、結論を先に出す（アンチクライマックス法）。そのあとに裏付けを続ける</td><td>表紙でキャッチコピーを言い切る</td></tr>
+    <tr><td>想像させる</td><td>性能より「使っている場面」を想像させる問いと物語が、人を動かす</td><td>2枚目の問いかけ、8枚目の1か月</td></tr>
+    <tr><td>未解決の問いを先に置く</td><td>前半で出した問いに後半で答えると、注意が続き、話が分かりやすくなる</td><td>2枚目の問い → 10・11枚目で回答</td></tr>
+    <tr><td>セッティングと接続詞</td><td>場面と立場をはっきりさせると共感が生まれる。「だから」「では」などの接続詞は論理的な印象を与える</td><td>各スライドの入り</td></tr>
+  </table>
+
+  <h2>2. 時間配分</h2>
+  <table>
+    <tr><th style="width:8%">#</th><th style="width:30%">スライド</th><th style="width:16%">開始</th><th style="width:12%">長さ</th><th style="width:34%">ねらい</th></tr>
+    <tr><td>1</td><td>表紙</td><td>0:00</td><td class="num">30秒</td><td>結論を先に言い切る</td></tr>
+    <tr><td>2</td><td>想定ユーザーと課題</td><td>0:30</td><td class="num">50秒</td><td>問いかけで自分ごとにする</td></tr>
+    <tr><td>3</td><td>今の代替手段</td><td>1:20</td><td class="num">30秒</td><td>既存手段を否定せず、足りない点を1つに</td></tr>
+    <tr><td>4</td><td>コンセプト</td><td>1:50</td><td class="num">50秒</td><td>違いを3つの数字で</td></tr>
+    <tr><td>5</td><td>主な機能（3つ）</td><td>2:40</td><td class="num">40秒</td><td>送る・直す・締める</td></tr>
+    <tr><td>6</td><td>イメージ図</td><td>3:20</td><td class="num">30秒</td><td>画面を見せて具体化</td></tr>
+    <tr><td>7</td><td>なぜLaravelか</td><td>3:50</td><td class="num">60秒</td><td>技術の選択理由を「守り」で語る</td></tr>
+    <tr><td>8</td><td>使う場面（1か月）</td><td>4:50</td><td class="num">40秒</td><td>物語で想像させる</td></tr>
+    <tr><td>9</td><td>なぜこのアイデアか</td><td>5:30</td><td class="num">40秒</td><td>自分の経験と気づき</td></tr>
+    <tr><td>10</td><td>成功の基準</td><td>6:10</td><td class="num">30秒</td><td>数字で約束する</td></tr>
+    <tr><td>11</td><td>まとめの一言</td><td>6:40</td><td class="num">20秒</td><td>キーフレーズで締める</td></tr>
+    <tr><td></td><td><b>合計</b></td><td></td><td class="num"><b>7分00秒</b></td><td>押したら7枚目の4つ目（Pest）を省く</td></tr>
+  </table>
+  <p class="muted">台本の記号：<span class="pause">［間2秒］</span>は話を止める場所。<span class="key">黄色</span>はキーフレーズ。ゆっくり、はっきり言う。</p>
+</section>
+
+<!-- 台本 前半 -->
+<section class="page">
+  <h2>3. 台本（発表7分）</h2>
+
+  <div class="block">
+    <div class="block-head"><h3>1　表紙「レシートは、撮って送るだけ。」</h3><span class="time">0:00〜0:30</span></div>
+    <div class="block-body">
+      <p class="say"><span class="key">レシートは、撮って送るだけ。</span><span class="pause">［間2秒］</span><br>
+      今日は、この一言だけ覚えて帰ってください。<br>
+      家族で経営する小さな会社のための経理アプリ、「撮って送るだけ帳簿」です。最初に使うのは、岩手で産業用機械の修理・溶接・加工をしている、丹内建機サービスです。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　結論を先に出す（アンチクライマックス法）。聞き手はまだ興味がないので、最初に一番強い言葉を置く</div>
+        <div class="note"><b>話し方</b>　最初の一言の前に聴衆を見る。第一印象は最初の数秒で決まる。テンポよく、大きな声で</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-head"><h3>2　想定ユーザーと課題「そのレシート、いまどこにありますか？」</h3><span class="time">0:30〜1:20</span></div>
+    <div class="block-body">
+      <p class="say">皆さんに一つ質問です。<br>
+      いま、財布の中で眠っているレシートは、何枚ありますか？<span class="pause">［間3秒・会場を見渡す］</span><br>
+      家族で経営している小さな会社では、こんなことが起きます。社長が現場の帰りに給油して、レシートをくしゃっと作業着のポケットに入れる。そのレシートが1か月眠って、月末に経理担当がまとめて、紙の帳簿へ1枚ずつ書き写す。<br>
+      しかも、どの作業に何時間かかっているのか、誰にも見えていません。<br>
+      ただ、この3つはまだ仮説です。だから12月末までに、1か月分のヒアリングをして、作業時間を測ります。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　想像させる問いで自分ごとにする。「くしゃっと」「作業着のポケット」は感覚に届く言葉</div>
+        <div class="note"><b>文章術</b>　ここで出した「どこにあるのか」という問いに、8枚目と11枚目で答える（未解決の問い）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-head"><h3>3　今の代替手段「どの方法でも、経理の1人に全部が集まる」</h3><span class="time">1:20〜1:50</span></div>
+    <div class="block-body">
+      <p class="say">では、今ある方法では足りないのでしょうか。<br>
+      紙、Excel、会計ソフト、税理士。どれにも良いところがあります。<br>
+      でも、共通点が一つあります。レシートを受け取ったあとの作業が、全部、経理の1人に集まることです。<br>
+      足りないのは、計算ではありません。現場の人が、その場で渡せる<b>入口</b>です。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　既存の方法を否定しない。良いところを認めてから、足りない点を1つだけ言う</div>
+        <div class="note"><b>文章術</b>　「では」「でも」で論理の流れを示す（接続詞は論理的な印象を与える）</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="block">
+    <div class="block-head"><h3>4　コンセプト「現場は撮って送るだけ。経理は直して承認するだけ。」</h3><span class="time">1:50〜2:40</span></div>
+    <div class="block-body">
+      <p class="say">そこで、このアプリのコンセプトです。<br>
+      現場は<span class="key">撮って送るだけ</span>。経理は、直して承認するだけ。<br>
+      他との違いは、3つの数字で言えます。<br>
+      <b>ゼロ</b>。現場の人の入力欄はゼロです。写真と「送る」ボタンしかありません。<br>
+      <b>2</b>。作る人と承認する人を、2人に分けます。経理担当が作って、社長が承認する。家族の会社でも、確認の目が2つ入ります。<br>
+      そして<b>「あと3件」</b>。締めまでに残っている作業を、毎日数字で見せます。月末に慌てるのではなく、月末は確かめるだけになります。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　あれこれ言わず、違いを3つの数字に絞る。数字は記憶に残る</div>
+        <div class="note"><b>話し方</b>　「ゼロ」「2」「あと3件」の前で一拍置き、スライドの数字を指す</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-head"><h3>5　主な機能「送る、直す、締める」</h3><span class="time">2:40〜3:20</span></div>
+    <div class="block-body">
+      <p class="say">機能は3つに絞りました。送る、直す、締める。<br>
+      1つ目、<span class="key">撮って送る</span>。同じ写真を2回送っても、2件目は自動で止まります。<br>
+      2つ目、仕訳候補。写真を見ながら日付と金額と分類を入れると、帳簿の下書きができます。承認するまで、帳簿には入りません。<br>
+      3つ目、締めナビ。未処理の写真、下書き、通帳との差。全部が0になったら、月を締めます。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　「送る、直す、締める」と短い動詞でそろえる。リズムがあると覚えやすい</div>
+        <div class="note"><b>補足</b>　銀行CSVの取り込みや帳票の出力は、3つが回ってから追加する（聞かれたら答える）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-head"><h3>6　イメージ図「3つの画面」</h3><span class="time">3:20〜3:50</span></div>
+    <div class="block-body">
+      <p class="say">画面は、この3枚です。<br>
+      左が現場の画面。ボタンは1つだけです。真ん中が経理の画面。写真を見ながら入力します。右が、月の初めに社長が見る画面。大きく「あと3件」と出ます。<br>
+      スマホのブラウザで動くので、アプリのインストールはいりません。</p>
+      <div class="notes">
+        <div class="note"><b>話し方</b>　左・真ん中・右の順に手で指す。説明より見せる時間を長くとる</div>
+        <div class="note"><b>補足</b>　画面と数値はイメージ。実装前であることを隠さない</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="block laravel">
+    <div class="block-head"><h3>7　なぜLaravelか「『間違って確定』を、標準機能で止める」<span class="tag">Laravelの活用ポイント</span></h3><span class="time">3:50〜4:50</span></div>
+    <div class="block-body">
+      <p class="say">ここで、なぜ裏側にLaravelを選んだのかをお話しします。<br>
+      経理で一番怖いのは、間違った数字が、気づかないうちに確定してしまうことです。<span class="pause">［間1秒］</span>それを、Laravelの標準機能で止めます。<br>
+      1つ目、<b>Fortify</b>。メール確認と2段階認証を、自作せずに入れられます。<br>
+      2つ目、<b>Policy</b>。「作るのは経理担当、承認できるのは社長だけ」を、画面ではなくサーバー側で判定します。ボタンを隠すだけでは、URLを直接たたけば通ってしまうからです。<br>
+      3つ目、<b>DB::transaction と行ロック</b>。承認ボタンを2回押しても、2人が同時に押しても、仕訳は1回しか確定しません。<br>
+      4つ目、<b>Pest</b>。他の会社のIDに書き換えても見えないことを、自動テストで毎回確かめます。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　「一番怖いのは」と損失から入り、解決を示す。技術名は機能名のあとに「何が防げるか」で言い換える</div>
+        <div class="note"><b>時間調整</b>　押しているときは4つ目のPestを省き、「テストも標準で書けます」の一言にする</div>
+      </div>
+      <table style="margin-top:3mm">
+        <tr><th style="width:24%">Laravelの機能</th><th style="width:40%">このアプリでの使い方</th><th style="width:36%">防げること</th></tr>
+        <tr><td>Fortify＋Sanctum</td><td>メール確認・2段階認証（TOTP）・復旧コード。画面とはCookieで安全にやり取り</td><td>なりすましログイン</td></tr>
+        <tr><td>Policy／Gate</td><td><code>approve()</code>で「approver以上」「自分が作った仕訳は承認不可」を判定</td><td>権限外の承認、自己承認</td></tr>
+        <tr><td>DB::transaction＋<code>lockForUpdate</code></td><td>承認・取消・締めを1つのトランザクションで実行。版番号で競合を検出</td><td>二重承認、片側だけの保存</td></tr>
+        <tr><td>Eloquentのグローバルスコープ</td><td>全テーブルに<code>company_id</code>の条件を自動で付ける</td><td>他社データの表示</td></tr>
+        <tr><td>Form Request</td><td>金額は整数円、日付は暦日、締めた期間は拒否</td><td>不正な値の保存</td></tr>
+        <tr><td>Queue（Redis）</td><td>CSV取込・帳票作成・バックアップを裏で実行</td><td>画面の固まり</td></tr>
+        <tr><td>Pest</td><td>他社IDの差し替え、二重送信、締め後の変更を自動テスト</td><td>修正時の壊れ</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-head"><h3>8　使う場面「ある1か月の、家族の動き」</h3><span class="time">4:50〜5:30</span></div>
+    <div class="block-body">
+      <p class="say">では、1か月の流れを想像してみてください。<span class="pause">［間2秒］</span><br>
+      現場の帰り、社長が給油して、その場でパシャっと撮って送る。10秒です。<br>
+      月曜の夜、経理担当が、たまった写真を古い順に片付けていく。そのあと社長が確かめて、承認。<br>
+      月末に通帳の残高を入れて、翌月の初め、社長が「あと0件」を確かめて、締める。<br>
+      月末に紙を広げて書き写す夜が、なくなります。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　機能の説明ではなく、使っている場面を想像させる。物語は行動を想像させ、納得につながる</div>
+        <div class="note"><b>文章術</b>　2枚目の「レシートはどこに？」への答え。ポケットではなく、その場で送られている</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="block">
+    <div class="block-head"><h3>9　なぜこのアイデアか「『作れる』と『使われる』は違った」</h3><span class="time">5:30〜6:10</span></div>
+    <div class="block-body">
+      <p class="say">なぜ、このアイデアにしたのか。<br>
+      私はこれまで、家業で見積もり、給与計算、出勤管理の仕組みを作ってきました。動くものは、作れました。<br>
+      でも、作る中で気づいたことがあります。「作れる」ことと「使ってもらえる」ことは、違う。使う人の困りごとを先に聞かないと、本当に必要なものにはなりません。<br>
+      だから今回は、簿記を勉強しながら、まず経理の流れを聞くところから始めます。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　自分の体験を短く語る。プレゼンは内容だけでなく人柄でも評価される</div>
+        <div class="note"><b>話し方</b>　「違う」の前で一拍置く。ここは少しゆっくり話す</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-head"><h3>10　成功の基準「完成ではなく、減った時間で判断する」</h3><span class="time">6:10〜6:40</span></div>
+    <div class="block-body">
+      <p class="say">成功は、アプリが完成したかでは判断しません。経理の作業時間で判断します。<br>
+      12月までに今の時間を測り、使い始めてから同じ方法で測り直す。<br>
+      目標は、2027年9月までに、月の作業時間を<b>30%</b>減らすこと。たとえば月20時間なら、14時間です。数字は、測ってから見直します。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　具体的な数字で約束する。「例」と「測ってから見直す」を必ず添え、言い過ぎない</div>
+        <div class="note"><b>補足</b>　30%と月20時間は仮の値</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-head"><h3>11　まとめの一言</h3><span class="time">6:40〜7:00</span></div>
+    <div class="block-body">
+      <p class="say">このアプリで、家族で経営する会社の「月末にまとめて書き写す」夜を、なくせたら嬉しいです。<span class="pause">［間2秒］</span><br>
+      <span class="key">レシートは、撮って送るだけ。</span><br>
+      ありがとうございました。</p>
+      <div class="notes">
+        <div class="note"><b>文章術</b>　最初と同じキーフレーズで終える。くり返しが記憶に残る</div>
+        <div class="note"><b>話し方</b>　最後の一言のあと、2秒止まってから礼をする</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 質疑 -->
+<section class="page">
+  <h2>4. 質疑応答（3分）</h2>
+  <p><b>答え方の型：</b>①質問を一度くり返す（全員に聞こえる＋考える時間ができる）→ ②結論を一文で → ③理由を1つ → ④付録スライドを見せる。1問30秒以内。3分で4〜5問を想定。</p>
+  <p class="muted">分からないことは推測で答えない。「確認して、あとでお伝えします」と言う。</p>
+
+  <div class="qa"><p class="q">Q1. 既存の会計ソフトではだめなのですか？</p>
+  <p class="a">今回の目的は、帳票を作ることより「現場の人がその場で渡せる入口」を作ることです。会計ソフトは帳票づくりに強い一方、入力と判断が経理の1人に集まりやすい。ヒアリングの結果、既存ソフトで足りると分かれば、そちらを選びます。（3枚目）</p></div>
+
+  <div class="qa"><p class="q">Q2. なぜLaravelなのですか？画面のフレームワークだけでは作れませんか？<span class="tag">Laravel</span></p>
+  <p class="a">経理は、承認・締め・二重確定の防止をサーバー側で確実に守る必要があるからです。Laravelは2段階認証（Fortify）、権限（Policy）、トランザクション、キュー、テスト（Pest）が標準で揃っていて、少人数でも守りを固められます。画面はNext.jsで作り、役割を分けます。（7枚目・付録17枚目）</p></div>
+
+  <div class="qa"><p class="q">Q3. AIやOCRで金額を自動で読み取らないのですか？</p>
+  <p class="a">最初は入れません。読み間違いがそのまま帳簿に入るのが一番怖いからです。入れるとしても下書きの初期値までにして、確定は必ず人が承認します。</p></div>
+
+  <div class="qa"><p class="q">Q4. 2段階認証は、ITに慣れていない人でも使えますか？</p>
+  <p class="a">最初の設定は、開発者が横について一緒にやります。復旧コードは紙に印刷して、社長が保管します。現場の人の画面はボタン1つなので、設定さえ終われば操作は10秒です。</p></div>
+
+  <div class="qa"><p class="q">Q5. データの安全性は？開発者は中身を見られるのですか？<span class="tag">Laravel</span></p>
+  <p class="a">通信は暗号化し、データベースと写真も保存時に暗号化します。写真は5分だけ有効なURLでしか開けません。会社ごとのデータは Eloquent のスコープで分け、開発者の私も、社長が期限付きで許可しない限り見られません。（付録15・17枚目）</p></div>
+
+  <div class="qa"><p class="q">Q6. 電子帳簿保存法には対応していますか？</p>
+  <p class="a">写真の原本のハッシュ値と操作の記録は残します。ただ、要件をどこまで満たすかは税理士と確認して決めます。現時点で「対応済み」とは言いません。（付録18枚目）</p></div>
+
+  <div class="qa"><p class="q">Q7. 30%は、どうやって測るのですか？</p>
+  <p class="a">作業ごとに、始めた時刻と終えた時刻を1か月分記録します。使い始めたあと、同じ作業を同じ方法で測り直して比べます。（10枚目）</p></div>
+
+  <div class="qa"><p class="q">Q8. ほかの会社でも使えますか？</p>
+  <p class="a">会社名・決算月・分類・口座は、すべてコードではなく会社設定に置いているので、仕組みとしては使えます。ただ、まずは1社で効果を確かめてからです。（付録16枚目）</p></div>
+</section>
+
+<!-- 練習と出典 -->
+<section class="page">
+  <h2>5. 本番までの練習</h2>
+  <div class="grid2">
+    <div class="card"><h3>時間を合わせる</h3>
+      <ul><li>タイマーで3回通す。7分を超えたら7枚目の4つ目（Pest）を省く</li>
+      <li>各スライドの開始時刻（2ページ目の表）を手元に置く</li></ul></div>
+    <div class="card"><h3>声と目線</h3>
+      <ul><li>テンポよく、大きな声で。早口になりすぎない</li>
+      <li>問いかけ（2枚目）とまとめ（11枚目）は会場全体を見る</li></ul></div>
+    <div class="card"><h3>間（ま）</h3>
+      <ul><li>キーフレーズの前後で2秒止まる</li>
+      <li>問いかけのあとは3秒待つ。答えを急がない</li></ul></div>
+    <div class="card"><h3>質疑の準備</h3>
+      <ul><li>Q1〜Q8を声に出して30秒で答える練習をする</li>
+      <li>付録スライドの番号を覚えておく</li></ul></div>
+  </div>
+
+  <h2 style="margin-top:6mm">6. 本番前に確かめること</h2>
+  <ul>
+    <li>アプリ名「撮って送るだけ帳簿」は仮。変えるなら表紙と11枚目を同時に直す</li>
+    <li>30%・月20時間・画面の数値は仮の値。聞かれたら「測ってから見直す」と答える</li>
+    <li>役割は「社長＝承認、経理担当＝作成」で統一して話す</li>
+  </ul>
+
+  <h2 style="margin-top:6mm">7. 出典（Dラボ）</h2>
+  <table>
+    <tr><th style="width:52%">動画</th><th style="width:48%">この台本で使った点</th></tr>
+    <tr><td>メンタリストDaiGoが7万円をばらまく？！（2015-04-30）<br><span class="muted">daigovideolab.jp/play/1430319518</span></td><td>『人を操る禁断の文章術』の紹介。書かない三原則、結論の位置（クライマックス法・アンチクライマックス法）、最初にキャッチーな言葉を置く</td></tr>
+    <tr><td>【18万件の議論を分析】相手の意見を変える5つの条件、ほか（2020-04-01）<br><span class="muted">daigovideolab.jp/play/1585671785</span></td><td>セッティングと感覚的な言葉、接続詞、キーフレーズの反復、前半の問いに後半で答える</td></tr>
+    <tr><td>聞くだけで人を動かす「超質問力」#1（2024-12-28）<br><span class="muted">daigovideolab.jp/play/M5vSt0CgsToNbKDoUk2z</span></td><td>性能ではなく使う場面を想像させる問い</td></tr>
+    <tr><td>見た目としぐさで人を操るプレゼンの心理学（2017-07-19）<br><span class="muted">daigovideolab.jp/play/1497332562</span></td><td>プレゼンは内容だけでなく人柄でも評価される</td></tr>
+    <tr><td>やりたい仕事に就いて稼いで自由を勝ち取るための面接の心理学１／３（2016-04-26）<br><span class="muted">daigovideolab.jp/play/1457422188</span></td><td>第一印象は最初の数秒で決まる。テンポよく大きな声で話す</td></tr>
+  </table>
+  <p class="muted">要点はDラボの検索結果にある動画の要約から取った。書籍の文章は引用していない。</p>
+</section>
+
+</body>
+</html>
