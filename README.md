@@ -36,6 +36,5 @@ Laravel は「間違った数字を確定させない」ために使います。
 | ファイル | 内容 |
 |---|---|
 | [docs/presentation-script-7min.pdf](docs/presentation-script-7min.pdf) | 発表台本（7分）。Laravelを使うポイントと台本本文 |
-| [docs/presentation-script.pdf](docs/presentation-script.pdf) | 旧版の台本。質疑応答の想定問答8問はこちら |
 
 各PDFの元は同じ名前の `.html` です。Chrome のヘッドレス印刷で PDF にしています。
