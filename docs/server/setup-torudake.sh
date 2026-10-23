@@ -17,7 +17,7 @@ DB_NAME="torudake"
 DB_USER="torudake"
 DEPLOY_USER="${DEPLOY_USER:-${SUDO_USER:-$(whoami)}}"   # アプリのファイルの持ち主（GitHub Actions が SSH するユーザー）
 ADMIN_EMAIL="${ADMIN_EMAIL:?ADMIN_EMAIL=証明書の連絡先メール を付けて実行してください}"
-PHP_VERSION="8.4"
+PHP_MIN="8.3"        # Laravel 13 の最低。OS に入っている PHP（8.3 以上）をそのまま使う
 NODE_MAJOR="22"
 SWAP_SIZE="2G"
 
@@ -38,14 +38,20 @@ fi
 step "2/10 必要なソフト（足りないものだけ入れる）"
 apt-get update -qq
 apt-get install -y -qq software-properties-common curl git unzip ca-certificates >/dev/null
-if ! have "php${PHP_VERSION}" && ! php -v 2>/dev/null | grep -q "PHP ${PHP_VERSION}"; then
-  add-apt-repository -y ppa:ondrej/php >/dev/null && apt-get update -qq
+# 外部の PPA は使わない（新しい Ubuntu に対応していないことがあるため）。OS の標準の PHP を入れる
+apt-get install -y -qq php-fpm php-cli php-mysql php-mbstring php-xml php-curl php-zip php-gd php-intl php-bcmath \
+  nginx certbot python3-certbot-nginx >/dev/null
+PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+if ! php -r "exit(version_compare(PHP_VERSION, '${PHP_MIN}', '>=') ? 0 : 1);"; then
+  echo "PHP ${PHP_VERSION} は古い（${PHP_MIN} 以上が必要）。runbook の「PHP が古いとき」を見てください"; exit 1
 fi
-apt-get install -y -qq "php${PHP_VERSION}-fpm" "php${PHP_VERSION}-cli" "php${PHP_VERSION}-mysql" "php${PHP_VERSION}-mbstring" \
-  "php${PHP_VERSION}-xml" "php${PHP_VERSION}-curl" "php${PHP_VERSION}-zip" "php${PHP_VERSION}-gd" "php${PHP_VERSION}-intl" \
-  "php${PHP_VERSION}-bcmath" nginx certbot python3-certbot-nginx >/dev/null
+if [ ! -S "/run/php/php${PHP_VERSION}-fpm.sock" ] && ! systemctl list-unit-files | grep -q "php${PHP_VERSION}-fpm"; then
+  echo "php${PHP_VERSION}-fpm が見つからない"; exit 1
+fi
 have mysql || apt-get install -y -qq mysql-server >/dev/null
-if ! have node || [ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -lt "$NODE_MAJOR" ]; then
+node_ok() { have node && [ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -ge "$NODE_MAJOR" ]; }
+node_ok || apt-get install -y -qq nodejs npm >/dev/null   # Ubuntu 26.04 の標準は Node 22
+if ! node_ok; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null && apt-get install -y -qq nodejs >/dev/null
 fi
 if ! have composer; then

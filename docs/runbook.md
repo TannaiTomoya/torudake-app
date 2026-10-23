@@ -105,6 +105,13 @@ MySQL のユーザー名は ticket-app の `.env`（`~/backups/ticket-app/env-20
 
 ---
 
-## 5. あとでやること
+## 5. サーバーの版（10/24 確認）
+- OS：Ubuntu 26.04.1 LTS。PHP は OS 標準の **8.5**、Node は **22**、MySQL は **8.4**（外部の PPA は使わない）
+- CI（`tests.yml`）も本番に合わせて PHP 8.5 で回す。開発の Sail は 8.4（あとで 8.5 にそろえる）
+
+### PHP が古いとき
+`setup-torudake.sh` が「PHP x.x は古い」と止まったら、OS が古い。Laravel 13 は PHP 8.3 以上が必要。OS を上げるか、作者に相談する。
+
+## 6. あとでやること
 - メールを本当に送る（パスワード再設定に必要）：`.env` の `MAIL_*` を送信サービスの値にする。今は `log`（`storage/logs` に書くだけ）
 - Cloudflare を Proxied（オレンジ）にする場合：SSL/TLS を Full (strict)、アプリに TrustProxies を入れてから（04 §5.2）
