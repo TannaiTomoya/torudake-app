@@ -8,7 +8,7 @@
 
 ## 状態
 
-設計と発表準備の段階です。アプリ本体はまだありません。
+設計が終わり、実装に入る段階です（2026-10-24〜）。作る順番は [詳細設計書 §10](docs/03-detailed-design.md) のとおりです。
 
 ## 主な機能（予定）
 
@@ -20,14 +20,14 @@
 
 | 役割 | 採用 |
 |---|---|
-| API・業務ロジック | PHP 8.3 + Laravel 12 |
-| 画面 | Next.js（スマホのブラウザで使う） |
-| DB | MySQL 8.0（金額は整数円） |
-| 認証 | Laravel Fortify + Sanctum（メール確認・2段階認証） |
+| API・業務ロジック | PHP 8.4 + Laravel 13 |
+| 画面 | Livewire 4 ＋ Flux UI（スマホのブラウザで使う） |
+| DB | MySQL 8.4（金額は整数円） |
+| 認証 | Laravel Fortify（スターターキット。メール確認・2段階認証） |
 | 権限 | Policy / Gate（会社所属とロールを先に検証） |
-| 証憑 | S3互換ストレージ（暗号化・SHA-256・短寿命の署名付きURL） |
-| ジョブ | Laravel Queue（Redis） |
-| テスト | Pest / Vitest / Playwright |
+| 証憑 | 非公開ディスク（SHA-256で重複を止め、30日で削除。S3互換は次の週） |
+| ジョブ | Laravel のスケジューラ（写真の30日削除） |
+| テスト | Pest / Larastan / Pint |
 
 Laravel は「間違った数字を確定させない」ために使います。権限は Policy でサーバー側に判定し、承認・取消・締めは `DB::transaction` と行ロックで1回だけ確定させます。
 
@@ -35,7 +35,13 @@ Laravel は「間違った数字を確定させない」ために使います。
 
 | ファイル | 内容 |
 |---|---|
-| [docs/10-first-journal-and-learning.md](docs/10-first-journal-and-learning.md) | 一次仕訳の蓄積・AIの学習・写真の30日削除・手持ち現金・テスト環境から本番への設計案 |
+| [docs/01-requirements.md](docs/01-requirements.md) | **要件定義書**：目的・利用者とロール・機能（F/A/E）・データの扱い・完成の基準・確かめること |
+| [docs/02-technical-spec.md](docs/02-technical-spec.md) | **技術仕様書**：技術の構成・リポジトリ・コードの決まり・認証・APIの規約・写真とAIの安全・環境とリリース |
+| [docs/03-detailed-design.md](docs/03-detailed-design.md) | **詳細設計書**：テーブル・状態・処理・権限・API・画面・テスト・初期データ・作る順番 |
+| [docs/04-demo-llm-edition.md](docs/04-demo-llm-edition.md) | **デモ版（LLM編）**：計算・判断をすべて Claude に任せ、Excel に出力し、学習データを Python編へ渡す。10/25午前までの時間割 |
+| [docs/10-first-journal-and-learning.md](docs/10-first-journal-and-learning.md) | 経緯の記録：一次仕訳の蓄積・AIの学習・写真の30日削除・Anthropicの規約の確認結果 |
+
+食い違いがあるときは 01〜03 を正とします。ただし、今作っているデモ版では 04 を正とします（デモ版 → Python編 → 実務版の順に進化させる）。
 | [docs/presentation-script-7min.pdf](docs/presentation-script-7min.pdf) | 発表台本（7分）。Laravelを使うポイントと台本本文 |
 
 各PDFの元は同じ名前の `.html` です。Chrome のヘッドレス印刷で PDF にしています。

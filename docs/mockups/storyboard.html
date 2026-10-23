@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>デモの絵コンテ</title>
+<style>
+:root{--ink:#14202A;--sub:#4A565E;--line:#D6DAD4;--panel:#F5F3EE;--accent:#E8862E;--accent-ink:#A8520F;--ok:#1F6B40;--bg:#ECE8DF;--hl:#FFE3C4}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1800px;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;padding:40px 44px}
+h1{font-size:34px;font-weight:900}
+.lead{font-size:17px;color:var(--sub);margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:26px}
+.f{background:#fff;border-radius:18px;padding:14px 16px 16px;box-shadow:0 6px 16px rgba(20,32,42,.08)}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.no{width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;font-weight:900;display:flex;align-items:center;justify-content:center;font-size:17px}
+.tm{font-size:18px;font-weight:900}
+.tag{margin-left:auto;font-size:13px;font-weight:800;color:var(--accent-ink);background:var(--hl);padding:3px 10px;border-radius:999px}
+/* projector screen */
+.scr{position:relative;width:100%;aspect-ratio:16/9;background:#fff;border:3px solid var(--ink);border-radius:8px;overflow:hidden;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.top{display:flex;justify-content:space-between;font-size:11px;font-weight:800}
+.top .lv{color:#C62828}
+.body{flex:1;display:flex;gap:8px;min-height:0}
+.l{flex:1.5;background:var(--panel);border-radius:8px;padding:8px;display:flex;gap:8px}
+.r{flex:1;display:flex;flex-direction:column;gap:6px}
+.rc{width:66px;flex:none;background:#fff;border:2px solid var(--line);border-radius:5px;font-family:Menlo,monospace;font-size:7px;line-height:1.45;padding:4px;color:#444}
+.rd{flex:1;display:flex;flex-direction:column;gap:3px;font-size:11px}
+.rd .h{font-size:11px;font-weight:900;color:var(--accent-ink)}
+.ln{display:flex;justify-content:space-between;border-bottom:1.5px solid var(--line);padding:1px 0;font-weight:700}
+.ln b{font-weight:900}
+.ok{color:var(--ok)}
+.hl{background:var(--hl);border-radius:3px;padding:0 3px}
+.dim{color:#7A858B}
+.cnt{background:var(--ink);color:#F2A65A;border-radius:8px;text-align:center;padding:4px 0 6px}
+.cnt p{font-size:8px;color:#E9E4DA;font-weight:700}
+.cnt b{font-size:30px;font-weight:900;line-height:1}
+.sm{background:var(--panel);border-radius:6px;padding:4px 6px;font-size:9px;font-weight:700}
+.sm b{font-size:16px;font-weight:900;display:block}
+.feed{background:var(--panel);border-radius:6px;padding:4px 6px;font-size:8.5px;font-weight:700;flex:1}
+.feed div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:1px 0}
+.btn{display:inline-block;font-size:10px;font-weight:900;border-radius:999px;padding:3px 10px}
+.bd{background:var(--ink);color:#fff}.bo{border:1.5px solid var(--line);background:#fff;color:var(--sub)}
+.badge{display:inline-block;background:var(--hl);color:var(--accent-ink);font-size:10px;font-weight:900;padding:2px 8px;border-radius:6px}
+.ft{font-size:8px;color:var(--sub);font-weight:700}
+.full{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
+/* phone */
+.phone{position:absolute;right:10px;bottom:10px;width:58px;height:104px;background:var(--ink);border-radius:12px;padding:4px;box-shadow:0 4px 10px rgba(0,0,0,.25)}
+.phone div{width:100%;height:100%;background:#fff;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:7px;font-weight:800}
+.phone i{width:20px;height:16px;border-radius:4px;background:var(--ink);display:block}
+.phone em{font-style:normal;background:var(--accent);border-radius:999px;padding:2px 6px}
+.cap{margin-top:10px;display:flex;flex-direction:column;gap:5px}
+.cap p{font-size:16px;line-height:1.5}
+.cap .say{color:var(--sub)}
+.cap .say::before{content:"話す："; font-weight:800;color:var(--ink)}
+.cap .act::before{content:"操作："; font-weight:800}
+.cap .see::before{content:"見える動き："; font-weight:800;color:var(--accent-ink)}
+.xl{display:flex;flex-direction:column;flex:1;border:1.5px solid #8FB89A;border-radius:4px;overflow:hidden;font-size:8px}
+.xl .tb{background:#1F7A45;color:#fff;font-weight:800;padding:3px 6px}
+.xl .ct{flex:1;display:flex;gap:6px;padding:6px}
+.xl table{border-collapse:collapse;font-size:8px;flex:1}
+.xl td{border:1px solid #DCE6DE;padding:1px 3px}
+.xl .tabs{display:flex;gap:2px;background:#EEF3EF;padding:2px 4px}
+.xl .tabs span{padding:1px 5px;background:#fff;border-radius:2px}
+.xl .tabs .on{background:#1F7A45;color:#fff}
+.pie{width:64px;height:64px;border-radius:50%;background:conic-gradient(#E8862E 0 38%,#14202A 38% 60%,#8E9AA0 60% 78%,#C9B79C 78% 100%)}
+.bars{display:flex;align-items:flex-end;gap:4px;height:64px}
+.bars i{width:12px;background:#E8862E;display:block}
+.acts{display:flex;gap:4px;margin-top:3px}.acts span{font-size:9px;font-weight:900;border-radius:999px;padding:3px 8px}.a1{background:#fff;border:1.5px solid #6B767C}.a2{background:var(--ink);color:#fff;outline:2px solid var(--accent);outline-offset:1px}
+.focus{border:2.5px solid var(--accent)!important}.dimr{opacity:.4}
+.note{margin-top:26px;background:#fff;border-radius:16px;padding:16px 22px;font-size:16px;line-height:1.7}
+.note b{color:var(--accent-ink)}
+</style>
+</head>
+<body>
+<h1>デモの絵コンテ — 八幡平市 副市長向け（3分）</h1>
+<p class="lead">枠はプロジェクターに映すPCのライブ画面（16:9）。右下の小さなスマホは手元の操作。数値と名前はイメージ（当日はその場の実測値）。<b>改訂：件数を「未処理＋下書き」でそろえた（1→2→3→0）。今動いている所をオレンジの枠で明るく、ほかを薄く。直す・承認のボタンをライブ画面に置いた。</b></p>
+
+<div class="grid">
+
+<!-- 1 -->
+<div class="f"><div class="hd"><span class="no">1</span><span class="tm">0:00</span><span class="tag">つかみ</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l" style="align-items:center;justify-content:center;font-size:12px;color:var(--sub);font-weight:800">次のレシートを待っています</div>
+<div class="r"><div class="cnt"><p>今月の帳簿ができるまで</p><b>あと1件</b></div><div class="feed"><div><span>10/12 ホームセンター 1,980円</span><span style="color:var(--accent-ink)">下書き</span></div><div><span>10/09 〇〇商店 5,400円</span><span class="ok">承認済み</span></div><div><span>10/05 〇〇電気 8,800円</span><span class="ok">承認済み</span></div></div></div></div>
+<div class="ft">写真は30日で自動削除 ・ AIの学習には使われない ・ 確定は人が承認</div></div>
+<div class="cap"><p class="say">「母は毎月、レシートを手書きの帳簿に写しています。月末の夜がつぶれます」</p><p class="see">待ち受け。前から残っている下書きが1件で「あと1件」</p></div></div>
+
+<!-- 2 -->
+<div class="f"><div class="hd"><span class="no">2</span><span class="tm">0:20</span><span class="tag">撮って送る</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l focus"><div class="rc">〇〇石油 岩手町SS<br>2026/10/14<br>レギュラー 22.10L<br>小計 ¥3,500<br>(10%) ¥350<br><b>合計 ¥3,850</b></div><div class="rd"><span class="h">AIが読んでいます… 1.2秒</span><div class="ln dim"><span>店名</span><b>…</b></div><div class="ln dim"><span>日付</span><b>…</b></div><div class="ln dim"><span>合計</span><b>…</b></div><div class="ln dim"><span>分類</span><b>…</b></div></div></div>
+<div class="r dimr"><div class="cnt"><p>今月の帳簿ができるまで</p><b>あと2件</b></div><div class="sm">AIの処理時間<b>1.2秒</b></div></div></div>
+<div class="phone"><div><i></i><em>送る</em></div></div></div>
+<div class="cap"><p class="act">スマホでレシートを撮って「送る」</p><p class="say">「今日は、それを撮るだけにします」</p><p class="see">写真が左にすべり込み、「あと1件 → 2件」に増える</p></div></div>
+
+<!-- 3 -->
+<div class="f"><div class="hd"><span class="no">3</span><span class="tm">0:25</span><span class="tag">AIが読む</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l focus"><div class="rc">〇〇石油 岩手町SS<br>2026/10/14<br>レギュラー 22.10L<br>小計 ¥3,500<br>(10%) ¥350<br><b>合計 ¥3,850</b></div><div class="rd"><span class="h">AIが読んでいます… 5.4秒</span><div class="ln"><span>店名</span><b>〇〇石油 <span class="ok">✓</span></b></div><div class="ln"><span>日付</span><b>10月14日 <span class="ok">✓</span></b></div><div class="ln"><span>合計</span><b class="hl">3,850円 <span class="ok">✓</span></b></div><div class="ln dim"><span>分類</span><b>…</b></div></div></div>
+<div class="r dimr"><div class="cnt"><p>今月の帳簿ができるまで</p><b>あと2件</b></div><div class="sm">AIの処理時間<b>5.4秒</b></div></div></div></div>
+<div class="cap"><p class="say">「今、AIが店名、日付、金額を読んでいます」（待ち時間を話でつなぐ）</p><p class="see">1行ずつ現れ ✓ が付く。新しい値が光る</p></div></div>
+
+<!-- 4 -->
+<div class="f"><div class="hd"><span class="no">4</span><span class="tm">0:30</span><span class="tag">AIの下書き</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l focus"><div class="rc">〇〇石油 岩手町SS<br>2026/10/14<br>レギュラー 22.10L<br>小計 ¥3,500<br>(10%) ¥350<br><b>合計 ¥3,850</b></div><div class="rd"><span class="h">AIの下書き（8.2秒）</span><div class="ln"><span>店名</span><b>〇〇石油</b></div><div class="ln"><span>日付</span><b>10月14日</b></div><div class="ln"><span>合計</span><b>3,850円</b></div><div class="ln"><span>分類</span><b class="hl">消耗品 ?</b></div><div style="font-size:9px;font-weight:800">仕訳　消耗品費 3,850 ／ 現金 3,850</div><div class="acts"><span class="a2">E 直す</span><span class="a1">A 承認</span></div></div></div>
+<div class="r dimr"><div class="cnt"><p>今月の帳簿ができるまで</p><b>あと2件</b></div><div class="feed"><div><span>14:22 〇〇石油 3,850円</span><span style="color:var(--accent-ink)">下書き</span></div><div><span>10/12 ホームセンター</span><span class="ok">承認済み</span></div></div></div></div></div>
+<div class="cap"><p class="say">「AIが下書きを作りました。でも分類が違います。燃料です」</p><p class="see">仕訳の行ができ、流れに「下書き」が1件増える</p></div></div>
+
+<!-- 5 -->
+<div class="f"><div class="hd"><span class="no">5</span><span class="tm">0:50</span><span class="tag">人が直す</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l focus"><div class="rc">〇〇石油 岩手町SS<br>2026/10/14<br>レギュラー 22.10L<br>小計 ¥3,500<br>(10%) ¥350<br><b>合計 ¥3,850</b></div><div class="rd"><span class="h">直す</span><div class="ln"><span>分類</span><b class="hl">燃料 ▾</b></div><span style="font-size:9px;font-weight:800">直した理由</span><div style="display:flex;flex-wrap:wrap;gap:3px"><span class="btn bo" style="font-size:8px">読み間違い</span><span class="btn bd" style="font-size:8px">分類違い</span><span class="btn bo" style="font-size:8px">私的支出</span><span class="btn bo" style="font-size:8px">税率違い</span></div><div style="font-size:9px;font-weight:800">仕訳　<span class="hl">車両費</span> 3,850 ／ 現金 3,850</div><span class="ok" style="font-size:9px;font-weight:800">✓ 直した記録を保存しました</span></div></div>
+<div class="r dimr"><div class="cnt"><p>今月の帳簿ができるまで</p><b>あと2件</b></div><div class="sm">直した記録<b>1件</b></div></div></div></div>
+<div class="cap"><p class="act">PCでキーE（直す）→ 分類を「燃料」に、「分類違い」を押す</p><p class="say">「直すと、理由と一緒に記録が残ります」</p><p class="see">仕訳の科目もその場で変わる</p></div></div>
+
+<!-- 6 -->
+<div class="f"><div class="hd"><span class="no">6</span><span class="tm">1:20</span><span class="tag">AIが覚える</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l focus"><div class="rc">〇〇石油 岩手町SS<br>2026/10/20<br>レギュラー 24.50L<br>小計 ¥3,745<br>(10%) ¥375<br><b>合計 ¥4,120</b></div><div class="rd"><span class="h">AIの下書き（7.9秒）</span><div class="ln"><span>店名</span><b>〇〇石油 <span class="ok">✓</span></b></div><div class="ln"><span>合計</span><b>4,120円 <span class="ok">✓</span></b></div><div class="ln"><span>分類</span><b class="hl">燃料 <span class="ok">✓</span></b></div><span class="badge">前回の修正を覚えています</span><span style="font-size:8.5px;color:var(--sub);font-weight:700">理由：同じ店を前回「燃料」に直したため</span><div class="acts"><span class="a1">E 直す</span><span class="a2">A 承認して次へ</span></div></div></div>
+<div class="r dimr"><div class="cnt"><p>今月の帳簿ができるまで</p><b>あと3件</b></div><div class="sm">AIの処理時間<b>7.9秒</b></div></div></div>
+<div class="phone"><div><i></i><em>送る</em></div></div></div>
+<div class="cap"><p class="act">2枚目（同じ店）を撮って送る</p><p class="say">「同じお店です。今度は、最初から燃料になりました」</p><p class="see">「前回の修正を覚えています」が光る。「あと3件」に増える</p></div></div>
+
+<!-- 7 -->
+<div class="f"><div class="hd"><span class="no">7</span><span class="tm">1:50</span><span class="tag">社長が承認</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l dimr" style="flex-direction:column;gap:5px"><span class="h" style="font-size:11px;font-weight:900;color:var(--accent-ink)">承認（社長）</span><div style="font-size:10px;font-weight:800;background:#fff;border-radius:5px;padding:5px">10/20 〇〇石油　車両費 4,120 ／ 現金 4,120<br><span class="ok">AIの検算：借方＝貸方 ✓</span></div><div><span class="btn bd" style="outline:2px solid var(--accent);outline-offset:1px">A 承認して次へ</span> <span class="btn bo">差し戻す</span></div><div class="feed" style="flex:none"><div><span>10/20 〇〇石油 4,120円</span><span class="ok">承認済み ✓</span></div><div><span>10/14 〇〇石油 3,850円</span><span class="ok">承認済み ✓</span></div></div></div>
+<div class="r"><div class="cnt"><p>今月の帳簿ができるまで</p><b style="white-space:nowrap;font-size:26px"><span style="color:#B8C0C4;font-size:14px">3→2→</span>あと1件</b></div><div class="sm">承認待ち<b>1件</b></div></div></div></div>
+<div class="cap"><p class="act">社長役としてキーA（承認して次へ）を3回</p><p class="say">「確定のボタンは、必ず人が押します」</p><p class="see">カードが「承認済み」に変わり、右の数字が明るくなって 3 → 2 → 1 → 0 と減る</p></div></div>
+
+<!-- 8 -->
+<div class="f"><div class="hd"><span class="no">8</span><span class="tm">2:10</span><span class="tag">山場</span></div>
+<div class="scr" style="background:var(--ink)"><div class="full"><p style="color:#E9E4DA;font-size:13px;font-weight:800">10月</p><p style="color:#F2A65A;font-size:34px;font-weight:900">あと0件</p><p style="color:#fff;font-size:20px;font-weight:900">今月の帳簿ができました</p><span class="btn" style="background:var(--accent);color:var(--ink);font-size:12px">3　Excel をダウンロード</span></div></div>
+<div class="cap"><p class="say">「これで、今月の帳簿ができました」（一呼吸おく）</p><p class="see">画面いっぱいに切り替わる</p></div></div>
+
+<!-- 9 -->
+<div class="f"><div class="hd"><span class="no">9</span><span class="tm">2:20</span><span class="tag">Excel</span></div>
+<div class="scr" style="padding:8px"><div class="xl"><div class="tb">丹内建機_帳簿_2026-10.xlsx</div><div class="ct"><table><tr><td><b>分類</b></td><td><b>合計</b></td></tr><tr><td>燃料</td><td>48,320</td></tr><tr><td>部品・修理</td><td>27,500</td></tr><tr><td>消耗品</td><td>21,940</td></tr><tr><td>通信</td><td>9,800</td></tr><tr><td>雑費</td><td>4,230</td></tr><tr><td><b>合計</b></td><td><b>111,790</b></td></tr></table><div class="pie"></div><div class="bars"><i style="height:60%"></i><i style="height:90%"></i><i style="height:40%"></i><i style="height:70%"></i></div></div><div class="tabs"><span>仕訳帳</span><span class="on">月次集計</span><span>原資料</span><span>AIの記録</span></div></div></div>
+<div class="cap"><p class="act">キー3で Excel をダウンロードして開く。仕訳帳 → 月次集計</p><p class="say">「月の集計とグラフまで、AIが作りました」</p><p class="see">帳簿が Excel になり、グラフが見える</p></div></div>
+
+<!-- 10 -->
+<div class="f"><div class="hd"><span class="no">10</span><span class="tm">2:40</span><span class="tag">数字で締める</span></div>
+<div class="scr"><div class="top"><span>AIの記録</span><span>丹内建機（デモ）・10月</span><span></span></div>
+<div class="body" style="flex-direction:column;align-items:center;justify-content:center;gap:6px"><p style="font-size:13px;font-weight:800;color:var(--sub)">AIが作った仕訳</p><p style="font-size:30px;font-weight:900">42件中 <span style="color:var(--accent-ink)">36件</span> そのまま承認</p><p style="font-size:12px;font-weight:800">一番多い直し：分類違い（4件）</p><p style="font-size:11px;color:var(--sub);font-weight:700">この記録で、次は Python 編で計算を規則にする</p></div></div>
+<div class="cap"><p class="act">キー4で AIの記録</p><p class="say">「写真は30日で消え、AIの学習には使われません。直した記録で賢くなります」</p><p class="see">その場の実測値が大きく出る</p></div></div>
+
+<!-- 11 -->
+<div class="f"><div class="hd"><span class="no">11</span><span class="tm">2:50</span><span class="tag">お願い</span></div>
+<div class="scr"><div class="full"><p style="font-size:14px;font-weight:800;color:var(--sub)">レシートは、撮って送るだけ。</p><p style="font-size:20px;font-weight:900;line-height:1.5">市内の家族経営の事業者 <span style="color:var(--accent-ink)">3社</span>で<br><span style="color:var(--accent-ink)">2週間</span>、試させてください</p><p style="font-size:10px;color:var(--sub);font-weight:700">1枚 約15円 ・ 写真は30日で削除 ・ 確定は人</p></div></div>
+<div class="cap"><p class="act">キー1でライブ画面に戻す（または最後の1枚）</p><p class="say">「市内の家族経営の事業者を3社、2週間の試用にご紹介いただけないでしょうか」</p></div></div>
+
+<!-- 12 -->
+<div class="f"><div class="hd"><span class="no">!</span><span class="tm">保険</span><span class="tag" style="background:#E8EEF2;color:var(--sub)">止まったとき</span></div>
+<div class="scr"><div class="top"><span>撮って送るだけ帳簿</span><span>丹内建機（デモ）・10月</span><span class="lv">● ライブ</span></div>
+<div class="body"><div class="l focus"><div class="rc">〇〇石油 岩手町SS<br>2026/10/14<br><b>合計 ¥3,850</b></div><div class="rd"><span class="h">少し時間がかかっています… 16秒</span><div class="ln dim"><span>分類</span><b>…</b></div><span style="font-size:9px;font-weight:800;color:var(--sub)">30秒で打ち切り → 再生モードへ</span><span class="badge" style="background:#E8EEF2;color:var(--sub)">再生</span></div></div>
+<div class="r"><div class="cnt"><p>今月の帳簿ができるまで</p><b>あと2件</b></div></div></div></div>
+<div class="cap"><p class="act">回線やAIが遅いとき：再生モード（練習の記録を同じ間隔で再生、小さく「再生」と表示）</p><p class="see">それでもだめなら、練習の録画（3分）を流す</p></div></div>
+
+</div>
+
+<p class="note"><b>決まり：</b>プロジェクターには最初から最後まで PC のライブ画面を映す。スマホは撮って送るだけ。直す・承認は PC のライブ画面の上で行う。キー 1 ライブ ／ 2 締め ／ 3 Excel ／ 4 AIの記録。<b>当日の数字はすべてその場の実測値</b>（この絵コンテの数値はイメージ）。</p>
+</body>
+</html>

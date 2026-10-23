@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>出来上がりのイメージ</title>
+<style>
+:root{--ink:#1F2A33;--sub:#55626A;--line:#E2E5E1;--bg:#F4F1EA;--card:#FFFFFF;--accent:#E8862E;--accent-ink:#A8520F;--ok:#1F6B40;--ok-bg:#E3F1E8;--warn:#9A4508;--warn-bg:#FDF0DC;--ng:#B42318;--ng-bg:#FBE4E1;--zinc:#F1F2F0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);width:1760px;padding:48px 56px 40px}
+h1{font-size:34px;font-weight:800;letter-spacing:.5px}
+.lead{font-size:18px;color:var(--sub);margin-top:8px}
+.row{display:flex;gap:36px;margin-top:36px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:14px;align-items:center}
+.cap{font-size:17px;font-weight:700;color:var(--accent-ink)}
+.who{font-size:14px;color:var(--sub)}
+.phone{width:380px;height:780px;background:var(--ink);border-radius:46px;padding:12px;box-shadow:0 18px 40px rgba(31,42,51,.18)}
+.scr{width:100%;height:100%;background:#FAFAF8;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.status{height:34px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:13px;font-weight:700}
+.top{padding:8px 20px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:#fff}
+.top b{font-size:18px}
+.top span{font-size:12px;color:var(--sub)}
+.body{flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.tabs{height:72px;border-top:1px solid var(--line);background:#fff;display:flex;justify-content:space-around;align-items:center;font-size:14px;color:#3E4A52;font-weight:600}
+.tabs div{display:flex;flex-direction:column;align-items:center;gap:4px}
+.tabs i{width:24px;height:24px;border-radius:6px;background:#6B767C;display:block}
+.tabs .on{color:var(--accent-ink);font-weight:700}.tabs .on i{background:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.b-new{background:var(--warn-bg);color:var(--warn)}.b-ok{background:var(--ok-bg);color:var(--ok)}.b-draft{background:var(--zinc);color:var(--sub)}.b-ng{background:var(--ng-bg);color:var(--ng)}
+.btn{display:flex;align-items:center;justify-content:center;border-radius:999px;font-weight:800;font-size:18px;height:56px}
+.btn-main{background:var(--accent);color:var(--ink)}
+.btn-dark{background:var(--ink);color:#fff}
+.btn-ghost{border:2px solid var(--line);color:var(--sub);font-size:15px;height:46px;font-weight:700;background:#fff}
+.receipt{background:repeating-linear-gradient(0deg,#fff,#fff 13px,#F0F0EC 13px,#F0F0EC 14px);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:"Menlo",monospace;font-size:11px;color:#444;line-height:1.55}
+.field{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 2px;font-size:17px}
+.field label{color:var(--sub);font-size:15px}
+.field .v{font-weight:700}
+.field .sel::after{content:" ▾";color:var(--sub);font-weight:400}
+.hint{font-size:15px;color:var(--sub)}
+.big{font-size:64px;font-weight:900;color:var(--accent-ink);line-height:1}
+.li{display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line);font-size:16px}
+.li b{font-size:16px}
+.num{font-weight:800;font-size:16px}
+.red{color:var(--ng)}.green{color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{color:var(--sub);font-weight:600;text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+td{padding:8px 4px;border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 12px;font-size:15px;line-height:1.5}
+.ok-note{background:var(--ok-bg);color:var(--ok);border-radius:12px;padding:10px 12px;font-size:15px;font-weight:700;text-align:center}
+.flow{margin-top:30px;display:flex;align-items:center;gap:14px;font-size:16px;color:var(--sub)}
+.flow b{color:var(--ink)}
+.foot{margin-top:14px;font-size:13px;color:var(--sub)}
+</style>
+</head>
+<body>
+<h1>撮って送るだけ帳簿 ― 出来上がりのイメージ（MVP・Livewire）</h1>
+<p class="lead">10/25 午前に本番へ出す範囲。スマホのブラウザで使う（ホーム画面に追加）。数値と名前はイメージ。<b>改訂：dlab のUI検証を反映（文字16px以上・コントラスト4.5以上・状態の描き分け）</b></p>
+
+<div class="row">
+
+<!-- 1 送る -->
+<div class="col">
+<p class="cap">① 送る（/c/丹内建機/submit）</p>
+<p class="who">現場：社長・従業員・経理担当</p>
+<div class="phone"><div class="scr">
+<div class="status"><span>9:41</span><span>●●● 4G</span></div>
+<div class="top"><b>送る</b><span>丹内建機サービス</span></div>
+<div class="body">
+<div class="card" style="display:flex;justify-content:space-between;align-items:center"><span class="hint">今月送った枚数</span><span class="num" style="font-size:22px">12 枚</span></div>
+<div style="flex:1;border:3px dashed #C9CFC8;border-radius:22px;background:#F3F4F1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+<div style="width:84px;height:66px;border-radius:14px;background:var(--ink);position:relative"><div style="position:absolute;left:24px;top:15px;width:36px;height:36px;border-radius:50%;border:6px solid #fff"></div></div>
+<p style="font-size:20px;font-weight:800">レシートを撮る</p>
+<p class="hint">押すとカメラが開きます</p>
+</div>
+<p class="hint" style="text-align:center">＋ 一言メモ（任意）</p>
+<div class="btn btn-main">撮る</div>
+</div>
+<div class="tabs"><div><i></i>ホーム</div><div class="on"><i></i>送る</div><div><i></i>原資料</div><div><i></i>仕訳</div><div><i></i>締め</div></div>
+</div></div>
+</div>
+
+<!-- 2 下書き -->
+<div class="col">
+<p class="cap">② 下書きを作る（/sources/{id}）</p>
+<p class="who">経理担当（母・editor）</p>
+<div class="phone"><div class="scr">
+<div class="status"><span>9:41</span><span>●●● 4G</span></div>
+<div class="top"><b>下書きを作る</b><span>未処理 あと4件</span></div>
+<div class="body" style="gap:8px">
+<div class="receipt">　　〇〇石油 岩手町SS<br>2026/10/14　 14:22<br>レギュラー 22.10L<br>　　　　 小計 ¥3,500<br>　　　 (10%) ¥350<br><b>　　　 合計 ¥3,850</b><br>T1234567890123</div>
+<p class="hint">送った人：社長 ・ 2日前 ・ 写真は 28日後に削除</p>
+<div class="field"><label>日付</label><span class="v">10月14日(火)</span></div>
+<div class="field"><label>取引先</label><span class="v">〇〇石油</span></div>
+<div class="field"><label>分類</label><span class="v sel">燃料</span></div>
+<div class="field"><label>金額</label><span class="v">3,850円</span></div>
+<div class="field"><label>支払い元</label><span class="v sel">現金</span></div>
+<p class="hint">仕訳：借方 車両費 3,850円 ／ 貸方 現金 3,850円</p>
+<div class="btn btn-dark" style="margin-top:auto">保存して次へ</div>
+</div>
+<div class="tabs"><div><i></i>ホーム</div><div><i></i>送る</div><div class="on"><i></i>原資料</div><div><i></i>仕訳</div><div><i></i>締め</div></div>
+</div></div>
+</div>
+
+<!-- 3 承認 -->
+<div class="col">
+<p class="cap">③ 承認（/entries/{id}）</p>
+<p class="who">社長（父・owner）</p>
+<div class="phone"><div class="scr">
+<div class="status"><span>9:41</span><span>●●● 4G</span></div>
+<div class="top"><b>仕訳の詳細</b><span>承認待ち 3件</span></div>
+<div class="body">
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="badge b-draft">下書き</span><span class="hint">作成：母 ・ 10月20日</span></div>
+<div class="card">
+<p style="font-size:13px;color:var(--sub)">10月14日(火) ・ 〇〇石油</p>
+<table style="margin-top:8px"><tr><th>借方</th><th class="r">金額</th><th>貸方</th><th class="r">金額</th></tr>
+<tr><td>車両費</td><td class="r">3,850</td><td>現金</td><td class="r">3,850</td></tr>
+<tr><td><b>合計</b></td><td class="r"><b>3,850</b></td><td></td><td class="r"><b>3,850</b></td></tr></table>
+<p class="hint green" style="margin-top:8px">✓ 借方と貸方が一致</p>
+</div>
+<div class="card" style="display:flex;gap:12px;align-items:center"><div style="width:54px;height:70px;border-radius:8px;background:repeating-linear-gradient(0deg,#fff,#fff 6px,#EEE 6px,#EEE 7px);border:1px solid var(--line)"></div><div><p style="font-weight:700;font-size:14px">根拠の写真</p><p class="hint">押すと拡大</p></div></div>
+<div class="ok-note" style="font-weight:600">重複の心配なし（同じ日付・金額・取引先の承認済み仕訳はありません）</div>
+<div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+<div class="btn btn-dark">承認して次へ</div>
+<div class="btn btn-ghost">差し戻す（理由を書く）</div>
+</div>
+</div>
+<div class="tabs"><div><i></i>ホーム</div><div><i></i>送る</div><div><i></i>原資料</div><div class="on"><i></i>仕訳</div><div><i></i>締め</div></div>
+</div></div>
+</div>
+
+<!-- 4 締めナビ -->
+<div class="col">
+<p class="cap">④ 締めナビ（/close/2026-10）</p>
+<p class="who">社長（翌月の初め）・経理担当（月末）</p>
+<div class="phone"><div class="scr">
+<div class="status"><span>9:41</span><span>●●● 4G</span></div>
+<div class="top"><b>締めナビ 10月</b><span>決算月 7月</span></div>
+<div class="body" style="gap:10px">
+<div style="text-align:center;padding:6px 0"><p class="hint">締めるまで</p><p class="big">あと3件</p></div>
+<div class="card" style="padding:6px 14px">
+<p class="hint" style="padding-top:6px">止める項目（0にする）</p>
+<div class="li"><span>下書きの仕訳</span><b class="red">1件 ›</b></div>
+<p class="hint" style="padding-top:8px">注意（理由を書けば締められる）</p>
+<div class="li"><span>未処理の原資料</span><b>2件 ›</b></div>
+<div class="li" style="border:0"><span>現金の残高（10/31）</span><b class="green">入力済み ✓</b></div>
+</div>
+<div class="card" style="padding:8px 14px">
+<table><tr><th>口座</th><th class="r">帳簿</th><th class="r">確認</th><th class="r">差</th></tr>
+<tr><td>現金</td><td class="r">48,200</td><td class="r">48,200</td><td class="r green">0</td></tr>
+<tr><td>普通預金</td><td class="r">1,203,400</td><td class="r">—</td><td class="r">—</td></tr></table>
+</div>
+<div class="btn btn-ghost" style="height:42px">現金を数えて入れる</div>
+<div class="btn" style="background:#fff;border:2px dashed #6B767C;color:#3E4A52;margin-top:auto;font-size:16px">締める（あと3件で押せます）</div>
+</div>
+<div class="tabs"><div><i></i>ホーム</div><div><i></i>送る</div><div><i></i>原資料</div><div><i></i>仕訳</div><div class="on"><i></i>締め</div></div>
+</div></div>
+</div>
+
+</div>
+
+<div class="flow"><b>撮って送る</b> → 原資料（未処理） → <b>下書き</b>（経理担当） → <b>承認</b>（社長・自分の下書きは承認できない） → 帳簿 → <b>締め</b>（0件で締める） ／ 写真は30日で自動削除</div>
+<p class="foot">次の週：通帳の明細CSVの取り込みと写真との突き合わせ・取消・招待メール・AIの読み取り（テスト環境で精度を測ってから）</p>
+</body>
+</html>

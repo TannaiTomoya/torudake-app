@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>送る画面の6つの状態</title>
+<style>
+:root{--ink:#1F2A33;--sub:#3E4A52;--line:#E2E5E1;--bg:#F4F1EA;--accent:#E8862E;--ok:#1F6B40;--ok-bg:#E3F1E8;--warn:#9A4508;--warn-bg:#FDF0DC;--ng:#B42318;--ng-bg:#FBE4E1}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1760px;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;padding:40px 48px}
+h1{font-size:30px;font-weight:900}
+.lead{font-size:17px;color:var(--sub);margin-top:6px}
+.row{display:flex;gap:22px;margin-top:28px}
+.col{flex:1;display:flex;flex-direction:column;gap:10px;align-items:center}
+.cap{font-size:17px;font-weight:800}
+.sub{font-size:14px;color:var(--sub);text-align:center;line-height:1.5;min-height:42px}
+.phone{width:262px;height:540px;background:var(--ink);border-radius:34px;padding:9px}
+.scr{width:100%;height:100%;background:#FAFAF8;border-radius:26px;display:flex;flex-direction:column;overflow:hidden}
+.top{padding:14px 16px 10px;border-bottom:1px solid var(--line);background:#fff;font-size:17px;font-weight:800}
+.body{flex:1;padding:14px;display:flex;flex-direction:column;gap:12px}
+.area{flex:1;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:10px}
+.wait{border:3px dashed #8A949A;background:#F3F4F1}
+.cam{width:62px;height:48px;border-radius:12px;background:var(--ink);position:relative}
+.cam::after{content:"";position:absolute;left:17px;top:10px;width:28px;height:28px;border-radius:50%;border:5px solid #fff;box-sizing:border-box}
+.big{font-size:18px;font-weight:800}
+.t{font-size:15px;color:var(--sub);line-height:1.5}
+.photo{width:120px;height:170px;background:repeating-linear-gradient(0deg,#fff,#fff 9px,#EEE 9px,#EEE 10px);border:2px solid var(--line);border-radius:8px}
+.btn{height:52px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800}
+.main{background:var(--accent);color:var(--ink)}
+.ghost{border:2px solid #8A949A;color:var(--sub);background:#fff;height:46px;font-size:16px}
+.busy{background:#C9CFC8;color:var(--ink)}
+.okb{background:var(--ok-bg);color:var(--ok)}
+.wb{background:var(--warn-bg);color:var(--warn)}
+.nb{background:var(--ng-bg);color:var(--ng)}
+.spin{width:44px;height:44px;border-radius:50%;border:5px solid #C9CFC8;border-top-color:var(--accent)}
+.mark{font-size:44px;font-weight:900;line-height:1}
+.n{width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:900;display:flex;align-items:center;justify-content:center;font-size:15px}
+.hd{display:flex;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<h1>送る画面の6つの状態（MVP）</h1>
+<p class="lead">1画面でやることは「撮って送る」だけ。状態ごとに表示を変え、今どうなっているかが一目で分かるようにする。文字は15px以上、ボタンは高さ46px以上。</p>
+<div class="row">
+
+<div class="col"><div class="hd"><span class="n">1</span><span class="cap">待ち</span></div><p class="sub">最初の画面。ボタンは1つだけ</p>
+<div class="phone"><div class="scr"><div class="top">送る</div><div class="body">
+<p class="t">今月送った枚数 <b>12枚</b></p>
+<div class="area wait"><div class="cam"></div><p class="big">レシートを撮る</p><p class="t">押すとカメラが開きます</p></div>
+<div class="btn main">撮る</div></div></div></div></div>
+
+<div class="col"><div class="hd"><span class="n">2</span><span class="cap">確認</span></div><p class="sub">撮った写真を見て、送るか撮り直すか</p>
+<div class="phone"><div class="scr"><div class="top">送る</div><div class="body">
+<div class="area" style="background:#fff;border:1px solid var(--line)"><div class="photo"></div><p class="t">文字が読めますか？</p></div>
+<div class="btn ghost">撮り直す</div><div class="btn main">送る</div></div></div></div></div>
+
+<div class="col"><div class="hd"><span class="n">3</span><span class="cap">送信中</span></div><p class="sub">ボタンは押せない（二重送信を防ぐ）</p>
+<div class="phone"><div class="scr"><div class="top">送る</div><div class="body">
+<div class="area" style="background:#fff;border:1px solid var(--line)"><div class="spin"></div><p class="big">送っています…</p><p class="t">2秒</p></div>
+<div class="btn busy">送っています…</div></div></div></div></div>
+
+<div class="col"><div class="hd"><span class="n">4</span><span class="cap">送れました</span></div><p class="sub">AIは裏で読み取りを始める</p>
+<div class="phone"><div class="scr"><div class="top">送る</div><div class="body">
+<div class="area okb"><span class="mark">✓</span><p class="big">送れました</p><p class="t" style="color:var(--ok)">今月 13枚目<br>AIが下書きを作ります</p></div>
+<div class="btn main">続けて撮る</div></div></div></div></div>
+
+<div class="col"><div class="hd"><span class="n">5</span><span class="cap">同じ写真</span></div><p class="sub">同じ写真は受け付けない（責めない言い方）</p>
+<div class="phone"><div class="scr"><div class="top">送る</div><div class="body">
+<div class="area wb"><span class="mark">!</span><p class="big">この写真はもう届いています</p><p class="t" style="color:var(--warn)">10月14日に送った<br>〇〇石油のレシートと同じです</p></div>
+<div class="btn main">別のレシートを撮る</div></div></div></div></div>
+
+<div class="col"><div class="hd"><span class="n">6</span><span class="cap">送れなかった</span></div><p class="sub">通信エラー。写真は手元に残る</p>
+<div class="phone"><div class="scr"><div class="top">送る</div><div class="body">
+<div class="area nb"><span class="mark">×</span><p class="big">送れませんでした</p><p class="t" style="color:var(--ng)">電波の良い所で<br>もう一度押してください</p></div>
+<div class="btn main">もう一度送る</div></div></div></div></div>
+
+</div>
+</body>
+</html>

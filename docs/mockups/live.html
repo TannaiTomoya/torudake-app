@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>ライブ画面（プロジェクター用）</title>
+<style>
+:root{--ink:#14202A;--sub:#3E4A52;--line:#D6DAD4;--bg:#FFFFFF;--panel:#F5F3EE;--accent:#E8862E;--accent-ink:#A8520F;--ok:#1F6B40;--hl:#FFE3C4}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1920px;height:1080px;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;display:flex;flex-direction:column;padding:40px 64px 32px}
+header{display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:44px;font-weight:900}
+header .co{font-size:32px;color:var(--sub);font-weight:700}
+.live{display:inline-flex;align-items:center;gap:12px;font-size:32px;font-weight:900;color:#C62828}
+.live i{width:22px;height:22px;border-radius:50%;background:#E53935;display:block}
+main{flex:1;min-height:0;display:flex;gap:40px;margin-top:22px}
+/* 今動いている所（左）は明るく、ほかは薄く */
+.left{flex:1.6;display:flex;gap:32px;background:var(--panel);border-radius:28px;padding:30px 32px;border:5px solid var(--accent)}
+.right{flex:1;display:flex;flex-direction:column;gap:22px;opacity:.6}
+.photo{width:280px;flex:none;align-self:flex-start;background:#fff;border:3px solid var(--line);border-radius:18px;padding:20px;font-family:"Menlo",monospace;font-size:20px;line-height:1.6;color:#333}
+.photo b{font-size:23px}
+.read{flex:1;display:flex;flex-direction:column;gap:8px}
+.lbl{font-size:32px;font-weight:800;color:var(--accent-ink)}
+.row{display:flex;justify-content:space-between;align-items:baseline;border-bottom:3px solid var(--line);padding:2px 0}
+.row span{font-size:32px;color:var(--sub);font-weight:700}
+.row b{font-size:42px;font-weight:900}
+.ok{color:var(--ok);font-size:34px;margin-left:10px;font-style:normal}
+.hlv{background:var(--hl);border-radius:10px;padding:0 10px}
+.memo{display:inline-block;background:var(--hl);color:var(--accent-ink);font-size:32px;font-weight:900;padding:6px 18px;border-radius:14px}
+.why{font-size:30px;color:var(--sub);font-weight:700}
+.journal{white-space:nowrap;font-size:32px;font-weight:800;background:#fff;border-radius:16px;padding:12px 20px;border:3px solid var(--line)}
+.acts{display:flex;gap:16px;margin-top:6px}
+.b{height:76px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:32px;font-weight:900;padding:0 30px}
+.b kbd{font-family:inherit;font-size:24px;font-weight:900;border-radius:8px;padding:2px 10px}
+.b1{background:#fff;border:3px solid #6B767C;color:var(--ink)}.b1 kbd{background:#E6E9E4}
+.b2{flex:1;background:var(--ink);color:#fff;outline:6px solid var(--accent);outline-offset:4px}.b2 kbd{background:#3A4752}
+.count{background:var(--ink);color:#fff;border-radius:28px;padding:20px 28px;text-align:center}
+.count p{font-size:34px;font-weight:800;color:#E9E4DA}
+.count b{display:block;white-space:nowrap;font-size:132px;font-weight:900;color:#F2A65A;line-height:1.05}
+.time{display:flex;gap:22px}
+.time div{flex:1;background:var(--panel);border-radius:22px;padding:14px 22px}
+.time p{font-size:32px;font-weight:700;color:var(--sub)}
+.time b{font-size:58px;font-weight:900}
+.feed{background:var(--panel);border-radius:22px;padding:12px 22px;flex:1;min-height:0;overflow:hidden}
+.feed p.t{font-size:32px;font-weight:800;color:var(--sub);margin-bottom:4px}
+.f{display:flex;justify-content:space-between;font-size:32px;font-weight:700;padding:4px 0;border-bottom:2px solid var(--line)}
+.f:last-child{border:0}
+.st{color:var(--ok);font-weight:900}.st.w{color:var(--accent-ink)}
+footer{margin-top:18px;display:flex;justify-content:space-between;font-size:32px;font-weight:700;color:var(--sub)}
+</style>
+</head>
+<body>
+<header>
+<h1>撮って送るだけ帳簿</h1>
+<span class="co">丹内建機（デモ）・10月</span>
+<span class="live"><i></i>ライブ</span>
+</header>
+<main>
+<section class="left">
+<div class="photo">〇〇石油 岩手町SS<br>2026/10/20 08:05<br>レギュラー 24.50L<br>小計 ¥3,745<br>(10%) ¥375<br><b>合計 ¥4,120</b><br>T1234567890123</div>
+<div class="read">
+<p class="lbl">AIが読み取りました（7.9秒）</p>
+<div class="row"><span>店名</span><b>〇〇石油<em class="ok">✓</em></b></div>
+<div class="row"><span>日付</span><b>10月20日<em class="ok">✓</em></b></div>
+<div class="row"><span>合計</span><b>4,120円<em class="ok">✓</em></b></div>
+<div class="row"><span>分類</span><b class="hlv">燃料<em class="ok">✓</em></b></div>
+<p><span class="memo">前回の修正を覚えています</span></p>
+<p class="why">理由：同じ店を前回「燃料」に直したため</p>
+<p class="journal">仕訳　車両費 4,120円 ／ 現金 4,120円</p>
+<div class="acts"><span class="b b1"><kbd>E</kbd>直す</span><span class="b b2"><kbd>A</kbd>承認して次へ</span></div>
+</div>
+</section>
+<section class="right">
+<div class="count"><p>今月の帳簿ができるまで</p><b>あと 3件</b></div>
+<div class="time">
+<div><p>AIの処理時間</p><b>7.9秒</b></div>
+<div><p>今日送った枚数</p><b>2枚</b></div>
+</div>
+<div class="feed">
+<p class="t">流れ</p>
+<div class="f"><span>08:05 〇〇石油 4,120円</span><span class="st w">下書き</span></div>
+<div class="f"><span>08:03 〇〇石油 3,850円</span><span class="st w">下書き</span></div>
+</div>
+</section>
+</main>
+<footer><span>写真は30日で自動削除 ・ AIの学習には使われない ・ 確定は人が承認</span><span>1 ライブ　2 締め　3 Excel　4 AIの記録</span></footer>
+</body>
+</html>
