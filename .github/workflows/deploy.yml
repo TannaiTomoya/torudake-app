@@ -1,0 +1,35 @@
+name: deploy
+
+# tests が main で通ったら、VPS で deploy.sh を実行する。
+# 初回の準備（docs/server/setup-torudake.sh）が終わり、secrets を登録して
+# リポジトリの変数 DEPLOY_ENABLED を true にするまでは動かない（docs/runbook.md）。
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: bash /var/www/torudake/deploy.sh

@@ -128,6 +128,36 @@ effort は L1・L3 を `low`、L2・L4・L5 を `medium` にして、思考の�
 
 **決定（案）：月の上限 $20（約3,000円）。** Anthropic のコンソールで上限を $20 にし、$10 で通知。アプリでも1社1日100回まで（超えたら手入力に切り替わり、画面に「今日のAIの上限に達しました」）。1日目の実績（ai_runs のトークン数）で見積もりを測り直す（[タイムトライアル](https://daigovideolab.jp/play/jmv0vTgatOuKJfeKWT5I?t=1343)）。
 
+### 5.2 本番のドメイン（10/24 整理。購入は本人）
+
+**前提**：ticket-app は独自ドメインを持たず、ABLENET のホスト名（`h138-248-65-29.ablenetvps.ne.jp`）だけだった。このホスト名にはサブドメインを作れない。今の構成（Livewire、02 版1.1）は**画面とサーバーが同じ Laravel なので、ドメインは1つで足りる**（07 の `app.`・`api.` の2つは不要）。新しいドメインを Cloudflare で取る。
+
+**決定（10/24）：`torudake-app.com` を Cloudflare で取得**（登録 2026-10-23 22:38 UTC、期限 2027-10-24、自動更新 ON、Status Active）。更新料は 2026-11-01 から年 $11.17。
+
+#### 決める基準
+| 基準 | 理由 |
+|---|---|
+| アプリ名と同じ言葉 | プロジェクターのアドレスバーに映る。名前は第一印象を左右する（[姓名判断の科学](https://daigovideolab.jp/play/858mtbcz7YsYZReGweTQ)） |
+| 口で伝えられる長さ・ハイフンは少なく | 副市長と市内の3社に、口頭や紙で案内する |
+| `demo`・`test` を付けない | デモのあとも同じアドレスを使い続けられる |
+| Cloudflare で取れる種類 | DNS と登録を1か所で管理する。`.jp` は Cloudflare では取れない |
+| 候補は3つまでに絞って比べる | 選択肢が多いと決めにくくなる（[決断ミスをなくす7つのアプローチ](https://daigovideolab.jp/play/CmgrIOcXQG5QlImo28aU)） |
+
+#### 候補（空きは Cloudflare の検索画面で確かめる）
+| 候補 | よい点 | 気になる点 |
+|---|---|---|
+| `torudake-app.com` | リポジトリ名と同じで、作る側が迷わない。`.com` は誰でも知っている | ハイフンが1つ入る |
+| `torudakeapp.com` | ハイフンがなく、口で言いやすい | 単語の切れ目が分かりにくい |
+| `torudake-app.app` | アプリだと一目で分かる | `.app` は HTTPS が必須（今の構成は HTTPS なので問題はない）。`.com` より少し高い |
+
+`torudake.jp`・`.com`・`.app`・`.net` は、すでに他の人が使っている（10/24 に whois で確認）。
+
+#### 取ったあとの手順
+1. Cloudflare：Domain Registration → Register Domains → 検索 → 購入。**自動更新を ON**、Cloudflare のアカウントは**2段階認証を ON**（ドメインを乗っ取られないように）
+2. DNS：種類 `A`、名前 `@`、値 `138.248.65.29`、**プロキシは「DNS のみ」（灰色の雲）**。最初は灰色にして、VPS で Let's Encrypt の証明書を取る
+3. 数分待って、`dig +short A （ドメイン）` が `138.248.65.29` を返すのを確かめる
+4. `docs/server/setup-torudake.sh` の `DOMAIN=` に書き、VPS で実行する（工程1）
+
 ## 6. dlab の知見の当て方
 
 | 知見 | 設計への当て方 |
