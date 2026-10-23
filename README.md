@@ -35,6 +35,7 @@ Laravel は「間違った数字を確定させない」ために使います。
 
 | ファイル | 内容 |
 |---|---|
+| [docs/10-first-journal-and-learning.md](docs/10-first-journal-and-learning.md) | 一次仕訳の蓄積・AIの学習・写真の30日削除・手持ち現金・テスト環境から本番への設計案 |
 | [docs/presentation-script-7min.pdf](docs/presentation-script-7min.pdf) | 発表台本（7分）。Laravelを使うポイントと台本本文 |
 
 各PDFの元は同じ名前の `.html` です。Chrome のヘッドレス印刷で PDF にしています。
