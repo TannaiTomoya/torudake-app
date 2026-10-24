@@ -1,155 +1,192 @@
 # 02｜技術仕様書 — 撮って送るだけ帳簿（torudake）
 
-版1.1・2026-10-23（**画面を Livewire に変更**。1.5日で本番に出すための最終整理）。要件は [01 要件定義書](01-requirements.md)、テーブル・画面・テストは [03 詳細設計書](03-detailed-design.md)。
+版2.0・2026-10-24。要件は [01 要件定義書](01-requirements.md)、テーブル・画面・処理・テストは [03 詳細設計書](03-detailed-design.md)、本番の手順は [runbook](runbook.md)。
 
 ---
 
-## 0. 版1.0からの変更
+## 1. 技術の構成（実装済みの版）
 
-| 項目 | 版1.0 | 版1.1（この版） | 理由 |
-|---|---|---|---|
-| 画面 | Next.js＋Laravel API（Sanctum） | **Laravel の Livewire 4（単一ファイルコンポーネント）＋ Flux UI 無料版** | ticket-app の構成（2段階認証つきログイン・CI・`deploy.sh`・VPS）をそのまま使え、作る量が約半分になる。家計版と画面を共有する理由（07 K1）はなくなった |
-| API | `/api/v1` の JSON API | **作らない**。画面の操作は Livewire のアクション、写真だけコントローラで返す | 利用者は1社3〜4人。外部連携が要るときは、Services を呼ぶ API をあとから足す |
-| 写真の保存先 | S3互換ストレージ | **MVP はサーバー内の非公開ディスク**（`storage/app/private`）。S3互換は次の週 | 30日で消すので容量は小さい。ディスクの切り替えは設定だけで済むように `Storage::disk('evidence')` を通す |
-| 二重送信の防止 | Idempotency-Key | **ボタンを処理中は押せなくする＋行ロック＋写真の SHA-256** | Livewire は同じ画面から1回ずつ送るため、キーの保存までは要らない |
-| 招待 | メールで招待 | **MVP は Artisan コマンドでメンバーを作る**。招待メールは次の週 | 使う人は家族3人 |
-
-デメリットと対処（2026-10-23に検討）：操作ごとにサーバーと通信するので、電波が弱いと反応が遅れる（「送る」は1回の送信なので影響は小さい）。スマホ側で写真を縮める処理は Alpine.js で書く（次の週）。
-
-## 1. 技術の構成
-
-| 分類 | 採用 | メモ |
+| 分類 | 採用 | 状態・メモ |
 |---|---|---|
-| 言語・フレームワーク | **PHP 8.4 ＋ Laravel 13** | ticket-app と同じ。12 はバグ修正が2026年8月で終了、13 はセキュリティ修正が2028年第1四半期まで（[公式](https://laravel.com/docs/13.x/releases)） |
-| 画面 | **Livewire 4** の単一ファイルコンポーネント（`resources/views/pages/**/⚡*.blade.php`） | Volt は使わない。写真の送信は `WithFileUploads` |
-| UI | **Flux UI 無料版 ＋ Tailwind CSS** | 足りない部品は Tailwind で組む。スマホ優先 |
-| 認証 | **Laravel Fortify（Livewire スターターキット）** | ログイン・パスワード再設定・メール確認・2段階認証（TOTP＋復旧コード）。会員登録は切る |
-| 権限 | Policy / Gate ＋ `company` ミドルウェア | 会社の所属とロールを先に確かめる |
-| DB | **MySQL 8.4** | 金額は `BIGINT` の整数円。ID は UUIDv7（`HasUuids`） |
-| 写真 | `evidence` ディスク（MVP は `local` の `storage/app/private/evidences`） | 非公開。権限を確かめるルートからだけ返す |
-| ジョブ | Laravel のスケジューラ（cron）＋ キュー（`database` ドライバ） | 写真の30日削除。Redis は使わない（MVP） |
-| AI | Anthropic Messages API（`claude-opus-5-5`） | 次の週以降。`app/Services/Ai/` のクラスだけが呼ぶ |
-| テスト・品質 | **Pest**、Larastan（PHPStan）、Pint | コミット前に `/check`（整形・静的解析・全テスト・ビルド） |
-| 開発環境 | **Laravel Sail（Docker）**：PHP・MySQL・Mailpit | コマンドは必ず Sail から（`sail artisan`、`sail composer`、`sail npm`） |
-| 本番 | **ticket-app と同じ VPS**（Ubuntu・nginx・PHP-FPM・MySQL・Let's Encrypt）。サブドメインで別のサイトとして置く | DB・ユーザー・`.env`・ディレクトリは ticket-app と分ける |
-| CI/CD | GitHub Actions：`tests.yml`（PR と main）、`deploy.yml`（main で test → VPS へ SSH で `deploy.sh`） | ticket-app のものをパスを変えて流用 |
+| 言語・フレームワーク | **PHP 8.4（開発）／8.5（本番・CI）＋ Laravel 13**（`laravel/framework ^13.17`） | 実装済み。Laravel 13 は PHP 8.3 以上 |
+| 画面 | **Livewire 4** の単一ファイルコンポーネント（`resources/views/pages/**/⚡*.blade.php`） | 実装済み（スターターキット）。Volt は使わない |
+| UI | **Flux UI 無料版 ＋ Tailwind CSS 4** | 色・文字はデザイントークン（§4.3）だけを使う |
+| 画面の組み立て | Vite（`vite-plus 1.4.0`） | `npm run build` |
+| 認証 | **Laravel Fortify**（Livewire スターターキット） | 実装済み：ログイン・パスワード再設定・メール確認・2段階認証・パスワード再確認。**会員登録とパスキーは外した** |
+| 権限 | Policy / Gate ＋ `company` ミドルウェア | 工程2で作る |
+| DB | **MySQL 8.4** | 金額は `BIGINT` の整数円。ID は UUIDv7（`HasUuids`）。users は既定の bigint のまま |
+| 写真 | `evidence` ディスク（`storage/app/private/evidences`、非公開） | S3互換は将来 |
+| ジョブ | Laravel のキュー（`database` ドライバ）＋ スケジューラ（cron 毎分） | 本番に設定済み（systemd `torudake-queue`、cron `schedule:run`） |
+| AI | Anthropic Messages API、`claude-opus-5-5`、構造化出力（JSON スキーマ） | 工程3で作る。呼ぶのは `app/Services/Ai/` だけ |
+| Excel | `phpoffice/phpspreadsheet` | 工程7で入れる |
+| テスト・品質 | **Pest 5**、Larastan（PHPStan レベル7）、Pint | 実装済み。テスト34件 |
+| 開発環境 | **Laravel Sail**：PHP 8.4・MySQL 8.4・Mailpit | 実装済み |
+| 本番 | ABLENET VPS、**Ubuntu 26.04.1**・nginx 1.28・PHP-FPM 8.5.4・Node 24・Let's Encrypt | 稼働中 https://torudake-app.com |
+| CI/CD | GitHub Actions：`tests.yml` → `deploy.yml` | 稼働中 |
+
+リポジトリ：https://github.com/TannaiTomoya/torudake-app （公開、ブランチは main）
 
 ## 2. 全体の仕組み
 
 ```
-スマホ・PC のブラウザ
-   │ HTTPS（サブドメイン）
- nginx → PHP-FPM → Laravel（Livewire の画面と操作）
-                     ├─ MySQL（正本）
-                     ├─ storage/app/private/evidences（写真。30日で削除）
-                     └─ スケジューラ（毎日3時：写真の削除）
+スマホ（撮って送る）        PC（ライブ画面 → プロジェクターにミラーリング）
+        │ HTTPS                       │ HTTPS
+        └──────── nginx → PHP-FPM → Laravel（Livewire の画面と操作）
+                                        ├─ MySQL（正本）
+                                        ├─ storage/app/private/evidences（写真。30日で削除）
+                                        ├─ キュー（database）→ AI のジョブ → Anthropic API
+                                        └─ スケジューラ（毎日3時：写真の削除）
 ```
 
-- 画面の操作（送る・下書き・承認・締め）は Livewire のアクション。**操作のたびに `$this->authorize()` で権限を確かめ直す**（`mount` だけでなく、アクションごと）。
-- 処理の本体は `app/Services/`。⚡ファイルは PHPStan が見ないため、業務のルールはクラスに置く。
-- 写真は `GET /c/{company}/evidences/{evidence}/image` を通し、Policy で確かめてからファイルを返す。ファイルの場所は URL に出さない。
+- 画面の操作（送る・直す・承認・締め）は Livewire のアクション。**操作のたびに `$this->authorize()` で確かめ直す。**
+- 処理の本体は `app/Services/`。⚡ファイルは PHPStan が読まないので、業務のルールはクラスに置く。
+- AI は送った直後にキューで動かし、画面は `wire:poll` で状態を読み直す（画面を止めない）。
+- 写真は Policy を通るコントローラからだけ返す。ファイルの場所は URL に出さない。
 
 ## 3. フォルダの使い分け
 
 | 場所 | 置くもの |
 |---|---|
-| `app/Enums/` | Role, SourceKind, SourceStatus, EntryStatus, EntryKind, Side, AccountType, BankAccountKind。表示用に `label()` と `color()` |
-| `app/Models/` | Company, Membership, Account, Category, BankAccount, Evidence, SourceRecord, JournalEntry, JournalLine, BalanceCheck, PeriodClosing, AuditLog |
+| `app/Enums/` | Role, SourceKind, SourceStatus, EntryStatus, EntryKind, Side, AccountType, BankAccountKind, AiTask, CorrectionReason。`label()` と `color()` を持つ |
+| `app/Models/` | Company, Membership, Account, Category, BankAccount, Evidence, SourceRecord, JournalEntry, JournalLine, BalanceCheck, PeriodClosing, AuditLog, AiRun, AiCorrection, AiFeedback |
 | `app/Policies/` | CompanyPolicy（土台）、SourceRecordPolicy、EvidencePolicy、JournalEntryPolicy、PeriodClosingPolicy |
-| `app/Http/Middleware/` | `EnsureCompanyMember`（`company` ミドルウェア）、`EnsureTwoFactorEnabled`、`AbsoluteSessionTimeout` |
-| `app/Livewire/Forms/` | 入力と検証のフォームオブジェクト（`DraftEntryForm`、`CashCountForm` など） |
-| `app/Services/` | SubmitEvidence、DraftEntryService、ApprovalService、CloseCheck、ClosePeriod、PurgeExpiredEvidence |
-| `app/Support/` | CloseGuard、Money |
+| `app/Http/Middleware/` | `EnsureCompanyMember`（`company`）、`EnsureTwoFactorEnabled`（`two-factor`）、`AbsoluteSessionTimeout` |
+| `app/Livewire/Forms/` | 入力と検証（`DraftEntryForm`・`CashCountForm` など） |
+| `app/Services/` | SubmitEvidence、DraftEntryService、ApprovalService、CloseService、ExcelExporter、TrainingDataExporter、PurgeExpiredEvidence |
+| `app/Services/Ai/` | `ClaudeClient`（本物）、`FakeClaudeClient`（開発・テスト）、`ReplayClaudeClient`（デモ再生）、`Tasks/`（ReadReceipt・Journalize・CheckEntry・MonthlySummary・CloseCheck） |
+| `app/Jobs/` | `ProcessEvidenceWithAi`（L1→L2） |
+| `app/Support/` | `CloseGuard`、`RemainingCount`（「あと n 件」の式） |
 | `app/Console/Commands/` | `torudake:create-company`、`torudake:add-member` |
-| `app/Http/Controllers/` | Livewire にしないもの（写真を返す） |
+| `resources/prompts/` | AIへの指示文（タスクごと、版つき） |
 | `resources/views/pages/` | 画面（03 §7） |
-| `docs/` | 設計書・runbook |
+| `docs/` | 設計書・runbook・イメージ画像（`docs/mockups/`）・本番の準備スクリプト（`docs/server/`） |
 
-## 4. コードの決まり（ticket-app から引き継ぐ）
+## 4. コードの決まり
 
+### 4.1 共通
 - 画面の文言・エラー文は日本語。日付は `isoFormat('M月D日(ddd)')`、金額は `number_format()` で「5,200円」。時刻は Asia/Tokyo。
-- 権限の判定は `app/Policies/` に書き、画面からは `$this->authorize()`。**一覧の絞り込みでも、必ず会社から引く**（`$this->company->sourceRecords()`）。Policy だけに頼らない。
-- `company_id`・`role`・各種 `status`・`created_by`・`approved_by` は一括代入させない（`$fillable` に入れない）。Livewire のプロパティの ID は `#[Locked]`。
-- 状態を変える処理は Service の `DB::transaction` の中で、対象の行を `lockForUpdate()` してから状態を確かめる。
-- 承認済みの仕訳は Model の `updating` / `deleting` で例外にする。**業務テーブルにクエリビルダの一括 `update()` / `delete()` を使わない**（Observer が動かないため）。
-- 状態は Enum で持つ。エラー文の項目名はフォームオブジェクトの `validationAttributes()` で画面の見出しにそろえる。
-- テストのデータはファクトリの state で作る（`owner()`、`editor()`、`submitOnly()`、`approved()`、`purged()` など）。
-- 機能を足したら `tests/Feature/` に Pest のテストも足し、`/check` を通す。ビューを触ったら `sail npm run build`。
-- `.env` の値・APIキー・パスワードはコードにもコミットにも入れない。
 - 会社ごとの値（会社名・決算月・分類・口座）はコードに書かない。
-- 1回の依頼で扱うのは1機能まで。終えるたびに `/check` を通してコミットする。
+- `.env` の値・APIキー・パスワードはコードにもコミットにも入れない（リポジトリは公開）。
+- 1回の作業で扱うのは1機能まで。終えるたびに `/check`（§8.1）を通してコミットする。
+
+### 4.2 サーバー側
+- 会社の画面はすべて `/c/{company}/...`。子は会社から引く（`$company->sourceRecords()->findOrFail()`）。暗黙の結合は `scopeBindings()`。他社は404。
+- 権限は Policy。一覧の絞り込みも必ず会社から引く。Policy だけに頼らない。
+- `company_id`・`role`・各種 `status`・`created_by`・`approved_by` は一括代入させない。Livewire のプロパティの ID は `#[Locked]`。
+- 状態を変える処理は Service の `DB::transaction` で、対象の行を `lockForUpdate()` してから確かめる。
+- 承認済みの仕訳は Model の `updating` / `deleting` で例外。**業務テーブルにクエリビルダの一括 `update()` / `delete()` を使わない。**
+- 外部サービス（Anthropic）を呼ぶのは `app/Services/Ai/` だけ。テストは `AI_DRIVER=fake`。
+- テストのデータはファクトリの state で作る（`owner()`・`editor()`・`submitOnly()`・`approved()`・`purged()` など）。
+
+### 4.3 画面（デザイントークン）
+`resources/css/app.css` の `@theme` に定義済み。**画面では生の色（`#…`・`zinc-500` など）を書かず、この名前を使う。**
+
+| トークン | 値 | 使う所 |
+|---|---|---|
+| `ink` / `ink-sub` | #1F2A33 / #3E4A52 | 本文・濃いボタン / 補足（白地で9.1） |
+| `paper` / `panel` / `line` | #F4F1EA / #F5F3EE / #E2E5E1 | 背景 / 区画 / 罫線 |
+| `brand` / `brand-ink` / `brand-soft` | #E8862E / #A8520F / #FFE3C4 | **強調はこの1色だけ** / オレンジの文字 / 変わった所を光らせる |
+| `ok` / `ok-soft` | #1F6B40 / #E3F1E8 | 承認済み・送れました |
+| `warn` / `warn-soft` | #9A4508 / #FDF0DC | 注意 |
+| `ng` / `ng-soft` | #B42318 / #FBE4E1 | エラー |
+| `muted` | #6B767C | アイコン・枠（白地で4.7） |
+| `text-body` / `text-note` | 16px / 15px | 本文 / 補足の最小 |
+| `text-live` / `text-live-hero` | 32px / 132px | ライブ画面の最小 / 「あと n 件」 |
+
+- 文字のコントラストは4.5以上、アイコン・枠は3.0以上。
+- 今動いている所だけをオレンジの枠で明るくし、ほかは不透明度60%。
+- 選んでいるボタンには太いオレンジの枠（フォーカス）。
 
 ## 5. 認証とセッション
 
+| 項目 | 決まり | 状態 |
+|---|---|---|
+| 方式 | Fortify のセッション認証 | 済み |
+| 会員登録 | なし（`/register` は404。テスト T01） | 済み |
+| メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール | 工程2 |
+| 2段階認証 | TOTP＋復旧コード。**有効にしていない人は会社の画面に入れず、設定画面へ回す**（`two-factor`） | 工程2 |
+| セッション | 操作がなければ2時間。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） | 工程2 |
+| パスワード | 12文字以上。漏えい済みは拒否 | 工程2 |
+
+## 6. AI（Anthropic）の決まり
+
 | 項目 | 決まり |
 |---|---|
-| 方式 | Fortify（スターターキット）のセッション認証 |
-| 会員登録 | なし（`Features::registration()` を外し、`/register` は404） |
-| メンバーの作成 | MVP は `sail artisan torudake:add-member {company} {email} {role} [--submit-only]`。仮のパスワードは表示せず、パスワード再設定のメールを送る（メールの持ち主の確認を兼ね、`email_verified_at` を入れる） |
-| 2段階認証 | TOTP＋復旧コード。**有効にしていない人は、会社の画面に入れず設定画面へ回す**（`EnsureTwoFactorEnabled`） |
-| セッション | 操作がなければ2時間で切れる。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） |
-| パスワード | 12文字以上。漏えい済みは拒否（`Password::uncompromised()`） |
-| レート制限 | ログイン5回/分（Fortify 既定）。写真の送信は1人30枚/時 |
-| 復旧コード | 紙に印刷して父が保管 |
+| モデル | `claude-opus-5-5`。effort は L1・L3 を `low`、L2・L4・L5 を `medium` |
+| 呼び出し | Laravel の HTTP クライアントで Messages API。写真はその場で base64。**Files API・Batch は使わない**（保存されるため） |
+| 出力 | 構造化出力（JSON スキーマ）。スキーマに実データを書かない。形が違えば保存せず、やり直しは1回まで |
+| 会社の分離 | プロンプトに入れる直した例は、その会社の最近20件だけ |
+| 記録 | 呼ぶたびに `ai_runs` に入力（写真は入れない）・出力・トークン数・時間・成否を残す |
+| 失敗 | 30秒で打ち切り。原資料は残り、人が手で下書きを作れる |
+| 上限 | アプリで1社1日100回。超えたら手入力に切り替え、画面に表示。コンソールで月 $20 |
+| 切り替え | `AI_DRIVER=claude`（本物）／`fake`（開発・自動テスト）／`replay`（デモ再生：同じ写真の練習時の出力を再生） |
+| キー | `ANTHROPIC_API_KEY` は本番の `.env` だけ。リポジトリ・画面に出さない |
 
-## 6. 写真とデータの安全
+## 7. 写真とデータの安全
 
 | 心配なこと | 対策 |
 |---|---|
-| 他社のデータを見られる（IDの付け替え） | ID は UUIDv7。ルートは `/c/{company}/...` で、子は会社から `findOrFail`（他社は404）。`company` ミドルウェアで所属を確かめる。テストで全画面を回す |
-| 写真の URL が漏れる | 非公開ディスクに置き、Policy を通るルートからだけ返す。ファイル名は UUIDv7、元のファイル名は使わない。応答に `Cache-Control: private, no-store` |
-| 画像以外のファイル | `mimetypes:image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf` と `max:10240`。拡張子は中身から決める |
-| 同じ写真の二重送信 | SHA-256 と `UNIQUE(company_id, sha256)`。ボタンは処理中 `wire:loading.attr="disabled"` |
-| 写真が長く残る | 毎日3時に30日を過ぎた写真を削除。バックアップに写真は含めない（DB だけ） |
-| Livewire のプロパティの書き換え | ID は `#[Locked]`。アクションごとに Policy で確かめ直す |
-| 承認済みの数字が変わる | Model で拒否、取消は反対仕訳（次の週） |
-| AI に本番を壊される | 本番の SSH・DB の資格情報は AI のツールに渡さない。本番での操作は `deploy.sh` だけを人が実行（または CI が実行） |
+| 他社のデータを見られる | UUIDv7、会社から引く、`company` ミドルウェア、全画面のテスト |
+| 写真の URL が漏れる | 非公開ディスク、Policy を通るルートだけ、ファイル名は UUIDv7、`Cache-Control: private, no-store` |
+| 画像以外のファイル | `mimetypes`（JPEG・PNG・WebP・HEIC・PDF）と10MB |
+| 二重送信 | SHA-256 と `UNIQUE(company_id, sha256)`、処理中はボタンを押せない |
+| 写真が長く残る | 毎日3時に30日を過ぎた写真を削除。DB のバックアップに写真は入らない |
+| AI に本番を壊される | AI は JSON を返すだけ。保存はコード、承認は人。本番の SSH・DB を AI のツールに渡さない |
 
-## 7. 環境とリリース
+## 8. 環境・テスト・リリース
 
-### 7.1 環境
-| 環境 | データ | 目的 |
-|---|---|---|
-| 開発（自分のPC、Sail） | シーダーの架空データ | 作る・自動テスト |
-| 本番（ticket-app と同じ VPS、サブドメイン） | 実データ | 丹内建機で使う |
+### 8.1 検査（コミットの前に毎回、Sail で）
+```bash
+vendor/bin/sail composer test
+```
+中身：設定キャッシュのクリア → Pint → Larastan → Pest。ビューを触ったら `vendor/bin/sail npm run build` も。Claude Code では `/check`（`.claude/commands/check.md`）。
 
-テスト環境（ステージング）は次の週に作る。それまでは「本番に出す前のバックアップ」と「戻す手順」を必ず踏む。本番の実データは開発に持ち込まない。
-
-### 7.2 本番の構成（ticket-app に足すもの）
+### 8.2 開発環境（Sail）
 | 項目 | 値 |
 |---|---|
-| 置き場所 | `/var/www/torudake`（ticket-app と別のディレクトリ） |
-| DB | `torudake` データベースと専用ユーザー（ticket-app の DB には触れない） |
-| nginx | サブドメインのサーバーブロック、`client_max_body_size 13m;` |
-| PHP | `upload_max_filesize=12M`、`post_max_size=13M` |
-| HTTPS | Let's Encrypt（certbot） |
-| cron | `* * * * * php /var/www/torudake/artisan schedule:run` |
-| キュー | MVP は使わない（30日削除はスケジューラから直接） |
-| バックアップ | 毎日 `mysqldump` を30日分。デプロイの前にも1回 |
+| 起動 | `vendor/bin/sail up -d` |
+| 画面 | http://localhost:8081 |
+| MySQL | localhost:3307（DB `torudake`、テストは `testing`） |
+| Mailpit | http://localhost:8026 |
+| 注意 | フォルダ名が日本語なので `.env` の `COMPOSE_PROJECT_NAME=torudake` が必要。`node_modules` はコンテナで入れたので、**Mac で `npm run dev` は動かない**（Sail の中で動かす） |
 
-### 7.3 CI/CD
+### 8.3 本番（稼働中）
+| 項目 | 値 |
+|---|---|
+| URL | https://torudake-app.com（Cloudflare DNS、A `@` → 138.248.65.29、**DNS only**） |
+| 証明書 | Let's Encrypt、期限 2027-01-21、certbot が自動更新 |
+| 置き場所 | `/var/www/torudake`（持ち主 `ubuntu`、グループ `www-data`） |
+| DB | `torudake`（ユーザー `torudake`、パスワードは VPS の `/root/.torudake-db-password` と `.env` だけ） |
+| 定期実行 | cron `* * * * * php artisan schedule:run`（ubuntu） |
+| ジョブ | systemd `torudake-queue` |
+| メール | 当面 `log`（送らない）。送る設定は runbook §6 |
+| 初回の準備 | `docs/server/setup-torudake.sh`（何度実行しても壊れない。Ubuntu 以外では止まる） |
+
+### 8.4 CI/CD
 | ワークフロー | いつ | 中身 |
 |---|---|---|
-| `tests.yml` | PR と main への push | MySQL 8.4 をサービスコンテナで起動し、Pint・Larastan・Pest・`npm run build` |
-| `deploy.yml` | main への push（tests が通ったら） | VPS へ SSH して `deploy.sh`（バックアップ → `git pull` → `composer install --no-dev` → `migrate --force` → `npm ci && npm run build` → キャッシュ → PHP-FPM 再読み込み） |
+| `tests.yml` | PR と main への push | MySQL 8.4 をサービスコンテナで、PHP 8.5、`composer setup` → `composer ci:check` |
+| `deploy.yml` | `tests` が main で成功したあと（または手動） | VPS に SSH して `deploy.sh`：**DB のバックアップ** → `git pull` → `composer install --no-dev` → `npm ci && npm run build` → `migrate --force` → `optimize` → `queue:restart`。`DEPLOY_ENABLED=true` のときだけ動く（設定済み） |
 
-secrets は `gh secret set` で登録する（ticket-app で詰まった点）。
+secrets：`SSH_HOST`・`SSH_USER`（ubuntu）・`SSH_PRIVATE_KEY`（camp_actions）。登録済み。
 
-### 7.4 本番に出す手順（毎回同じ）
-1. 開発で `/check` が通る
-2. PR → main へマージ（CI が通っていること）
-3. `deploy.yml` が DB をバックアップしてから反映する
-4. 反映後の確認：ログイン・送る・下書き・承認・締めナビ（`docs/runbook.md` のチェックリスト）
-5. おかしければ、runbook の「戻す」手順（前のコミットに戻して `deploy.sh`、必要なら DB を復元）
+### 8.5 本番に出す手順（毎回同じ）
+1. 手元で `/check` が通る
+2. main に push（またはPRをマージ）
+3. `tests` → `deploy` が自動で走る
+4. runbook §2 のチェックリストで確かめる
+5. おかしければ runbook §3 で戻す
 
-## 8. 外部の値（`.env`）
+## 9. 外部の値（`.env`）
 
-| キー | 中身 |
-|---|---|
-| `APP_URL` | 本番のサブドメイン |
-| `APP_TIMEZONE` / `APP_LOCALE` | `Asia/Tokyo` / `ja` |
-| `DB_*` | `torudake` 専用 |
-| `MAIL_*` | パスワード再設定のメール（ticket-app と同じ送信元の設定を流用） |
-| `EVIDENCE_DISK` / `EVIDENCE_RETENTION_DAYS` | `local` / `30` |
-| `SEED_OWNER_EMAIL` / `SEED_OWNER_PASSWORD` | 本番の最初の owner。空なら止める |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | 次の週以降。MVP では空 |
+| キー | 開発 | 本番 |
+|---|---|---|
+| `APP_URL` | http://localhost:8081 | https://torudake-app.com |
+| `APP_TIMEZONE` / `APP_LOCALE` | Asia/Tokyo / ja | 同じ |
+| `DB_*` | Sail（mysql / torudake / sail） | 127.0.0.1 / torudake / torudake |
+| `MAIL_MAILER` | smtp（Mailpit） | log |
+| `EVIDENCE_DISK` / `EVIDENCE_RETENTION_DAYS` | local / 30 | 同じ |
+| `AI_DRIVER` | fake | claude（デモの保険は replay） |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | 空でよい / claude-opus-5-5 | 本番のキー / claude-opus-5-5 |
+| `AI_DAILY_LIMIT` | 100 | 100 |
+| `COMPOSE_PROJECT_NAME` ほか Sail のポート | torudake・8081・3307・8026 | 使わない |

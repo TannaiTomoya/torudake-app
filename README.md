@@ -8,7 +8,7 @@
 
 ## 状態
 
-設計が終わり、実装に入る段階です（2026-10-24〜）。作る順番は [詳細設計書 §10](docs/03-detailed-design.md) のとおりです。
+デモ版（LLM編）を実装中です。土台（工程0）と本番 https://torudake-app.com （工程1、自動デプロイ）は済み。次は工程2（会社と権限）で、作る順番は [詳細設計書 §10](docs/03-detailed-design.md) のとおりです。
 
 ## 主な機能（予定）
 
@@ -41,7 +41,7 @@ Laravel は「間違った数字を確定させない」ために使います。
 | [docs/04-demo-llm-edition.md](docs/04-demo-llm-edition.md) | **デモ版（LLM編）**：計算・判断をすべて Claude に任せ、Excel に出力し、学習データを Python編へ渡す。10/25午前までの時間割 |
 | [docs/10-first-journal-and-learning.md](docs/10-first-journal-and-learning.md) | 経緯の記録：一次仕訳の蓄積・AIの学習・写真の30日削除・Anthropicの規約の確認結果 |
 
-食い違いがあるときは 01〜03 を正とします。ただし、今作っているデモ版では 04 を正とします（デモ版 → Python編 → 実務版の順に進化させる）。
+01〜03（版2.0）が開発の正本です。04 はデモの演出の記録です。AI エージェント（Cursor・Claude Code）向けの決まりは [AGENTS.md](AGENTS.md) にあります。
 | [docs/presentation-script-7min.pdf](docs/presentation-script-7min.pdf) | 発表台本（7分）。Laravelを使うポイントと台本本文 |
 
 各PDFの元は同じ名前の `.html` です。Chrome のヘッドレス印刷で PDF にしています。
