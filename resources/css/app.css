@@ -43,6 +43,7 @@
     --text-body: 1rem;             /* 本文は16px以上 */
     --text-note: 0.9375rem;        /* 補足は15px以上 */
     --text-live: 2rem;             /* ライブ画面の最小 32px */
+    --text-live-lg: 3rem;          /* ライブ画面の読み取った値 */
     --text-live-hero: 8.25rem;     /* ライブ画面の「あと n 件」 */
 
     --color-accent: var(--color-ink);
@@ -86,3 +87,18 @@ select:focus[data-flux-control] {
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/* ライブ画面：新しい1件はすべり込み、新しく出た値・変わった値は1秒だけ薄いオレンジ（docs/04 §7.6） */
+@keyframes live-slide-in {
+    from { opacity: 0; transform: translateY(-2rem); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes live-reveal {
+    0% { opacity: 0; transform: translateY(-0.5rem); background-color: var(--color-brand-soft); }
+    25% { opacity: 1; transform: none; background-color: var(--color-brand-soft); }
+    100% { background-color: transparent; }
+}
+
+.live-slide-in { animation: live-slide-in 0.4s ease-out both; }
+.live-reveal { animation: live-reveal 1.4s ease-out both; }

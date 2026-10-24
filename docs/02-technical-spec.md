@@ -94,7 +94,7 @@
 | `ng` / `ng-soft` | #B42318 / #FBE4E1 | エラー |
 | `muted` | #6B767C | アイコン・枠（白地で4.7） |
 | `text-body` / `text-note` | 16px / 15px | 本文 / 補足の最小 |
-| `text-live` / `text-live-hero` | 32px / 132px | ライブ画面の最小 / 「あと n 件」 |
+| `text-live` / `text-live-lg` / `text-live-hero` | 32px / 48px / 132px | ライブ画面の最小 / 読み取った値 / 「あと n 件」 |
 
 - 文字のコントラストは4.5以上、アイコン・枠は3.0以上。
 - 今動いている所だけをオレンジの枠で明るくし、ほかは不透明度60%。

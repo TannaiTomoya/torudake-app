@@ -29,7 +29,7 @@ class SubmitEvidence
         'application/pdf' => 'pdf',
     ];
 
-    public function submit(Company $company, User $user, UploadedFile $file, ?string $note = null): SubmitResult
+    public function submit(Company $company, User $user, UploadedFile $file, ?string $note = null, ?string $batchId = null): SubmitResult
     {
         $path = $file->getRealPath();
         $sha256 = $path !== false ? hash_file('sha256', $path) : false;
@@ -52,7 +52,7 @@ class SubmitEvidence
         $disk->putFileAs($directory, $file, $fileName);
 
         try {
-            $source = DB::transaction(function () use ($company, $user, $file, $note, $sha256, $mime, $storageKey): SourceRecord {
+            $source = DB::transaction(function () use ($company, $user, $file, $note, $batchId, $sha256, $mime, $storageKey): SourceRecord {
                 $evidence = new Evidence;
                 $evidence->forceFill([
                     'company_id' => $company->id,
@@ -72,6 +72,7 @@ class SubmitEvidence
                     'ai_status' => AiStatus::Waiting,
                     'ai_stage' => '受け取り',
                     'evidence_id' => $evidence->id,
+                    'batch_id' => $batchId,
                     'note' => $note !== null && trim($note) !== '' ? trim($note) : null,
                     'submitted_by' => $user->id,
                 ])->save();
