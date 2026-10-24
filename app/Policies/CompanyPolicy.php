@@ -8,6 +8,22 @@ use App\Models\User;
 
 class CompanyPolicy
 {
+    /** 2段階認証がまだの人にも許す。「最初にやること」のカードを出す画面を開くためだけ */
+    private const ALLOWED_BEFORE_TWO_FACTOR = ['member', 'viewHome', 'viewSubmit'];
+
+    /**
+     * 2段階認証がまだの人は、カードを出す画面を開く以外はすべて拒む（docs/02 §5）。
+     * Livewire のアクションにはルートの two-factor がかからないので、ここで確かめる。
+     */
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->two_factor_confirmed_at === null && ! in_array($ability, self::ALLOWED_BEFORE_TWO_FACTOR, true)) {
+            return false;
+        }
+
+        return null;
+    }
+
     public function member(User $user, Company $company): bool
     {
         return $this->activeMembership($user, $company) !== null;
@@ -24,19 +40,20 @@ class CompanyPolicy
         return true;
     }
 
+    /**
+     * 送る画面を開く。2段階認証がまだなら、カードだけが出る。
+     */
+    public function viewSubmit(User $user, Company $company): bool
+    {
+        return $this->canSubmit($user, $company);
+    }
+
+    /**
+     * 写真を選ぶ・送る（2段階認証が済んだ人だけ。before で確かめる）。
+     */
     public function submit(User $user, Company $company): bool
     {
-        $membership = $this->activeMembership($user, $company);
-
-        if ($membership === null) {
-            return false;
-        }
-
-        if ($membership->submit_only) {
-            return true;
-        }
-
-        return $membership->role->canSubmit();
+        return $this->canSubmit($user, $company);
     }
 
     public function viewSources(User $user, Company $company): bool
@@ -132,6 +149,21 @@ class CompanyPolicy
         }
 
         return $membership->role->canManageSettings();
+    }
+
+    private function canSubmit(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null) {
+            return false;
+        }
+
+        if ($membership->submit_only) {
+            return true;
+        }
+
+        return $membership->role->canSubmit();
     }
 
     private function activeMembership(User $user, Company $company): ?Membership
