@@ -301,7 +301,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                      data-current-source="{{ $current->id }}" data-open="{{ $isOpen ? '1' : '0' }}" data-editing="{{ $isEditing ? '1' : '0' }}" data-can-save="{{ $canSave || $isEditing ? '1' : '0' }}" data-test="live-current">
                     <div class="flex min-h-0 flex-1 gap-6">
                         <div class="w-1/3 shrink-0 overflow-hidden rounded-2xl border border-line bg-paper">
-                            @if ($current->evidence === null || $current->evidence->storage_key === null)
+                            @if ($current->evidence === null || $current->evidence->isPurged())
                                 <div class="flex size-full items-center justify-center p-4 text-center font-bold text-ink-sub" data-test="live-photo-purged">写真は保存期間が過ぎたため削除しました</div>
                             @elseif (str_starts_with($current->evidence->mime, 'image/'))
                                 <img src="{{ route('company.evidences.image', [$company, $current->evidence->id]) }}" alt="送られた写真" class="size-full object-contain">

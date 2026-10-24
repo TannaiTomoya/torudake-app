@@ -194,12 +194,12 @@ new #[Title('直して確定')] class extends Component {
     <div class="grid gap-6 lg:grid-cols-2">
         <div class="space-y-3">
             <div class="overflow-hidden rounded-xl border border-line bg-panel">
-                @if ($source->evidence?->isPurged())
-                    <p class="p-6 text-center text-ink-sub">写真は30日を過ぎたので消しました。</p>
-                @elseif ($source->evidence?->isImage())
+                @if ($source->evidence === null || $source->evidence->isPurged())
+                    <p class="p-6 text-center font-bold text-ink-sub" data-test="source-photo-purged">写真は保存期間が過ぎたため削除しました</p>
+                @elseif ($source->evidence->isImage())
                     <img src="{{ route('company.evidences.image', [$company, $source->evidence_id]) }}" alt="送られた写真" class="w-full object-contain">
                 @else
-                    <a href="{{ route('company.evidences.image', [$company, $source->evidence_id]) }}" target="_blank" class="block p-6 text-center font-bold text-brand-ink underline">PDF を開く</a>
+                    <a href="{{ route('company.evidences.image', [$company, $source->evidence_id]) }}" target="_blank" class="block p-6 text-center font-bold text-brand-ink underline">{{ $source->evidence->mime === 'application/pdf' ? 'PDF を開く' : '写真を開く' }}</a>
                 @endif
             </div>
             @if ($source->ai_status === AiStatus::Failed)
