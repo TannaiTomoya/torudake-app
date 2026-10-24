@@ -5,6 +5,7 @@ use App\Enums\CorrectionReason;
 use App\Enums\EntryStatus;
 use App\Enums\Role;
 use App\Enums\SourceStatus;
+use App\Models\AiCorrection;
 use App\Models\SourceRecord;
 use App\Services\Ai\FakeClaudeClient;
 use App\Services\SubmitEvidence;
@@ -86,6 +87,47 @@ test('ライブ画面：E で直して理由を選び S で確定。理由がな
     $entry = $source->refresh()->journalEntry()->with('category')->firstOrFail();
     expect($entry->status)->toBe(EntryStatus::Confirmed)
         ->and($entry->category?->name)->toBe('燃料');
+});
+
+test('台本の場面：支払い元を現金→社長の立替に直すと、同じ店の2枚目は「前回の修正を覚えています」で社長の立替になる', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    $first = sendReceipt($company, $owner);
+    $advance = bankAccountId($company, '社長の立替');
+
+    $this->actingAs($owner)->get(route('company.live', $company))->assertSee('支払い元')->assertSee('現金');
+
+    Livewire::actingAs($owner)
+        ->test('pages::company.live', ['company' => $company])
+        ->call('startEdit', $first->id)
+        ->assertSee('支払い元違い')
+        ->set('bankAccountId', $advance)
+        ->set('reason', CorrectionReason::WrongPayment->value)
+        ->call('save', $first->id)
+        ->assertHasNoErrors();
+
+    $correction = AiCorrection::query()->sole();
+    expect($correction->field)->toBe('credit_account')
+        ->and($correction->before)->toBe('現金')
+        ->and($correction->after)->toBe('社長の立替')
+        ->and($correction->reason)->toBe(CorrectionReason::WrongPayment)
+        ->and($correction->kernel)->toBe('vendor:〇〇石油 八幡平店→payment:社長の立替');
+
+    $second = sendReceipt($company, $owner, 410);
+    $entry = $second->journalEntry()->with(['bankAccount', 'lines.account'])->firstOrFail();
+
+    expect($entry->bankAccount?->name)->toBe('社長の立替')
+        ->and($entry->lines[1]->account?->name)->toBe('役員借入金')
+        ->and($entry->ai_check['remembered'] ?? null)->toBeTrue()
+        ->and($entry->ai_check['reason'] ?? null)->toBe('前回、同じ店の支払い元を社長の立替に直したため');
+
+    $this->actingAs($owner)->get(route('company.live', $company))
+        ->assertSee('前回の修正を覚えています')
+        ->assertSee('社長の立替')
+        ->assertSee('仕訳　消耗品費 3,850円 ／ 役員借入金 3,850円');
+
+    $sheet = journalSheet($company);
+    expect($sheet->getCell([7, 2])->getValue())->toBe('役員借入金')
+        ->and($sheet->getCell([13, 2])->getValue())->toBe('直した');
 });
 
 test('ライブ画面：金額の記載がないときは S を押せず、E で金額を入れると確定できる', function (): void {

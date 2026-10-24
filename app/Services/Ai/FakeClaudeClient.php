@@ -99,17 +99,20 @@ class FakeClaudeClient implements AiClient
         $vendor = is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null;
 
         $categoryName = '消耗品';
+        $rememberedPayment = null;
         $remembered = false;
 
         foreach (is_array($input['corrections'] ?? null) ? $input['corrections'] : [] as $correction) {
-            if (is_array($correction)
-                && ($correction['field'] ?? null) === 'category'
-                && $vendor !== null
-                && ($correction['vendor'] ?? null) === $vendor
-                && is_string($correction['after'] ?? null)) {
+            if (! is_array($correction) || $vendor === null || ($correction['vendor'] ?? null) !== $vendor || ! is_string($correction['after'] ?? null)) {
+                continue;
+            }
+
+            if (($correction['field'] ?? null) === 'category' && $categoryName === '消耗品' && ! $remembered) {
                 $categoryName = $correction['after'];
                 $remembered = true;
-                break;
+            } elseif (($correction['field'] ?? null) === 'credit_account' && $rememberedPayment === null) {
+                $rememberedPayment = $correction['after'];
+                $remembered = true;
             }
         }
 
@@ -130,13 +133,20 @@ class FakeClaudeClient implements AiClient
                 $bankAccountName = $bankAccount['name'];
             }
         }
+        if ($rememberedPayment !== null) {
+            $bankAccountName = $rememberedPayment;
+        }
 
         return [
             'category' => $categoryName,
             'description' => ($vendor ?? '取引先不明').'　'.$categoryName,
             'bank_account' => $bankAccountName,
             'vendor' => $vendor,
-            'reason' => $remembered ? '前回、同じ店を直した例があるため' : '品目から消耗品と判断したため',
+            'reason' => match (true) {
+                $rememberedPayment !== null => "前回、同じ店の支払い元を{$rememberedPayment}に直したため",
+                $remembered => '前回、同じ店を直した例があるため',
+                default => '品目から消耗品と判断したため',
+            },
             'confidence' => $remembered ? 0.92 : 0.55,
             'remembered' => $remembered,
         ];

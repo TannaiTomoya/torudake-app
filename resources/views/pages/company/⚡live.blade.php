@@ -61,7 +61,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     #[Computed]
     public function current(): ?SourceRecord
     {
-        $with = ['evidence', 'journalEntry.lines.account', 'journalEntry.category'];
+        $with = ['evidence', 'journalEntry.lines.account', 'journalEntry.category', 'journalEntry.bankAccount'];
 
         if ($this->editingSourceId !== '') {
             $pinned = $this->company->sourceRecords()->with($with)->find($this->editingSourceId);
@@ -263,6 +263,9 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     }
     if ($entry?->category !== null) {
         $rows['分類'] = $entry->category->name;
+    }
+    if ($entry?->bankAccount !== null) {
+        $rows['支払い元'] = $entry->bankAccount->name;
     }
     $done = $this->remaining === 0 && $this->confirmedThisMonth > 0;
 @endphp

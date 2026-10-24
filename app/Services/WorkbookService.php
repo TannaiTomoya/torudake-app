@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Enums\ConcernFlag;
 use App\Enums\EntryStatus;
 use App\Enums\Side;
+use App\Models\AiCorrection;
 use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\JournalLine;
@@ -253,7 +253,7 @@ class WorkbookService
             'confirmed_at' => $entry->confirmed_at === null ? null : Date::PHPToExcel($entry->confirmed_at),
             'ai' => match (true) {
                 $entry->ai_run_id === null => '手入力',
-                in_array(ConcernFlag::Corrected->value, $entry->concern_flags ?? [], true) => '直した',
+                AiCorrection::query()->where('journal_entry_id', $entry->id)->exists() => '直した',
                 default => 'AIのまま',
             },
         ];

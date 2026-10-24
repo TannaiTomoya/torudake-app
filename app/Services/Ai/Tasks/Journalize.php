@@ -17,7 +17,7 @@ use App\Services\Ai\AiTaskRunner;
  */
 class Journalize
 {
-    public const PROMPT_VERSION = 'journalize.v2';
+    public const PROMPT_VERSION = 'journalize.v3';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 
