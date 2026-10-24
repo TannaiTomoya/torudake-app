@@ -2,7 +2,7 @@
     $navUser = auth()->user();
     $navCompany = request()->route('company');
     if (! $navCompany instanceof \App\Models\Company) {
-        $navCompany = $navUser?->primaryActiveMembership()?->company;
+        $navCompany = $navUser?->homeMembership()?->company;
     }
     $navMembership = $navCompany !== null ? $navUser?->activeMembershipFor($navCompany) : null;
     $submitOnly = $navMembership?->submit_only === true;

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Company;
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,6 +29,10 @@ class EnsureCompanyMember
             if (! in_array($routeName, ['company.submit', 'company.evidences.image'], true)) {
                 abort(403);
             }
+        }
+
+        if ($request->hasSession()) {
+            $request->session()->put(User::CURRENT_COMPANY_SESSION_KEY, $company->id);
         }
 
         return $next($request);

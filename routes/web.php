@@ -10,21 +10,15 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 $dispatchAuthenticatedUser = function (User $user): RedirectResponse|View {
-    $membership = $user->primaryActiveMembership();
-
-    if ($membership !== null && $membership->company !== null) {
-        if ($user->two_factor_confirmed_at === null) {
-            return redirect()->route('security.edit');
-        }
-
-        if ($membership->submit_only) {
-            return redirect()->route('company.submit', $membership->company);
-        }
-
-        return redirect()->route('company.home', $membership->company);
+    if ($user->homeMembership() === null) {
+        return view('dashboard');
     }
 
-    return view('dashboard');
+    if ($user->two_factor_confirmed_at === null) {
+        return redirect()->route('security.edit');
+    }
+
+    return redirect()->to($user->homeUrl());
 };
 
 Route::get('/', function (Request $request) use ($dispatchAuthenticatedUser): RedirectResponse|View {

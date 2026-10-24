@@ -78,6 +78,19 @@ new class extends Component {
 
         $this->closeModal();
         $this->dispatch('two-factor-enabled');
+        $this->redirectHome();
+    }
+
+    /**
+     * 設定し終えたら、その人の最初の画面へ移す（復旧コードは設定の画面でいつでも見られる）。
+     */
+    private function redirectHome(): void
+    {
+        $user = auth()->user();
+
+        if ($user !== null && $user->homeMembership() !== null) {
+            $this->redirect($user->homeUrl(), navigate: true);
+        }
     }
 
     /**
@@ -94,6 +107,7 @@ new class extends Component {
         $this->closeModal();
 
         $this->dispatch('two-factor-enabled');
+        $this->redirectHome();
     }
 
     /**

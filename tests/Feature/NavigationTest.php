@@ -2,6 +2,10 @@
 
 use App\Enums\EntryStatus;
 use App\Enums\Role;
+use App\Models\User;
+use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
+use Livewire\Livewire;
+use PragmaRX\Google2FA\Google2FA;
 
 beforeEach(fn () => $this->travelTo(now()->setDate(2026, 10, 24)->setTime(9, 0)));
 
@@ -101,4 +105,80 @@ test('メニューの「設定」「ログアウト」は日本語', function ()
         ->assertSee('設定')
         ->assertDontSee('Log out')
         ->assertDontSee('>Settings<', false);
+});
+
+test('送るだけの人：送る画面の右上に設定・ログアウト、設定の画面に「送る画面へ戻る」', function (): void {
+    ['company' => $company, 'user' => $worker] = createCompanyWithMember(Role::Editor, submitOnly: true);
+    ['user' => $editor] = createCompanyWithMember(Role::Editor, company: $company);
+
+    $this->actingAs($worker)->get(route('company.submit', $company))
+        ->assertSee('data-test="submit-settings"', false)
+        ->assertSee('data-test="submit-logout"', false);
+    $this->actingAs($worker)->get(route('profile.edit'))
+        ->assertSee('data-test="back-to-home"', false)
+        ->assertSee('送る画面へ戻る')
+        ->assertSee(route('company.submit', $company));
+
+    $this->actingAs($editor)->get(route('company.submit', $company))
+        ->assertDontSee('data-test="submit-settings"', false);
+});
+
+test('admin も設定の画面から「ホームへ戻る」で会社のホームに戻れる', function (): void {
+    ['company' => $company, 'user' => $admin] = createCompanyWithMember(Role::Admin);
+
+    $this->actingAs($admin)->get(route('profile.edit'))
+        ->assertSee('ホームへ戻る')
+        ->assertSee(route('company.home', $company));
+});
+
+test('2社に入っている人は、設定の「戻る」もログイン後の振り分けも、今の会社（最後に開いた会社）に戻る', function (): void {
+    ['company' => $first, 'user' => $user] = createCompanyWithMember(Role::Admin);
+    ['company' => $second] = createCompanyWithMember(Role::Owner);
+    createCompanyWithMember(Role::Editor, submitOnly: true, company: $second)['membership']->forceFill(['user_id' => $user->id])->save();
+
+    $this->actingAs($user)->get(route('profile.edit'))->assertSee(route('company.home', $first));
+
+    $this->actingAs($user)->get(route('company.submit', $second))->assertOk();
+
+    $this->actingAs($user)->get(route('profile.edit'))
+        ->assertSee('送る画面へ戻る')
+        ->assertSee(route('company.submit', $second))
+        ->assertDontSee(route('company.home', $first));
+    $this->actingAs($user)->get(route('dashboard'))->assertRedirect(route('company.submit', $second));
+});
+
+test('2段階認証を設定し終えると、その人の最初の画面へ移る（送るだけは送る画面・admin はホーム・2社なら今の会社）', function (Role $role, bool $submitOnly, string $route): void {
+    ['company' => $company, 'user' => $user] = createCompanyWithMember($role, submitOnly: $submitOnly, withTwoFactor: false);
+
+    app(EnableTwoFactorAuthentication::class)($user);
+    $code = app(Google2FA::class)->getCurrentOtp(decrypt((string) $user->fresh()?->two_factor_secret));
+
+    Livewire::actingAs($user)
+        ->test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
+        ->set('code', $code)
+        ->call('confirmTwoFactor')
+        ->assertHasNoErrors()
+        ->assertRedirect(route($route, $company));
+
+    expect($user->fresh()?->two_factor_confirmed_at)->not->toBeNull();
+})->with([
+    '送るだけ' => [Role::Editor, true, 'company.submit'],
+    'admin' => [Role::Admin, false, 'company.home'],
+]);
+
+test('2社に入っている人は、2段階認証を設定し終えると今の会社へ移る', function (): void {
+    ['company' => $first, 'user' => $user] = createCompanyWithMember(Role::Admin, withTwoFactor: false);
+    ['company' => $second] = createCompanyWithMember(Role::Owner);
+    createCompanyWithMember(Role::Admin, company: $second)['membership']->forceFill(['user_id' => $user->id])->save();
+
+    app(EnableTwoFactorAuthentication::class)($user);
+    $code = app(Google2FA::class)->getCurrentOtp(decrypt((string) $user->fresh()?->two_factor_secret));
+
+    session([User::CURRENT_COMPANY_SESSION_KEY => $second->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
+        ->set('code', $code)
+        ->call('confirmTwoFactor')
+        ->assertRedirect(route('company.home', $second));
 });

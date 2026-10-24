@@ -35,6 +35,9 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
+    /** 最後に開いた会社の ID（EnsureCompanyMember が入れる） */
+    public const CURRENT_COMPANY_SESSION_KEY = 'current_company_id';
+
     /**
      * Get the attributes that should be cast.
      *
@@ -94,5 +97,38 @@ class User extends Authenticatable implements MustVerifyEmail
             ->whereNull('disabled_at')
             ->oldest('created_at')
             ->first();
+    }
+
+    /**
+     * 今の会社（最後に開いた会社の画面）に入っていればその会社、なければ最初に入った会社。
+     */
+    public function homeMembership(): ?Membership
+    {
+        $currentId = session(self::CURRENT_COMPANY_SESSION_KEY);
+
+        $current = is_string($currentId)
+            ? $this->memberships()->with('company')->where('company_id', $currentId)->whereNull('disabled_at')->first()
+            : null;
+
+        $membership = $current ?? $this->primaryActiveMembership();
+
+        return $membership?->company !== null ? $membership : null;
+    }
+
+    /**
+     * その人の最初の画面。送るだけの人は送る画面、ほかの人は会社のホーム。会社がなければ dashboard。
+     * ログインのあと・設定の「戻る」・2段階認証を終えたあとは、必ずここを使う。
+     */
+    public function homeUrl(): string
+    {
+        $membership = $this->homeMembership();
+
+        if ($membership === null || $membership->company === null) {
+            return route('dashboard');
+        }
+
+        return $membership->submit_only
+            ? route('company.submit', $membership->company)
+            : route('company.home', $membership->company);
     }
 }

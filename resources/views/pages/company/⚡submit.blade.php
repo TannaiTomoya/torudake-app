@@ -208,9 +208,18 @@ new #[Title('レシートを送る')] class extends Component {
 }; ?>
 
 <section class="mx-auto flex min-h-[80vh] max-w-md flex-col gap-4 p-4 text-body text-ink">
-    <header class="flex items-baseline justify-between border-b border-line pb-3">
+    <header class="flex items-baseline justify-between gap-3 border-b border-line pb-3">
         <h1 class="text-xl font-bold text-ink">送る</h1>
-        <p class="text-note text-ink-sub">{{ $company->name }}</p>
+        <div class="flex flex-wrap items-baseline justify-end gap-x-3 text-note text-ink-sub">
+            <p>{{ $company->name }}</p>
+            @if (auth()->user()?->activeMembershipFor($company)?->submit_only)
+                <a href="{{ route('profile.edit') }}" wire:navigate class="underline" data-test="submit-settings">設定</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="cursor-pointer underline" data-test="submit-logout">ログアウト</button>
+                </form>
+            @endif
+        </div>
     </header>
 
     {{-- 1 待ち --}}
