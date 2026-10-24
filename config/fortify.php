@@ -151,6 +151,8 @@ return [
             'confirmPassword' => true,
             // 'window' => 0
         ]),
+        // 顔でログイン。本人確認（顔・指紋・端末のパスコード）が必須なので、これだけで2段階と同じ強さ
+        Features::passkeys(),
     ],
 
 ];

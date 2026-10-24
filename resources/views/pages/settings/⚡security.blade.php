@@ -1,12 +1,16 @@
 <?php
 
 use App\Concerns\PasswordValidationRules;
+use App\Models\User;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
+use Laravel\Passkeys\Passkey;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\Attributes\On;
@@ -24,12 +28,15 @@ new #[Title('Security settings')] class extends Component {
 
     public bool $requiresConfirmation;
 
+    public bool $canManagePasskeys;
+
 
     /**
      * Mount the component.
      */
     public function mount(DisableTwoFactorAuthentication $disableTwoFactorAuthentication): void
     {
+        $this->canManagePasskeys = Features::canManagePasskeys();
         $this->canManageTwoFactor = Features::canManageTwoFactorAuthentication();
 
         if ($this->canManageTwoFactor) {
@@ -86,6 +93,32 @@ new #[Title('Security settings')] class extends Component {
         $disableTwoFactorAuthentication(auth()->user());
 
         $this->twoFactorEnabled = false;
+    }
+
+    /**
+     * 顔でログインに登録した端末（自分のものだけ）。
+     *
+     * @return Collection<int, Passkey>
+     */
+    #[Computed]
+    public function passkeys(): Collection
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return $user->passkeys()->latest()->get();
+    }
+
+    public function deletePasskey(int $passkeyId): void
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        $user->passkeys()->findOrFail($passkeyId)->delete();
+
+        unset($this->passkeys);
+
+        Flux::toast(variant: 'success', text: '登録を消しました。');
     }
 }; ?>
 
@@ -171,6 +204,42 @@ new #[Title('Security settings')] class extends Component {
                             <livewire:pages::settings.two-factor-setup-modal :requires-confirmation="$requiresConfirmation" />
                         </div>
                     @endif
+                </div>
+            </section>
+        @endif
+
+        @if ($canManagePasskeys)
+            <section class="mt-12" data-test="passkeys">
+                <flux:heading>顔でログイン</flux:heading>
+                <flux:subheading>このスマホ（パソコン）を登録すると、次からログイン画面の「顔でログイン」を押して、顔を見せるだけで入れます。</flux:subheading>
+
+                <div class="mt-4 space-y-4 text-sm" x-data="passkeyRegister">
+                    @if ($this->passkeys->isNotEmpty())
+                        <ul class="divide-y divide-line rounded-lg border border-line">
+                            @foreach ($this->passkeys as $passkey)
+                                <li class="flex items-center justify-between gap-3 p-3" wire:key="passkey-{{ $passkey->id }}">
+                                    <div>
+                                        <p class="font-bold">{{ $passkey->name }}</p>
+                                        <p class="text-ink-sub">
+                                            {{ $passkey->created_at?->isoFormat('M月D日(ddd)') }}に登録・最後に使った日 {{ $passkey->last_used_at?->isoFormat('M月D日(ddd)') ?? 'まだ使っていません' }}
+                                        </p>
+                                    </div>
+                                    <flux:button size="sm" variant="danger" wire:click="deletePasskey({{ $passkey->id }})" wire:confirm="「{{ $passkey->name }}」の登録を消しますか？" data-test="passkey-delete">
+                                        消す
+                                    </flux:button>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+
+                    <div x-show="supported" class="flex flex-wrap items-end gap-3">
+                        <flux:input x-model="name" label="端末の名前" placeholder="例：父のiPhone" class="max-w-xs" />
+                        <flux:button variant="primary" icon="face-smile" x-on:click="register()" x-bind:disabled="busy" data-test="passkey-register">
+                            この端末を登録する
+                        </flux:button>
+                    </div>
+                    <p x-show="!supported" x-cloak class="text-ink-sub">このブラウザは顔でログインに対応していません。</p>
+                    <p x-show="error" x-text="error" x-cloak class="font-bold text-ng" role="alert"></p>
                 </div>
             </section>
         @endif

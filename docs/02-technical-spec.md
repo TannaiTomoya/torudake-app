@@ -111,6 +111,7 @@
 | メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール | 工程2 |
 | 2段階認証 | TOTP＋復旧コード。**有効にしていない人は会社の画面に入れず、設定画面へ回す**（`two-factor`） | 工程2 |
 | セッション | 操作がなければ2時間。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） | 工程2 |
+| 顔でログイン | パスキー（Fortify の `Features::passkeys()`・`laravel/passkeys`、JS は `@laravel/passkeys` 0.2.0）。本人確認（顔・指紋・端末のパスコード）が必須なので、これだけで2段階と同じ強さ。登録・削除は設定の「セキュリティ」（`password.confirm` のあと）。ログインのあとは役割別の振り分け（`PasskeyLoginResponse`）。2段階認証（TOTP）の設定は今までどおり必須で、新しい端末で入るときの予備 | 済み |
 | ログイン状態の保持 | しない。ログイン画面にチェックを出さず、保持のクッキー（remember）で来たら切ってログイン画面へ戻す（`AbsoluteSessionTimeout`） | 済み |
 | パスワード | 12文字以上。漏えい済みは拒否 | 工程2 |
 
