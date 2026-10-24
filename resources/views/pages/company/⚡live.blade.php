@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AiStatus;
+use App\Enums\ConcernFlag;
 use App\Enums\CorrectionReason;
 use App\Enums\EntryStatus;
 use App\Enums\Side;
@@ -15,6 +16,7 @@ use App\Models\SourceRecord;
 use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
+use App\Support\ReadingChecks;
 use App\Support\RemainingCount;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -277,6 +279,14 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
         $rows['支払い元'] = $entry->bankAccount->name;
     }
     $done = $this->remaining === 0 && $this->confirmedThisMonth > 0;
+    $lowFields = ReadingChecks::lowConfidenceFields($entry?->ai_check);
+    $rowFields = ['店名' => 'vendor', '日付' => 'date', '合計' => 'total'];
+    $addresseeKind = $entry?->ai_check['addressee_kind'] ?? null;
+    $addresseeFlag = match ($addresseeKind) {
+        'other_company' => ConcernFlag::AddresseeOtherCompany,
+        'person' => ConcernFlag::AddresseePerson,
+        default => null,
+    };
 @endphp
 
 <div wire:poll.500ms class="flex h-full flex-col gap-6 p-8 text-live text-ink"
@@ -335,14 +345,17 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                             @elseif ($current->ai_status === AiStatus::Failed)
                                 <p class="font-bold text-ng" data-test="ai-failed">AIが読めませんでした。E で手で入れられます</p>
                             @else
-                                <p class="font-bold text-brand-ink">AIが読み取りました{{ $this->aiSeconds !== null ? '（'.$this->aiSeconds.'秒）' : '' }}@if ($this->aiReplayed)<span class="ml-3 rounded bg-panel px-2 py-0.5 align-middle text-note font-bold text-ink-sub" data-test="live-replay">再生</span>@endif</p>
+                                <p class="font-bold text-brand-ink">AIが読み取りました{{ $this->aiSeconds !== null ? '（'.$this->aiSeconds.'秒）' : '' }}@if ($this->aiReplayed)<span class="ml-3 rounded bg-panel px-2 py-0.5 font-bold text-ink-sub" data-test="live-replay">再生</span>@endif</p>
                             @endif
 
                             @if (! $isEditing)
                                 <dl class="divide-y divide-line">
                                     @foreach ($rows as $label => $value)
-                                        <div wire:key="row-{{ $current->id }}-{{ $label }}-{{ md5((string) $value) }}" class="live-reveal flex items-baseline justify-between gap-4 rounded-lg px-2 py-0.5" style="animation-delay: {{ $loop->index * 0.4 }}s">
-                                            <dt class="shrink-0 whitespace-nowrap text-ink-sub">{{ $label }}</dt>
+                                        @php
+                                            $isLow = in_array($rowFields[$label] ?? '', $lowFields, true);
+                                        @endphp
+                                        <div wire:key="row-{{ $current->id }}-{{ $label }}-{{ md5((string) $value) }}" @class(['live-reveal flex items-baseline justify-between gap-4 rounded-lg px-2 py-0.5', 'border-2 border-warn bg-warn-soft' => $isLow]) style="animation-delay: {{ $loop->index * 0.4 }}s">
+                                            <dt class="shrink-0 whitespace-nowrap text-ink-sub">{{ $label }}@if ($isLow)<span class="ml-3 font-bold text-warn" data-test="live-check-{{ $rowFields[$label] }}">確かめて</span>@endif</dt>
                                             @if ($value === null)
                                                 <dd class="font-bold text-warn" data-test="live-amount-missing">金額を入れてください</dd>
                                             @else
@@ -392,6 +405,11 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                                     <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered-payment">前回、この店は『{{ $entry->ai_check['remembered_payment'] }}』に直されました</p>
                                 @elseif (($entry?->ai_check['remembered'] ?? false) === true)
                                     <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered">前回の修正を覚えています</p>
+                                @endif
+                                @if ($addresseeFlag !== null)
+                                    <p class="live-reveal self-start rounded-lg bg-ng-soft px-3 py-1 font-bold text-ng" data-test="live-addressee-flag">{{ $addresseeFlag->label() }}：{{ $entry?->ai_check['addressee'] ?? '' }}</p>
+                                @elseif (is_string($addresseeKind))
+                                    <p class="truncate text-ink-sub" data-test="live-addressee">宛名：{{ $entry?->ai_check['addressee'] ?? '（書かれていない）' }}</p>
                                 @endif
                                 @if (is_string($entry?->ai_check['reason'] ?? null) && $entry->ai_check['reason'] !== '')
                                     <p class="truncate text-ink-sub">理由：{{ $entry->ai_check['reason'] }}</p>

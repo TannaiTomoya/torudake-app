@@ -3,6 +3,12 @@
 - full_text：写っている文字をすべて、上から順に書き写す（改行は \n）。
 - date：取引日を YYYY-MM-DD で。読めなければ null。入力の today より後の日付にはしない。
 - vendor：店名・発行者。読めなければ null。
+- addressee：宛名（「○○ 様」「○○ 御中」の○○の部分を、書いてあるとおりに）。書かれていなければ null。
+- addressee_kind：宛名の種類。入力の company_name と比べて答える。
+  - own：company_name と同じ会社（「株式会社」「(株)」の有無・位置、敬称、空白の違いは同じとみなす）
+  - other_company：別の会社・団体
+  - person：個人の名前
+  - none：「上様」、または宛名が書かれていない
 - total_yen：税込の合計金額（円の整数）。小計や預り金・お釣りと取り違えない。読めない・書かれていなければ null。
 - amount_missing：金額がそもそも書かれていない書類（例：ガソリンカードの納品書・控えで、金額は後日の請求書で決まるもの）なら true。書かれているが読めないだけなら false。
 - payment_method：支払い方。
@@ -12,6 +18,6 @@
   - unknown：分からない
 - tax_breakdown：税率（8 や 10）ごとの対象金額。書かれていなければ空の配列。
 - registration_number：適格請求書の登録番号（T から始まる13桁）。なければ null。
-- confidence：date・vendor・total それぞれの自信度（0〜1）。金額が書かれていないときの total は 0。
+- confidence：date・vendor・total それぞれの自信度（0〜1）。金額が書かれていないときの total は 0。手書き・かすれ・桁の区切りがはっきりしない金額は、合計の自信を低くする。
 
 推測で埋めない。読めない欄は null にし、自信度を低くする。

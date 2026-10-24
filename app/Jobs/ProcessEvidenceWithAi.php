@@ -12,6 +12,7 @@ use App\Services\Ai\Tasks\Journalize;
 use App\Services\Ai\Tasks\ReadReceipt;
 use App\Services\AiDraftBuilder;
 use App\Services\ConcernRules;
+use App\Support\ReadingChecks;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
@@ -103,6 +104,12 @@ class ProcessEvidenceWithAi implements ShouldQueue
                     'reason' => $draft->output['reason'] ?? null,
                     'confidence' => $draft->output['confidence'] ?? null,
                     'reading_confidence' => $reading['confidence'] ?? null,
+                    'addressee' => is_string($reading['addressee'] ?? null) ? mb_substr($reading['addressee'], 0, 100) : null,
+                    'addressee_kind' => ReadingChecks::addresseeKind(
+                        is_string($reading['addressee'] ?? null) ? $reading['addressee'] : null,
+                        is_string($reading['addressee_kind'] ?? null) ? $reading['addressee_kind'] : null,
+                        $company->name,
+                    ),
                 ];
 
                 $entry->forceFill([

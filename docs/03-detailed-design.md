@@ -158,7 +158,7 @@ AI：    waiting → reading（ai_stage）→ done / failed
 
 ### 4.2 ProcessEvidenceWithAi（F06、実装済み）
 読み取り → 仕訳の下書き → 検算。版3.0 で足すこと：検算の結果から `concern_flags` の AI の印（ai_duplicate・ai_private・ai_unbalanced）を入れる。
-- L1（`read_receipt.v2`）は `amount_missing`（金額がそもそも書かれていない）と `payment_method`（cash / card / invoice_later / unknown）も返す。
+- L1（`read_receipt.v3`）は `amount_missing`（金額がそもそも書かれていない）と `payment_method`（cash / card / invoice_later / unknown）、宛名 `addressee` とその種類 `addressee_kind`（入力の会社名と比べる）も返す。
 - L2（`journalize.v3`）は分類と支払い元（口座の名前）だけを返し、**借方・貸方の行はコードが組む**（`JournalLineWriter`）。支払い元は、①同じ店で人が直した支払い元（`PaymentMemory`、直した記録から。店名の空白・全角半角の違いは同じ店）②`invoice_later` なら「後日の請求」の口座 ③AI が選んだ口座 ④既定の口座、の順。①のときは画面に「前回、この店は『○○』に直されました」（`ai_check.remembered_payment`）。
 - **金額の記載がない書類**（ガソリンカードの納品書など）は、行のない下書きを作り、`amount_missing` の印を付ける。検算（L3）は呼ばない。経理が金額を入れたら確定できる（記載のなかった金額を入れたのは「直した」に数えない）。
 - 常駐は2つ（`torudake-queue@1`・`@2`）。`retry_after`（300秒）はジョブの時間の上限（240秒）より長くする。
@@ -193,6 +193,8 @@ confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必
 | amount | 金額 ≥ `companies.concern_amount_yen`（仮に30,000円） |
 | ai_duplicate / ai_private / ai_unbalanced | AIの検算の結果 |
 | corrected | 経理がAIの分類・金額を直した |
+| addressee_other_company / addressee_person | 宛名が別の会社（他社の領収証かも）／個人名（私的な支出かも）。`read_receipt.v3` が会社名と比べて own・other_company・person・none で答え、`app/Support/ReadingChecks` が「(株)」「株式会社」・敬称・空白の違いと上様・空欄を確かめ直す。own・none は印なしで宛名だけ出す |
+| low_confidence | 読み取りの自信が低い（合計 0.8 未満、日付・店名 0.7 未満。金額の記載がない書類の合計は除く）。直して確定・ライブ画面では欄に「確かめて」と黄色の枠（%は出さない）。境目は `ReadingChecks::THRESHOLDS` だけ |
 
 ### 4.6 WorkbookService（F14・F15、Excel の1冊）
 - 1冊を `phpoffice/phpspreadsheet` で開き、`version` を確かめてから書く（同時に書いたら後から来たほうがやり直す）。
@@ -325,6 +327,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | T26 | 忙しい月：グラフの色づけ、owner_brief・forecast への入力（印・3期の平均）、「忙しいはずの月なのに前年同月より少ない」がひとことに出る（偽物の AI で確かめる）。同じ入力なら AI を呼ばない | 済み |
 | T22★ | 30日を過ぎた写真が消える。監査記録 | 済み（`torudake:purge-evidence`、毎日3時。消した写真は「写真は保存期間が過ぎたため削除しました」） |
 | T23 | 再生モード：デモ用の会社どうしで、同じ写真（`ai_runs.photo_sha256`）の練習の記録を同じ秒数で再生し AI を呼ばない。「再生」と出す。記録のない写真・実在の会社・claude/fake では本物（テストでは偽物）を呼ぶ | 済み |
+| T28 | 宛名の印（別の会社・個人は印、上様・空欄・自分の会社〔「(株)」と「株式会社」の違いも〕は印なし）と、読み取りの自信（合計0.75で「確かめて」と low_confidence、0.85で付かない）。印は確定後も残り社長の気になる仕訳に出る | 済み |
 | T27 | AIの記録：「AIが作った仕訳 n件のうち、そのまま確定 m件」・一番多い直し・間違いの型（表示は日本語、kernel はそのまま）。学習データは JSONL 3つ（ai_runs・ai_corrections・journal_entries）の zip、その会社のその月の分だけ、名前・メールなし、書き出しは監査記録。経理は 403・他社は 404 | 済み |
 | T24★ | 移行：approved の仕訳が confirmed になる | これから |
 

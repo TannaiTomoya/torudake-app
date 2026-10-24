@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
 use App\Services\IgnoreSourceService;
+use App\Support\ReadingChecks;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
@@ -168,8 +169,13 @@ new #[Title('直して確定')] class extends Component {
     $source = $this->source;
     $entry = $this->entry;
     $check = $entry?->ai_check ?? [];
-    $confidence = is_array($check['reading_confidence'] ?? null) ? $check['reading_confidence'] : [];
-    $low = fn (string $key): bool => is_numeric($confidence[$key] ?? null) && (float) $confidence[$key] < 0.7;
+    $lowFields = ReadingChecks::lowConfidenceFields($check);
+    $low = fn (string $key): bool => in_array($key, $lowFields, true);
+    $addresseeFlag = match ($check['addressee_kind'] ?? null) {
+        'other_company' => ConcernFlag::AddresseeOtherCompany,
+        'person' => ConcernFlag::AddresseePerson,
+        default => null,
+    };
     $amountMissing = ($check['amount_missing'] ?? false) === true && $this->amountYen === '';
     $readOnly = $entry?->status === EntryStatus::Confirmed || $source->status === SourceStatus::Ignored;
     $flags = collect($entry?->concern_flags ?? [])->map(fn ($f) => ConcernFlag::tryFrom($f))->filter();
@@ -222,6 +228,11 @@ new #[Title('直して確定')] class extends Component {
                     @foreach (($check['concerns'] ?? []) as $concern)
                         <p class="text-warn">・{{ $concern }}</p>
                     @endforeach
+                    @if (is_string($check['addressee_kind'] ?? null))
+                        <p @class(['font-bold text-ng' => $addresseeFlag !== null]) data-test="addressee">
+                            宛名：{{ $check['addressee'] ?? '（書かれていない）' }}@if ($addresseeFlag !== null)<span data-test="addressee-flag">　{{ $addresseeFlag->label() }}</span>@endif
+                        </p>
+                    @endif
                     @if (is_string($check['remembered_payment'] ?? null))
                         <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="remembered-payment">前回、この店は『{{ $check['remembered_payment'] }}』に直されました</p>
                     @elseif (($check['remembered'] ?? false) === true)
@@ -269,6 +280,8 @@ new #[Title('直して確定')] class extends Component {
                         </div>
                         @if ($amountMissing)
                             <span class="block font-bold text-warn" data-test="amount-missing">金額を入れてください（請求書が届いたら、その金額）</span>
+                        @elseif ($low('total'))
+                            <span class="block font-bold text-warn" data-test="check-total">確かめて（AIの読み取りの自信が低い）</span>
                         @endif
                         @error('amountYen') <span class="block text-ng">{{ $message }}</span> @enderror
                     </label>
@@ -276,12 +289,18 @@ new #[Title('直して確定')] class extends Component {
                     <label class="block space-y-1">
                         <span class="font-bold">日付</span>
                         <input type="date" wire:model="entryDate" @class(['rounded-lg border px-3 py-2 text-body', 'border-warn bg-warn-soft' => $low('date'), 'border-line bg-paper' => ! $low('date')])>
+                        @if ($low('date'))
+                            <span class="block font-bold text-warn" data-test="check-date">確かめて（AIの読み取りの自信が低い）</span>
+                        @endif
                         @error('entryDate') <span class="block text-ng">{{ $message }}</span> @enderror
                     </label>
 
                     <label class="block space-y-1">
                         <span class="font-bold">取引先</span>
                         <input type="text" wire:model="vendor" maxlength="100" @class(['w-full rounded-lg border px-3 py-2 text-body', 'border-warn bg-warn-soft' => $low('vendor'), 'border-line bg-paper' => ! $low('vendor')])>
+                        @if ($low('vendor'))
+                            <span class="block font-bold text-warn" data-test="check-vendor">確かめて（AIの読み取りの自信が低い）</span>
+                        @endif
                     </label>
 
                     <label class="block space-y-1">

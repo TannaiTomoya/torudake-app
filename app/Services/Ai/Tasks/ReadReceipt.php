@@ -14,7 +14,7 @@ use App\Services\Ai\AiTaskRunner;
  */
 class ReadReceipt
 {
-    public const PROMPT_VERSION = 'read_receipt.v2';
+    public const PROMPT_VERSION = 'read_receipt.v3';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 
@@ -26,6 +26,7 @@ class ReadReceipt
             input: [
                 'note' => $source->note,
                 'today' => now()->toDateString(),
+                'company_name' => $company->name,
             ],
             schema: self::schema(),
             effort: 'low',
@@ -42,11 +43,13 @@ class ReadReceipt
         return [
             'type' => 'object',
             'additionalProperties' => false,
-            'required' => ['full_text', 'date', 'vendor', 'total_yen', 'amount_missing', 'payment_method', 'tax_breakdown', 'registration_number', 'confidence'],
+            'required' => ['full_text', 'date', 'vendor', 'addressee', 'addressee_kind', 'total_yen', 'amount_missing', 'payment_method', 'tax_breakdown', 'registration_number', 'confidence'],
             'properties' => [
                 'full_text' => ['type' => 'string'],
                 'date' => ['type' => ['string', 'null']],
                 'vendor' => ['type' => ['string', 'null']],
+                'addressee' => ['type' => ['string', 'null']],
+                'addressee_kind' => ['type' => 'string', 'enum' => ['own', 'other_company', 'person', 'none']],
                 'total_yen' => ['type' => ['integer', 'null']],
                 'amount_missing' => ['type' => 'boolean'],
                 'payment_method' => ['type' => 'string', 'enum' => ['cash', 'card', 'invoice_later', 'unknown']],

@@ -57,7 +57,7 @@ class FakeClaudeClient implements AiClient
         }
 
         $output = match ($request->task) {
-            AiTask::ReadReceipt => $this->readReceipt(),
+            AiTask::ReadReceipt => $this->readReceipt($request->input),
             AiTask::Journalize => [...$this->journalize($request->input), ...$this->journalizeOverrides],
             AiTask::CheckEntry => $this->checkEntry($request->input),
             AiTask::OwnerBrief => $this->ownerBrief($request->input),
@@ -79,14 +79,19 @@ class FakeClaudeClient implements AiClient
     }
 
     /**
+     * 宛名は入力の会社名（自分の会社）にする。
+     *
+     * @param  array<string, mixed>  $input
      * @return array<string, mixed>
      */
-    private function readReceipt(): array
+    private function readReceipt(array $input): array
     {
         return [
             'full_text' => "〇〇石油 八幡平店\n軽油 25.0L\n合計 3,850円",
             'date' => now()->toDateString(),
             'vendor' => '〇〇石油 八幡平店',
+            'addressee' => is_string($input['company_name'] ?? null) ? $input['company_name'] : null,
+            'addressee_kind' => 'own',
             'total_yen' => 3850,
             'amount_missing' => false,
             'payment_method' => 'cash',
