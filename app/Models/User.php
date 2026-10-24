@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\TrustedDevices;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -54,6 +55,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         ];
     }
 
+    protected static function booted(): void
+    {
+        // パスワードを変えた・2段階認証を切った（作り直した）ら、信頼した端末はすべて忘れる
+        static::updated(function (User $user): void {
+            if ($user->wasChanged(['password', 'two_factor_secret'])) {
+                app(TrustedDevices::class)->revokeAll($user);
+            }
+        });
+    }
+
     /**
      * Get the user's initials
      */
@@ -72,6 +83,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function memberships(): HasMany
     {
         return $this->hasMany(Membership::class);
+    }
+
+    /**
+     * @return HasMany<TrustedDevice, $this>
+     */
+    public function trustedDevices(): HasMany
+    {
+        return $this->hasMany(TrustedDevice::class);
     }
 
     /**

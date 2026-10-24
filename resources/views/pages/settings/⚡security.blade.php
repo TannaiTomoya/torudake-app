@@ -2,6 +2,7 @@
 
 use App\Concerns\PasswordValidationRules;
 use App\Models\User;
+use App\Services\TrustedDevices;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -119,6 +120,30 @@ new #[Title('Security settings')] class extends Component {
         unset($this->passkeys);
 
         Flux::toast(variant: 'success', text: '登録を消しました。');
+    }
+
+    /**
+     * 「この端末を覚える」を選んだ、期限内の端末の数。
+     */
+    #[Computed]
+    public function trustedDeviceCount(): int
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return app(TrustedDevices::class)->count($user);
+    }
+
+    public function revokeTrustedDevices(TrustedDevices $devices): void
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        $devices->revokeAll($user);
+
+        unset($this->trustedDeviceCount);
+
+        Flux::toast(variant: 'success', text: '信頼している端末をすべて解除しました。');
     }
 }; ?>
 
@@ -240,6 +265,22 @@ new #[Title('Security settings')] class extends Component {
                     </div>
                     <p x-show="!supported" x-cloak class="text-ink-sub">このブラウザは顔でログインに対応していません。</p>
                     <p x-show="error" x-text="error" x-cloak class="font-bold text-ng" role="alert"></p>
+                </div>
+            </section>
+        @endif
+
+        @if ($canManageTwoFactor && $twoFactorEnabled)
+            <section class="mt-12" data-test="trusted-devices">
+                <flux:heading>信頼している端末</flux:heading>
+                <flux:subheading>2段階認証のときに「この端末を覚える」を選んだ端末は、30日のあいだパスワードだけで入れます。パスワードを変えると、すべて解除されます。</flux:subheading>
+
+                <div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
+                    <p>今は <span class="font-bold" data-test="trusted-device-count">{{ $this->trustedDeviceCount }}台</span></p>
+                    @if ($this->trustedDeviceCount > 0)
+                        <flux:button size="sm" variant="danger" wire:click="revokeTrustedDevices" wire:confirm="信頼している端末をすべて解除しますか？次にパスワードで入るときは、どの端末でもコードを聞きます。" data-test="trusted-devices-revoke">
+                            すべて解除
+                        </flux:button>
+                    @endif
                 </div>
             </section>
         @endif
