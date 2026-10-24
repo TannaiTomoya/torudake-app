@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 class CompanySettingsService
 {
     /**
-     * @param  array{name: string, fiscal_year_end_month: int, allow_self_approval: bool}  $data
+     * @param  array{name: string, fiscal_year_end_month: int, concern_amount_yen: int}  $data
      */
     public function updateCompany(Company $company, User $user, array $data): Company
     {
@@ -23,13 +23,13 @@ class CompanySettingsService
             $before = [
                 'name' => $locked->name,
                 'fiscal_year_end_month' => $locked->fiscal_year_end_month,
-                'allow_self_approval' => $locked->allow_self_approval,
+                'concern_amount_yen' => $locked->concern_amount_yen,
             ];
 
             $locked->forceFill([
                 'name' => $data['name'],
                 'fiscal_year_end_month' => $data['fiscal_year_end_month'],
-                'allow_self_approval' => $data['allow_self_approval'],
+                'concern_amount_yen' => $data['concern_amount_yen'],
             ])->save();
 
             AuditLog::record(
@@ -40,7 +40,7 @@ class CompanySettingsService
                 after: [
                     'name' => $locked->name,
                     'fiscal_year_end_month' => $locked->fiscal_year_end_month,
-                    'allow_self_approval' => $locked->allow_self_approval,
+                    'concern_amount_yen' => $locked->concern_amount_yen,
                 ],
                 company: $locked,
             );

@@ -183,9 +183,12 @@ CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1
 # crontab がまだないと「今の設定を読む」が失敗扱いになるので、|| true で続ける
 ( { crontab -u "$DEPLOY_USER" -l 2>/dev/null || true; } | { grep -v "${APP_DIR} && php artisan schedule:run" || true; }; echo "$CRON_LINE" ) | crontab -u "$DEPLOY_USER" -
 crontab -u "$DEPLOY_USER" -l | grep -q "schedule:run" && echo "cron に schedule:run を入れた"
-cat > /etc/systemd/system/torudake-queue.service <<UNIT
+# 常駐は2つ（@1・@2）。1枚に十数秒かかるので、まとめて送った写真を並べて読む
+systemctl disable --now torudake-queue >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/torudake-queue.service
+cat > /etc/systemd/system/torudake-queue@.service <<UNIT
 [Unit]
-Description=torudake queue worker
+Description=torudake queue worker %i
 After=network.target mysql.service
 
 [Service]
@@ -199,8 +202,8 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 UNIT
-systemctl daemon-reload && systemctl enable --now torudake-queue >/dev/null 2>&1
-systemctl is-active --quiet torudake-queue && echo "ジョブの常駐（torudake-queue）が動いている"
+systemctl daemon-reload && systemctl enable --now torudake-queue@1 torudake-queue@2 >/dev/null 2>&1
+systemctl is-active --quiet torudake-queue@1 && systemctl is-active --quiet torudake-queue@2 && echo "ジョブの常駐（torudake-queue@1・@2）が動いている"
 
 echo
 echo "==> 確認"

@@ -8,6 +8,7 @@ enum BankAccountKind: string
     case Bank = 'bank';
     case Card = 'card';
     case Reimbursement = 'reimbursement';
+    case Invoice = 'invoice';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum BankAccountKind: string
             self::Bank => '銀行',
             self::Card => 'カード',
             self::Reimbursement => '立替',
+            self::Invoice => '後日の請求',
         };
     }
 
@@ -26,6 +28,7 @@ enum BankAccountKind: string
             self::Bank => 'ink',
             self::Card => 'warn',
             self::Reimbursement => 'brand',
+            self::Invoice => 'ink-sub',
         };
     }
 }

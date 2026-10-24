@@ -5,13 +5,15 @@ namespace App\Enums;
 enum EntryStatus: string
 {
     case Draft = 'draft';
-    case Approved = 'approved';
+    case Confirmed = 'confirmed';
+    case Returned = 'returned';
 
     public function label(): string
     {
         return match ($this) {
-            self::Draft => '下書き',
-            self::Approved => '承認済み',
+            self::Draft => 'AIの下書き',
+            self::Confirmed => '確定',
+            self::Returned => '社長から戻し',
         };
     }
 
@@ -19,7 +21,13 @@ enum EntryStatus: string
     {
         return match ($this) {
             self::Draft => 'warn',
-            self::Approved => 'ok',
+            self::Confirmed => 'ok',
+            self::Returned => 'ng',
         };
+    }
+
+    public function isOpen(): bool
+    {
+        return $this !== self::Confirmed;
     }
 }

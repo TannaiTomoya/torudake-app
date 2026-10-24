@@ -11,7 +11,7 @@
 | DB | `torudake`（ユーザー `torudake`、パスワードは VPS の `/root/.torudake-db-password` と `.env` にだけある） |
 | バックアップ | `~/backups/torudake/`（デプロイのたびに DB を保存、30日分） |
 | 定期実行 | cron の `schedule:run`（毎分） |
-| ジョブの常駐 | systemd の `torudake-queue` |
+| ジョブの常駐 | systemd の `torudake-queue@1`・`torudake-queue@2`（2つ） |
 
 ---
 
@@ -64,14 +64,44 @@ bash /var/www/torudake/deploy.sh
 - [ ] ログインできる（2段階認証のコードを含めて）
 - [ ] 送る → 原資料の一覧に出る（工程3以降）
 - [ ] 下書き → 承認 → 締めナビの件数が減る（工程4以降）
-- [ ] `sudo systemctl status torudake-queue` が active
+- [ ] `sudo systemctl status 'torudake-queue@*'` で2つとも active
 
 ### `.env` を変えたとき
 キューの常駐は起動したときの設定のまま動くので、`.env` を変えたら設定を読み直して常駐を立ち上げ直す（`AI_DRIVER`・`ANTHROPIC_API_KEY` など）。
 ```bash
 cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
 ```
-手元（Sail）では `vendor/bin/sail artisan queue:restart` のあと、止まった `queue:work` を起動し直す。
+手元（Sail）では `vendor/bin/sail artisan queue:restart` のあと、止まった `queue:work` を起動し直す（2つ動かすときは、ターミナル2つで `vendor/bin/sail artisan queue:work`）。
+
+### キューの常駐を2つにする（10/24、1回だけ）
+1枚に十数秒かかるので、まとめて送った写真を並べて読むために常駐を2つにする。今の `torudake-queue` を止めて、`torudake-queue@1`・`@2` に置き換える。まず今の常駐の `User=` を確かめる（下の `User=ubuntu` と違えば、そこを書き換える）。
+```bash
+systemctl cat torudake-queue | grep '^User='
+```
+```bash
+sudo systemctl disable --now torudake-queue && sudo rm /etc/systemd/system/torudake-queue.service
+sudo tee /etc/systemd/system/torudake-queue@.service >/dev/null <<'UNIT'
+[Unit]
+Description=torudake queue worker %i
+After=network.target mysql.service
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/torudake
+ExecStart=/usr/bin/php artisan queue:work --sleep=3 --tries=1 --max-time=3600
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload && sudo systemctl enable --now torudake-queue@1 torudake-queue@2
+```
+```bash
+sudo systemctl status 'torudake-queue@*' --no-pager | grep -E 'torudake-queue@|Active'
+```
+`deploy.sh` の `queue:restart` は2つとも立ち上げ直すので、デプロイの手順は変わらない。
 
 ---
 

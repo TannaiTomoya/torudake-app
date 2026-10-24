@@ -42,26 +42,6 @@ enum Role: string
         return in_array($this, [self::Owner, self::Admin, self::Approver, self::Editor], true);
     }
 
-    public function canApprove(): bool
-    {
-        return in_array($this, [self::Owner, self::Admin, self::Approver], true);
-    }
-
-    public function canRecordCash(): bool
-    {
-        return in_array($this, [self::Owner, self::Admin, self::Approver, self::Editor], true);
-    }
-
-    public function canViewClose(): bool
-    {
-        return true;
-    }
-
-    public function canClose(): bool
-    {
-        return $this === self::Owner;
-    }
-
     public function canViewLiveAndAi(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);

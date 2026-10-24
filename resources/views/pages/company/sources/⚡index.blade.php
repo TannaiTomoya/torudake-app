@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AiStatus;
+use App\Enums\EntryStatus;
 use App\Enums\SourceStatus;
 use App\Models\Company;
 use App\Models\SourceRecord;
@@ -39,8 +40,9 @@ new #[Title('原資料')] class extends Component {
         $status = SourceStatus::tryFrom($this->status);
 
         return $this->company->sourceRecords()
-            ->with(['submitter', 'evidence'])
+            ->with(['submitter', 'evidence', 'journalEntry'])
             ->when($status !== null, fn ($query) => $query->where('status', $status))
+            ->when($this->status === 'returned', fn ($query) => $query->whereRelation('journalEntry', 'status', EntryStatus::Returned))
             ->latest('created_at')
             ->limit(100)
             ->get();
@@ -60,12 +62,16 @@ new #[Title('原資料')] class extends Component {
             ->map(fn ($n): int => (int) $n)
             ->all();
 
+        $counts['returned'] = $this->company->sourceRecords()
+            ->whereRelation('journalEntry', 'status', EntryStatus::Returned)
+            ->count();
+
         return $counts;
     }
 
     public function selectStatus(string $status): void
     {
-        $this->status = SourceStatus::tryFrom($status) !== null ? $status : '';
+        $this->status = SourceStatus::tryFrom($status) !== null || $status === 'returned' ? $status : '';
     }
 }; ?>
 
@@ -75,7 +81,7 @@ new #[Title('原資料')] class extends Component {
         $statusClasses = [
             'new' => 'bg-brand-soft text-brand-ink',
             'drafted' => 'bg-warn-soft text-warn',
-            'journaled' => 'bg-ok-soft text-ok',
+            'confirmed' => 'bg-ok-soft text-ok',
             'ignored' => 'bg-panel text-ink-sub',
         ];
         $aiClasses = [
@@ -94,19 +100,25 @@ new #[Title('原資料')] class extends Component {
     <nav class="flex flex-wrap gap-2" aria-label="状態で絞り込む">
         <button type="button" wire:click="selectStatus('')"
                 @class(['rounded-full border-2 px-4 py-2 text-note font-bold', 'border-brand bg-brand-soft text-ink' => $status === '', 'border-line bg-paper text-ink-sub' => $status !== ''])>
-            すべて {{ array_sum($this->counts) }}
+            すべて {{ array_sum($this->counts) - ($this->counts['returned'] ?? 0) }}
         </button>
         @foreach (SourceStatus::cases() as $case)
             <button type="button" wire:click="selectStatus('{{ $case->value }}')"
                     @class(['rounded-full border-2 px-4 py-2 text-note font-bold', 'border-brand bg-brand-soft text-ink' => $status === $case->value, 'border-line bg-paper text-ink-sub' => $status !== $case->value])>
                 {{ $case->label() }} {{ $this->counts[$case->value] ?? 0 }}
             </button>
+            @if ($case === SourceStatus::Confirmed)
+                <button type="button" wire:click="selectStatus('returned')"
+                        @class(['rounded-full border-2 px-4 py-2 text-note font-bold', 'border-brand bg-brand-soft text-ink' => $status === 'returned', 'border-line bg-paper text-ink-sub' => $status !== 'returned'])>
+                    {{ EntryStatus::Returned->label() }} {{ $this->counts['returned'] ?? 0 }}
+                </button>
+            @endif
         @endforeach
     </nav>
 
     @if ($this->sources->isEmpty())
         <p class="rounded-xl border border-line bg-panel p-6 text-center text-ink-sub">
-            {{ $status === '' ? 'まだ届いた原資料はありません。' : '「'.SourceStatus::from($status)->label().'」の原資料はありません。' }}
+            {{ $status === '' ? 'まだ届いた原資料はありません。' : '「'.(SourceStatus::tryFrom($status)?->label() ?? EntryStatus::Returned->label()).'」の原資料はありません。' }}
         </p>
     @else
         <ul class="divide-y divide-line rounded-xl border border-line bg-paper">
@@ -126,8 +138,8 @@ new #[Title('原資料')] class extends Component {
                             @if ($source->amount_yen !== null)
                                 <span class="font-bold text-ink">{{ number_format($source->amount_yen) }}円</span>
                             @endif
-                            @if ($source->late)
-                                <span class="rounded bg-warn-soft px-2 text-note font-bold text-warn">遅れて届いた</span>
+                            @if ($source->status === SourceStatus::Drafted && ($source->journalEntry?->ai_check['amount_missing'] ?? false) === true)
+                                <span class="rounded bg-warn-soft px-2 text-note font-bold text-warn">金額を入れてください</span>
                             @endif
                         </div>
                         @php($daysAgo = (int) $source->created_at?->startOfDay()->diffInDays(now()->startOfDay()))
@@ -146,7 +158,20 @@ new #[Title('原資料')] class extends Component {
                         </p>
                     </div>
 
-                    <span class="shrink-0 rounded-full px-3 py-1 text-note font-bold {{ $statusClasses[$source->status->value] }}">{{ $source->status->label() }}</span>
+                    <div class="flex shrink-0 flex-col items-end gap-2">
+                        @if ($source->journalEntry?->status === EntryStatus::Returned)
+                            <span class="rounded-full bg-ng-soft px-3 py-1 text-note font-bold text-ng">{{ EntryStatus::Returned->label() }}</span>
+                        @else
+                            <span class="rounded-full px-3 py-1 text-note font-bold {{ $statusClasses[$source->status->value] }}">{{ $source->status->label() }}</span>
+                        @endif
+                        @can('editDraft', $company)
+                            @if ($source->status !== SourceStatus::Ignored && $source->ai_status !== AiStatus::Waiting && $source->ai_status !== AiStatus::Reading)
+                                <a href="{{ route('company.sources.show', [$company, $source]) }}" wire:navigate class="text-note font-bold text-brand-ink underline">
+                                    {{ $source->status === SourceStatus::Confirmed && $source->journalEntry?->status !== EntryStatus::Returned ? '見る' : '直して確定' }}
+                                </a>
+                            @endif
+                        @endcan
+                    </div>
                 </li>
             @endforeach
         </ul>

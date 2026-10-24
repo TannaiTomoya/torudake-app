@@ -76,61 +76,9 @@ class CompanyPolicy
         return $membership->role->canEditDraft();
     }
 
-    public function approve(User $user, Company $company, ?int $createdByUserId = null): bool
-    {
-        $membership = $this->activeMembership($user, $company);
-
-        if ($membership === null || $membership->submit_only) {
-            return false;
-        }
-
-        if (! $membership->role->canApprove()) {
-            return false;
-        }
-
-        if (! $company->allow_self_approval && $createdByUserId !== null && $createdByUserId === $user->id) {
-            return false;
-        }
-
-        return true;
-    }
-
-    public function recordCash(User $user, Company $company): bool
-    {
-        $membership = $this->activeMembership($user, $company);
-
-        if ($membership === null || $membership->submit_only) {
-            return false;
-        }
-
-        return $membership->role->canRecordCash();
-    }
-
-    public function viewClose(User $user, Company $company): bool
-    {
-        $membership = $this->activeMembership($user, $company);
-
-        if ($membership === null || $membership->submit_only) {
-            return false;
-        }
-
-        return $membership->role->canViewClose();
-    }
-
     public function exportExcel(User $user, Company $company): bool
     {
-        return $this->viewClose($user, $company);
-    }
-
-    public function close(User $user, Company $company): bool
-    {
-        $membership = $this->activeMembership($user, $company);
-
-        if ($membership === null || $membership->submit_only) {
-            return false;
-        }
-
-        return $membership->role->canClose();
+        return $this->viewSources($user, $company);
     }
 
     public function viewLive(User $user, Company $company): bool

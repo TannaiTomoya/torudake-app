@@ -10,11 +10,11 @@ use App\Services\Ai\AiRequest;
 use App\Services\Ai\AiTaskRunner;
 
 /**
- * L1：写真から全文テキスト・日付・店名・合計・税率ごとの金額・登録番号・自信度を読む。
+ * L1：写真から全文テキスト・日付・店名・合計（記載なしの判断を含む）・支払い方・税率ごとの金額・登録番号・自信度を読む。
  */
 class ReadReceipt
 {
-    public const PROMPT_VERSION = 'read_receipt.v1';
+    public const PROMPT_VERSION = 'read_receipt.v2';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 
@@ -41,12 +41,14 @@ class ReadReceipt
         return [
             'type' => 'object',
             'additionalProperties' => false,
-            'required' => ['full_text', 'date', 'vendor', 'total_yen', 'tax_breakdown', 'registration_number', 'confidence'],
+            'required' => ['full_text', 'date', 'vendor', 'total_yen', 'amount_missing', 'payment_method', 'tax_breakdown', 'registration_number', 'confidence'],
             'properties' => [
                 'full_text' => ['type' => 'string'],
                 'date' => ['type' => ['string', 'null']],
                 'vendor' => ['type' => ['string', 'null']],
                 'total_yen' => ['type' => ['integer', 'null']],
+                'amount_missing' => ['type' => 'boolean'],
+                'payment_method' => ['type' => 'string', 'enum' => ['cash', 'card', 'invoice_later', 'unknown']],
                 'tax_breakdown' => [
                     'type' => 'array',
                     'items' => [

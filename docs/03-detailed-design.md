@@ -12,7 +12,9 @@
 | 1 | 本番 torudake-app.com、自動デプロイ | 済み |
 | 2 | 会社と権限・監査・初期データ・コマンド | 済み（10:21） |
 | 3 | 送る（1枚）・原資料の一覧・写真のルート・AIのジョブ（読み取り→仕訳→検算） | 済み（10:40）。テスト55件 |
-| 3.5〜9 | §10 の順に作る | これから |
+| 3.5 | 手直し（開発用の鍵・スターターキットのリンク・`queue:restart`） | 済み（14:38） |
+| 4 | 確定（経理の保存）・気になる印・対象外・あと n 件・金額なしの下書き・キューの常駐2つ | 済み |
+| 5〜9 | §10 の順に作る | これから |
 
 **版3.0 で変わること（実装済みの部分への影響）**
 | 変更 | 実装済みへの影響 | やり方 |
@@ -56,9 +58,10 @@ ID は UUIDv7（`HasUuids`）。`users` は bigint（スターターキットの
 | journal_entries | concern_flags | json null | 気になる印の一覧（例 `["amount","ai_duplicate","corrected"]`） |
 | journal_entries | owner_seen_at | datetime null | 社長が見た時刻（通知の既読に使う） |
 | journal_entries | workbook_row | int null | Excel の1冊の何行目に入れたか |
+| journal_entries | bank_account_id | FK bank_accounts null | 支払い元（確定のときに貸方の勘定科目を決める。金額のない下書きでも持つ） |
 | source_records | batch_id | uuid null | まとめて送った単位（同じ回の写真をまとめて表示） |
 
-移行の中で、`journal_entries.status = 'approved'` の行を `confirmed` に、`approved_by`→`confirmed_by`、`approved_at`→`confirmed_at` に写す。`approved_by`・`approved_at`・`companies.closed_through`・`allow_self_approval` は残すが使わない。
+移行の中で、各社に口座「後日の請求書（未払金）」（kind `invoice`、勘定科目は未払金）を足し、`journal_entries.status = 'approved'` の行を `confirmed` に、`approved_by`→`confirmed_by`、`approved_at`→`confirmed_at` に写す。`approved_by`・`approved_at`・`companies.closed_through`・`allow_self_approval` は残すが使わない。
 
 ### 2.3 版3.0 で足すテーブル
 #### workbooks（Excel の1冊）
@@ -110,7 +113,8 @@ UNIQUE(company_id, year_month, metric)。同じ月を取り込み直したら上
 |---|---|
 | EntryStatus | draft AIの下書き / **confirmed 確定** / **returned 社長から戻し**（`approved` は移行で confirmed に置き換え、Enum から外す） |
 | SourceStatus | new 未処理 / drafted 下書きあり / **confirmed 確定** / ignored 対象外（`journaled` を confirmed に置き換え） |
-| ConcernFlag | amount 金額が大きい / ai_duplicate 重複の疑い / ai_private 私的支出の疑い / ai_unbalanced 貸借が合わない / corrected 経理がAIを直した |
+| ConcernFlag | amount 金額が大きい / **amount_missing 金額の記載なし** / ai_duplicate 重複の疑い / ai_private 私的支出の疑い / ai_unbalanced 貸借が合わない / corrected 経理がAIを直した |
+| BankAccountKind（足す） | invoice 後日の請求（未払金） |
 | ReportKind | sales_three_period 売上高三期比較 / customer_sales 顧客別売上集計 |
 | AiTask（足す） | read_report 帳票の読み取り / owner_brief 社長へのひとこと / forecast 来月の見込み |
 
@@ -136,6 +140,10 @@ AI：    waiting → reading（ai_stage）→ done / failed
 
 ### 4.2 ProcessEvidenceWithAi（F06、実装済み）
 読み取り → 仕訳の下書き → 検算。版3.0 で足すこと：検算の結果から `concern_flags` の AI の印（ai_duplicate・ai_private・ai_unbalanced）を入れる。
+- L1（`read_receipt.v2`）は `amount_missing`（金額がそもそも書かれていない）と `payment_method`（cash / card / invoice_later / unknown）も返す。
+- L2（`journalize.v2`）は分類と支払い元（口座の名前）だけを返し、**借方・貸方の行はコードが組む**（`JournalLineWriter`）。`invoice_later` なら支払い元は「後日の請求」の口座。
+- **金額の記載がない書類**（ガソリンカードの納品書など）は、行のない下書きを作り、`amount_missing` の印を付ける。検算（L3）は呼ばない。経理が金額を入れたら確定できる（記載のなかった金額を入れたのは「直した」に数えない）。
+- 常駐は2つ（`torudake-queue@1`・`@2`）。`retry_after`（300秒）はジョブの時間の上限（240秒）より長くする。
 
 ### 4.3 ConfirmEntryService（F07、経理の保存＝確定）
 ```php

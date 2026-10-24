@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Company;
+use App\Support\RemainingCount;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -17,6 +18,11 @@ new class extends Component {
         $this->company = $company;
         $this->companyId = $company->id;
     }
+
+    public function remaining(): int
+    {
+        return RemainingCount::for($this->company);
+    }
 }; ?>
 
 <section class="mx-auto max-w-4xl space-y-6 p-4 text-body text-ink">
@@ -32,6 +38,19 @@ new class extends Component {
         </div>
     </header>
 
+    @can('viewSources', $company)
+        @php($remaining = $this->remaining())
+        <a href="{{ route('company.sources.index', $company) }}" wire:navigate data-test="remaining"
+           @class(['block rounded-xl p-6 text-center', 'bg-brand-soft' => $remaining > 0, 'bg-ok-soft' => $remaining === 0])>
+            @if ($remaining > 0)
+                <p class="text-ink-sub">今月 あと</p>
+                <p class="text-5xl font-bold text-ink">{{ $remaining }}<span class="text-2xl">件</span></p>
+            @else
+                <p class="text-2xl font-bold text-ok">今月の帳簿ができました</p>
+            @endif
+        </a>
+    @endcan
+
     <div class="grid gap-4 sm:grid-cols-2">
         @can('submit', $company)
             <a href="{{ route('company.submit', $company) }}" wire:navigate class="block rounded-xl border border-line bg-panel p-5 hover:border-brand">
@@ -43,14 +62,14 @@ new class extends Component {
         @can('viewSources', $company)
             <a href="{{ route('company.sources.index', $company) }}" wire:navigate class="block rounded-xl border border-line bg-panel p-5 hover:border-brand">
                 <div class="font-bold text-ink">原資料の一覧</div>
-                <p class="mt-1 text-note text-ink-sub">送られた写真とAIの下書き</p>
+                <p class="mt-1 text-note text-ink-sub">AIの下書きを直して確定する</p>
             </a>
         @endcan
 
-        @can('viewClose', $company)
-            <a href="{{ route('company.close', [$company, now()->format('Y-m')]) }}" wire:navigate class="block rounded-xl border border-line bg-panel p-5 hover:border-brand">
-                <div class="font-bold text-ink">締めナビ</div>
-                <p class="mt-1 text-note text-ink-sub">今月の残りと月次集計</p>
+        @can('viewSources', $company)
+            <a href="{{ route('company.entries.index', $company) }}" wire:navigate class="block rounded-xl border border-line bg-panel p-5 hover:border-brand">
+                <div class="font-bold text-ink">仕訳の一覧</div>
+                <p class="mt-1 text-note text-ink-sub">確定した仕訳と下書き</p>
             </a>
         @endcan
 

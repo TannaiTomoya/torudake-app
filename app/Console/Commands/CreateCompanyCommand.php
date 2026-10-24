@@ -37,7 +37,6 @@ class CreateCompanyCommand extends Command
             $company = Company::create([
                 'name' => $name,
                 'fiscal_year_end_month' => $fiscalYearEnd,
-                'allow_self_approval' => false,
                 'is_demo' => $isDemo,
             ]);
 

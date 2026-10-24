@@ -17,7 +17,7 @@ new class extends Component {
 
     public int $fiscalYearEndMonth = 7;
 
-    public bool $allowSelfApproval = false;
+    public int $concernAmountYen = 30000;
 
     public function mount(Company $company): void
     {
@@ -27,18 +27,18 @@ new class extends Component {
         $this->companyId = $company->id;
         $this->name = $company->name;
         $this->fiscalYearEndMonth = $company->fiscal_year_end_month;
-        $this->allowSelfApproval = $company->allow_self_approval;
+        $this->concernAmountYen = $company->concern_amount_yen;
     }
 
     public function saveCompany(CompanySettingsService $service): void
     {
         $this->authorize('manageSettings', $this->company);
 
-        /** @var array{name: string, fiscalYearEndMonth: int, allowSelfApproval: bool} $validated */
+        /** @var array{name: string, fiscalYearEndMonth: int, concernAmountYen: int} $validated */
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:100'],
             'fiscalYearEndMonth' => ['required', 'integer', 'min:1', 'max:12'],
-            'allowSelfApproval' => ['required', 'boolean'],
+            'concernAmountYen' => ['required', 'integer', 'min:0', 'max:100000000'],
         ]);
 
         /** @var User $user */
@@ -47,7 +47,7 @@ new class extends Component {
         $this->company = $service->updateCompany($this->company, $user, [
             'name' => $validated['name'],
             'fiscal_year_end_month' => $validated['fiscalYearEndMonth'],
-            'allow_self_approval' => $validated['allowSelfApproval'],
+            'concern_amount_yen' => $validated['concernAmountYen'],
         ]);
     }
 
@@ -96,9 +96,13 @@ new class extends Component {
             <input id="fiscal-month" type="number" min="1" max="12" wire:model="fiscalYearEndMonth" class="mt-1 w-32 rounded border border-line bg-paper px-3 py-2 text-body text-ink" />
         </div>
 
-        <div class="flex items-center gap-2">
-            <input id="allow-self-approval" type="checkbox" wire:model="allowSelfApproval" class="size-5 rounded border-line" />
-            <label for="allow-self-approval" class="text-body text-ink">自己承認を許可する</label>
+        <div class="space-y-1">
+            <label for="concern-amount" class="block text-body font-bold text-ink">気になる仕訳の金額（この金額以上は社長に知らせる）</label>
+            <div class="flex items-center gap-2">
+                <input id="concern-amount" type="number" min="0" step="1000" inputmode="numeric" wire:model="concernAmountYen" class="w-48 rounded-lg border border-line bg-paper px-3 py-2 text-body text-ink" />
+                <span class="text-body text-ink">円</span>
+            </div>
+            @error('concernAmountYen') <p class="text-note text-ng">{{ $message }}</p> @enderror
         </div>
 
         <button type="submit" class="rounded-lg bg-ink px-4 py-2 font-bold text-paper">保存する</button>

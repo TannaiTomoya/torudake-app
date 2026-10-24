@@ -25,7 +25,6 @@ class DatabaseSeeder extends Seeder
             [
                 'fiscal_year_end_month' => 7,
                 'bookkeeping_start_date' => '2026-08-01',
-                'allow_self_approval' => false,
                 'is_demo' => true,
             ],
         );
@@ -36,7 +35,6 @@ class DatabaseSeeder extends Seeder
             [
                 'fiscal_year_end_month' => 3,
                 'bookkeeping_start_date' => '2026-04-01',
-                'allow_self_approval' => false,
                 'is_demo' => true,
             ],
         );

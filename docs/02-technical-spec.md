@@ -16,7 +16,7 @@
 | 権限 | Policy / Gate ＋ `company` ミドルウェア | 工程2で作る |
 | DB | **MySQL 8.4** | 金額は `BIGINT` の整数円。ID は UUIDv7（`HasUuids`）。users は既定の bigint のまま |
 | 写真 | `evidence` ディスク（`storage/app/private/evidences`、非公開） | S3互換は将来 |
-| ジョブ | Laravel のキュー（`database` ドライバ）＋ スケジューラ（cron 毎分） | 本番に設定済み（systemd `torudake-queue`、cron `schedule:run`） |
+| ジョブ | Laravel のキュー（`database` ドライバ）＋ スケジューラ（cron 毎分） | 本番に設定済み（systemd `torudake-queue@1`・`@2` の2つ、cron `schedule:run`） |
 | AI | Anthropic Messages API、`claude-opus-5-5`、構造化出力（JSON スキーマ） | 工程3で作る。呼ぶのは `app/Services/Ai/` だけ |
 | Excel | `phpoffice/phpspreadsheet`。**アプリが1冊を持ち続ける**（`storage/app/private/workbooks/{company}.xlsx`）。確定のたびに追記し、社長が戻したら状態の列を書き換える | これから |
 | 通知 | Laravel の通知（`database` チャネル、`notifications` テーブル）。画面右上のベル | これから。メール・LINE は将来 |
@@ -164,7 +164,7 @@ vendor/bin/sail composer test
 | 置き場所 | `/var/www/torudake`（持ち主 `ubuntu`、グループ `www-data`） |
 | DB | `torudake`（ユーザー `torudake`、パスワードは VPS の `/root/.torudake-db-password` と `.env` だけ） |
 | 定期実行 | cron `* * * * * php artisan schedule:run`（ubuntu） |
-| ジョブ | systemd `torudake-queue` |
+| ジョブ | systemd `torudake-queue@1`・`@2`（2つ。1枚に十数秒かかるため） |
 | メール | 当面 `log`（送らない）。送る設定は runbook §6 |
 | 初回の準備 | `docs/server/setup-torudake.sh`（何度実行しても壊れない。Ubuntu 以外では止まる） |
 

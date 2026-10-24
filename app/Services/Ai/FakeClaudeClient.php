@@ -15,6 +15,17 @@ class FakeClaudeClient implements AiClient
     /** @var list<AiRequest> */
     public array $requests = [];
 
+    /** @var array<string, mixed> 読み取りの結果を差し替える欄 */
+    private array $readingOverrides = [];
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    public function withReading(array $overrides): void
+    {
+        $this->readingOverrides = $overrides;
+    }
+
     public function failWith(AiTask $task, string $mode = 'error'): void
     {
         $this->failures[$task->value] = $mode;
@@ -64,11 +75,14 @@ class FakeClaudeClient implements AiClient
             'date' => now()->toDateString(),
             'vendor' => '〇〇石油 八幡平店',
             'total_yen' => 3850,
+            'amount_missing' => false,
+            'payment_method' => 'cash',
             'tax_breakdown' => [
                 ['rate' => 10, 'amount_yen' => 3850],
             ],
             'registration_number' => null,
             'confidence' => ['date' => 0.95, 'vendor' => 0.9, 'total' => 0.97],
+            ...$this->readingOverrides,
         ];
     }
 
@@ -83,7 +97,6 @@ class FakeClaudeClient implements AiClient
         /** @var array<string, mixed> $reading */
         $reading = is_array($input['reading'] ?? null) ? $input['reading'] : [];
         $vendor = is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null;
-        $amount = is_int($reading['total_yen'] ?? null) ? $reading['total_yen'] : 1;
 
         $categoryName = '消耗品';
         $remembered = false;
@@ -100,28 +113,29 @@ class FakeClaudeClient implements AiClient
             }
         }
 
-        $debitCode = null;
-        foreach (is_array($input['categories'] ?? null) ? $input['categories'] : [] as $category) {
-            if (is_array($category) && ($category['name'] ?? null) === $categoryName) {
-                $debitCode = $category['account_code'] ?? null;
-            }
-        }
+        $paymentMethod = $reading['payment_method'] ?? null;
+        $wantedKind = match ($paymentMethod) {
+            'invoice_later' => 'invoice',
+            'card' => 'card',
+            default => null,
+        };
 
-        $creditCode = null;
+        $bankAccountName = '';
         foreach (is_array($input['bank_accounts'] ?? null) ? $input['bank_accounts'] : [] as $bankAccount) {
-            if (is_array($bankAccount) && ($bankAccount['default'] ?? false) === true) {
-                $creditCode = $bankAccount['account_code'] ?? null;
+            if (! is_array($bankAccount) || ! is_string($bankAccount['name'] ?? null)) {
+                continue;
+            }
+
+            if ($wantedKind !== null ? ($bankAccount['kind'] ?? null) === $wantedKind : ($bankAccount['default'] ?? false) === true) {
+                $bankAccountName = $bankAccount['name'];
             }
         }
 
         return [
             'category' => $categoryName,
             'description' => ($vendor ?? '取引先不明').'　'.$categoryName,
+            'bank_account' => $bankAccountName,
             'vendor' => $vendor,
-            'lines' => [
-                ['side' => 'debit', 'account_code' => (string) $debitCode, 'amount_yen' => $amount],
-                ['side' => 'credit', 'account_code' => (string) $creditCode, 'amount_yen' => $amount],
-            ],
             'reason' => $remembered ? '前回、同じ店を直した例があるため' : '品目から消耗品と判断したため',
             'confidence' => $remembered ? 0.92 : 0.55,
             'remembered' => $remembered,
@@ -153,6 +167,8 @@ class FakeClaudeClient implements AiClient
             'debit_total' => $debit,
             'credit_total' => $credit,
             'balanced' => $debit === $credit,
+            'duplicate_suspected' => false,
+            'private_suspected' => false,
             'concerns' => [],
         ];
     }

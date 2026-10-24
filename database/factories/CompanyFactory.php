@@ -21,9 +21,8 @@ class CompanyFactory extends Factory
             'name' => fake()->company(),
             'fiscal_year_end_month' => 7,
             'bookkeeping_start_date' => '2026-08-01',
-            'closed_through' => null,
-            'allow_self_approval' => false,
             'is_demo' => false,
+            'concern_amount_yen' => 30000,
         ];
     }
 

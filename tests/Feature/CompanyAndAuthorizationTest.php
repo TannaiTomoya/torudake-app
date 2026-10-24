@@ -58,12 +58,10 @@ test('T04: 会社Aの人が会社BのURLを開くとすべて404になり、Live
         route('company.sources.show', [$companyB, '01900000-0000-7000-8000-000000000001']),
         route('company.entries.index', $companyB),
         route('company.entries.show', [$companyB, '01900000-0000-7000-8000-000000000002']),
-        route('company.close', [$companyB, '2026-10']),
         route('company.live', $companyB),
         route('company.ai', $companyB),
         route('company.settings', $companyB),
         route('company.evidences.image', [$companyB, '01900000-0000-7000-8000-000000000003']),
-        route('company.exports.excel', [$companyB, '2026-10']),
         route('company.exports.training', $companyB),
     ];
 
@@ -107,8 +105,8 @@ test('T04: 退職済み（disabled_atあり）のメンバーは会社の画面�
         ->assertNotFound();
 });
 
-test('T05: 権限の表（§5）をロールごとに検証する', function (): void {
-    $company = Company::factory()->create(['allow_self_approval' => false]);
+test('T05: 権限の表（版3.0 §5）をロールごとに検証する', function (): void {
+    $company = Company::factory()->create();
     CompanyDefaultSeeder::seedForCompany($company);
 
     $matrix = [
@@ -116,11 +114,7 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
             'submit' => true,
             'viewSources' => true,
             'editDraft' => true,
-            'approve' => true,
-            'recordCash' => true,
-            'viewClose' => true,
             'exportExcel' => true,
-            'close' => true,
             'viewLive' => true,
             'viewAi' => true,
             'exportTrainingData' => true,
@@ -130,11 +124,7 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
             'submit' => true,
             'viewSources' => true,
             'editDraft' => true,
-            'approve' => true,
-            'recordCash' => true,
-            'viewClose' => true,
             'exportExcel' => true,
-            'close' => false,
             'viewLive' => true,
             'viewAi' => true,
             'exportTrainingData' => true,
@@ -144,11 +134,7 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
             'submit' => true,
             'viewSources' => true,
             'editDraft' => true,
-            'approve' => true,
-            'recordCash' => true,
-            'viewClose' => true,
             'exportExcel' => true,
-            'close' => false,
             'viewLive' => false,
             'viewAi' => false,
             'exportTrainingData' => false,
@@ -158,11 +144,7 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
             'submit' => true,
             'viewSources' => true,
             'editDraft' => true,
-            'approve' => false,
-            'recordCash' => true,
-            'viewClose' => true,
             'exportExcel' => true,
-            'close' => false,
             'viewLive' => false,
             'viewAi' => false,
             'exportTrainingData' => false,
@@ -172,11 +154,7 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
             'submit' => false,
             'viewSources' => true,
             'editDraft' => false,
-            'approve' => false,
-            'recordCash' => false,
-            'viewClose' => true,
             'exportExcel' => true,
-            'close' => false,
             'viewLive' => false,
             'viewAi' => false,
             'exportTrainingData' => false,
@@ -186,11 +164,7 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
             'submit' => true,
             'viewSources' => false,
             'editDraft' => false,
-            'approve' => false,
-            'recordCash' => false,
-            'viewClose' => false,
             'exportExcel' => false,
-            'close' => false,
             'viewLive' => false,
             'viewAi' => false,
             'exportTrainingData' => false,
@@ -219,17 +193,12 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
         $this->get(route('company.sources.index', $company))
             ->assertStatus($case['expected']['viewSources'] ? 200 : 403);
 
+        // 権限があれば、存在しない ID は 404（権限がなければ先に 403）
         $this->get(route('company.sources.show', [$company, '01900000-0000-7000-8000-000000000001']))
-            ->assertStatus($case['expected']['editDraft'] ? 200 : 403);
+            ->assertStatus($case['expected']['editDraft'] ? 404 : 403);
 
         $this->get(route('company.entries.show', [$company, '01900000-0000-7000-8000-000000000002']))
-            ->assertStatus($case['expected']['approve'] ? 200 : 403);
-
-        $this->get(route('company.close', [$company, '2026-10']))
-            ->assertStatus($case['expected']['viewClose'] ? 200 : 403);
-
-        $this->get(route('company.exports.excel', [$company, '2026-10']))
-            ->assertStatus($case['expected']['exportExcel'] ? 200 : 403);
+            ->assertStatus($case['expected']['viewSources'] ? 404 : 403);
 
         $this->get(route('company.live', $company))
             ->assertStatus($case['expected']['viewLive'] ? 200 : 403);
@@ -243,11 +212,6 @@ test('T05: 権限の表（§5）をロールごとに検証する', function ():
         $this->get(route('company.settings', $company))
             ->assertStatus($case['expected']['manageSettings'] ? 200 : 403);
     }
-
-    // 自己承認の制限（allow_self_approval = false のとき自分が作った下書きは承認不可）
-    ['user' => $owner] = createCompanyWithMember(Role::Owner, company: $company);
-    expect(Gate::forUser($owner)->allows('approve', [$company, $owner->id]))->toBeFalse();
-    expect(Gate::forUser($owner)->allows('approve', [$company, $owner->id + 999]))->toBeTrue();
 });
 
 test('T20: 監査記録に各操作が残り、機密情報が含まれず、更新・削除はできない', function (): void {
@@ -263,7 +227,7 @@ test('T20: 監査記録に各操作が残り、機密情報が含まれず、更
 
     expect($company->accounts()->count())->toBe(19)
         ->and($company->categories()->count())->toBe(9)
-        ->and($company->bankAccounts()->count())->toBe(4);
+        ->and($company->bankAccounts()->count())->toBe(5);
 
     $this->artisan('torudake:add-member', [
         'company' => $company->id,
@@ -285,7 +249,7 @@ test('T20: 監査記録に各操作が残り、機密情報が含まれず、更
         ->test('pages::company.settings', ['company' => $company])
         ->set('name', '有限会社 丹内建機サービス')
         ->set('fiscalYearEndMonth', 7)
-        ->set('allowSelfApproval', false)
+        ->set('concernAmountYen', 50000)
         ->call('saveCompany')
         ->assertHasNoErrors();
 
@@ -345,11 +309,9 @@ test('T21: 送るだけの人は送る画面以外が403になり、原資料は
         route('company.sources.show', [$company, '01900000-0000-7000-8000-000000000001']),
         route('company.entries.index', $company),
         route('company.entries.show', [$company, '01900000-0000-7000-8000-000000000002']),
-        route('company.close', [$company, '2026-10']),
         route('company.live', $company),
         route('company.ai', $company),
         route('company.settings', $company),
-        route('company.exports.excel', [$company, '2026-10']),
         route('company.exports.training', $company),
     ];
 

@@ -16,13 +16,13 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property int $fiscal_year_end_month
  * @property Carbon|null $bookkeeping_start_date
- * @property Carbon|null $closed_through
- * @property bool $allow_self_approval
  * @property bool $is_demo
+ * @property int $concern_amount_yen
+ * @property int|null $approval_required_yen
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'fiscal_year_end_month', 'bookkeeping_start_date', 'allow_self_approval', 'is_demo'])]
+#[Fillable(['name', 'fiscal_year_end_month', 'bookkeeping_start_date', 'is_demo', 'concern_amount_yen'])]
 class Company extends Model
 {
     /** @use HasFactory<CompanyFactory> */
@@ -36,9 +36,9 @@ class Company extends Model
         return [
             'fiscal_year_end_month' => 'integer',
             'bookkeeping_start_date' => 'date',
-            'closed_through' => 'date',
-            'allow_self_approval' => 'boolean',
             'is_demo' => 'boolean',
+            'concern_amount_yen' => 'integer',
+            'approval_required_yen' => 'integer',
         ];
     }
 

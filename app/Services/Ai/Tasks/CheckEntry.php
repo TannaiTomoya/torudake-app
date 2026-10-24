@@ -15,7 +15,7 @@ use App\Services\Ai\AiTaskRunner;
  */
 class CheckEntry
 {
-    public const PROMPT_VERSION = 'check_entry.v1';
+    public const PROMPT_VERSION = 'check_entry.v2';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 
@@ -38,11 +38,34 @@ class CheckEntry
                 'vendor' => $entry->vendor,
                 'description' => $entry->description,
                 'lines' => $lines,
+                'recent_entries' => self::recentEntries($company, $entry),
             ],
             schema: self::schema(),
             effort: 'low',
             maxTokens: 1024,
         ), self::PROMPT_VERSION);
+    }
+
+    /**
+     * 重複の疑いを見るための、この会社の近い日付の仕訳（自分は除く）。
+     *
+     * @return list<array{entry_date: string, vendor: string|null, amount_yen: int|null}>
+     */
+    private static function recentEntries(Company $company, JournalEntry $entry): array
+    {
+        return array_values($company->journalEntries()
+            ->with('lines')
+            ->whereKeyNot($entry->id)
+            ->whereBetween('entry_date', [$entry->entry_date->copy()->subDays(14), $entry->entry_date->copy()->addDays(14)])
+            ->latest('entry_date')
+            ->limit(30)
+            ->get()
+            ->map(fn (JournalEntry $other): array => [
+                'entry_date' => $other->entry_date->toDateString(),
+                'vendor' => $other->vendor,
+                'amount_yen' => $other->amountYen(),
+            ])
+            ->all());
     }
 
     /**
@@ -53,11 +76,13 @@ class CheckEntry
         return [
             'type' => 'object',
             'additionalProperties' => false,
-            'required' => ['debit_total', 'credit_total', 'balanced', 'concerns'],
+            'required' => ['debit_total', 'credit_total', 'balanced', 'duplicate_suspected', 'private_suspected', 'concerns'],
             'properties' => [
                 'debit_total' => ['type' => 'integer'],
                 'credit_total' => ['type' => 'integer'],
                 'balanced' => ['type' => 'boolean'],
+                'duplicate_suspected' => ['type' => 'boolean'],
+                'private_suspected' => ['type' => 'boolean'],
                 'concerns' => ['type' => 'array', 'items' => ['type' => 'string']],
             ],
         ];

@@ -57,24 +57,11 @@ Route::middleware(['auth', 'verified', 'two-factor', 'company'])
         Route::livewire('sources/{source}', 'pages::company.sources.show')->name('sources.show');
         Route::livewire('entries', 'pages::company.entries.index')->name('entries.index');
         Route::livewire('entries/{entry}', 'pages::company.entries.show')->name('entries.show');
-        Route::livewire('close/{month}', 'pages::company.close')
-            ->where('month', '[0-9]{4}-(0[1-9]|1[0-2])')
-            ->name('close');
         Route::livewire('live', 'pages::company.live')->name('live');
         Route::livewire('ai', 'pages::company.ai')->name('ai');
         Route::livewire('settings', 'pages::company.settings')->name('settings');
 
         Route::get('evidences/{evidence}/image', EvidenceImageController::class)->name('evidences.image');
-
-        Route::get('exports/{month}.xlsx', function (Company $company, string $month) {
-            Gate::authorize('exportExcel', $company);
-
-            return response("Excel export placeholder ({$month})", 200, [
-                'Content-Type' => 'text/plain; charset=UTF-8',
-            ]);
-        })
-            ->where('month', '[0-9]{4}-(0[1-9]|1[0-2])')
-            ->name('exports.excel');
 
         Route::get('exports/training-data.zip', function (Company $company) {
             Gate::authorize('exportTrainingData', $company);

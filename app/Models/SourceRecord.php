@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $ai_stage
  * @property string|null $ai_error
  * @property string $evidence_id
+ * @property string|null $batch_id
  * @property Carbon|null $occurred_on
  * @property int|null $amount_yen
  * @property string|null $vendor

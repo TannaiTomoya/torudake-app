@@ -11,13 +11,14 @@ use App\Services\Ai\Tasks\CheckEntry;
 use App\Services\Ai\Tasks\Journalize;
 use App\Services\Ai\Tasks\ReadReceipt;
 use App\Services\AiDraftBuilder;
+use App\Services\ConcernRules;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * 送った直後に裏で L1 読み取り → L2 仕訳 → L3 検算 を行い、下書きを作る。確定（承認）はしない。
+ * 送った直後に裏で L1 読み取り → L2 仕訳 → L3 検算 を行い、下書きを作る。確定は経理の保存だけ。
  */
 class ProcessEvidenceWithAi implements ShouldQueue
 {
@@ -25,7 +26,7 @@ class ProcessEvidenceWithAi implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 120;
+    public int $timeout = 240;
 
     public function __construct(public string $sourceRecordId) {}
 
@@ -35,6 +36,7 @@ class ProcessEvidenceWithAi implements ShouldQueue
         Journalize $journalize,
         CheckEntry $checkEntry,
         AiDraftBuilder $draftBuilder,
+        ConcernRules $concernRules,
     ): void {
         $source = SourceRecord::query()->with(['company', 'evidence'])->find($this->sourceRecordId);
 
@@ -84,18 +86,27 @@ class ProcessEvidenceWithAi implements ShouldQueue
             $entry = $draftBuilder->build($company, $source->id, $reading, $draft->output, $draft->run);
 
             if ($entry !== null) {
-                $this->stage($source, AiStatus::Reading, '仕訳');
+                $amountYen = $entry->amountYen();
+                $check = [];
 
-                $check = $checkEntry->run($company, $entry)->output;
+                if ($amountYen !== null) {
+                    $this->stage($source, AiStatus::Reading, '仕訳');
+                    $check = $checkEntry->run($company, $entry)->output;
+                }
+
+                $aiCheck = [
+                    ...$check,
+                    'amount_missing' => $amountYen === null,
+                    'payment_method' => $reading['payment_method'] ?? null,
+                    'remembered' => ($draft->output['remembered'] ?? false) === true,
+                    'reason' => $draft->output['reason'] ?? null,
+                    'confidence' => $draft->output['confidence'] ?? null,
+                    'reading_confidence' => $reading['confidence'] ?? null,
+                ];
 
                 $entry->forceFill([
-                    'ai_check' => [
-                        ...$check,
-                        'remembered' => ($draft->output['remembered'] ?? false) === true,
-                        'reason' => $draft->output['reason'] ?? null,
-                        'confidence' => $draft->output['confidence'] ?? null,
-                        'reading_confidence' => $reading['confidence'] ?? null,
-                    ],
+                    'ai_check' => $aiCheck,
+                    'concern_flags' => $concernRules->for($company, $amountYen, $aiCheck, false, $amountYen === null),
                 ])->save();
             }
 

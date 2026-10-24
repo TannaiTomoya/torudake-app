@@ -100,6 +100,7 @@ class CompanyDefaultSeeder extends Seeder
             ['name' => '〇〇銀行（普通預金）', 'kind' => BankAccountKind::Bank, 'account_name' => '普通預金', 'is_default' => false],
             ['name' => '事業用カード', 'kind' => BankAccountKind::Card, 'account_name' => '未払金', 'is_default' => false],
             ['name' => '社長の立替', 'kind' => BankAccountKind::Reimbursement, 'account_name' => '役員借入金', 'is_default' => false],
+            ['name' => '後日の請求書（未払金）', 'kind' => BankAccountKind::Invoice, 'account_name' => '未払金', 'is_default' => false],
         ];
 
         foreach ($bankDefinitions as $def) {

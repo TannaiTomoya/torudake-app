@@ -3,7 +3,6 @@
 namespace App\Services\Ai\Tasks;
 
 use App\Enums\AiTask;
-use App\Models\Account;
 use App\Models\AiCorrection;
 use App\Models\BankAccount;
 use App\Models\Category;
@@ -14,11 +13,11 @@ use App\Services\Ai\AiRequest;
 use App\Services\Ai\AiTaskRunner;
 
 /**
- * L2：L1 の結果と、会社の分類・勘定科目・口座・直した例から、分類と借方・貸方の行を作る。
+ * L2：L1 の結果と、会社の分類・口座・直した例から、分類と支払い元を選ぶ。借方・貸方の行はコードが組む（AiDraftBuilder）。
  */
 class Journalize
 {
-    public const PROMPT_VERSION = 'journalize.v1';
+    public const PROMPT_VERSION = 'journalize.v2';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 
@@ -58,18 +57,6 @@ class Journalize
             ->values()
             ->all();
 
-        $accounts = $company->accounts()
-            ->whereNull('archived_at')
-            ->orderBy('code')
-            ->get()
-            ->map(fn (Account $a): array => [
-                'code' => $a->code,
-                'name' => $a->name,
-                'type' => $a->type->value,
-            ])
-            ->values()
-            ->all();
-
         $bankAccounts = $company->bankAccounts()
             ->with('account')
             ->whereNull('archived_at')
@@ -101,7 +88,6 @@ class Journalize
         return [
             'reading' => $reading,
             'categories' => $categories,
-            'accounts' => $accounts,
             'bank_accounts' => $bankAccounts,
             'corrections' => $corrections,
         ];
@@ -115,24 +101,12 @@ class Journalize
         return [
             'type' => 'object',
             'additionalProperties' => false,
-            'required' => ['category', 'description', 'vendor', 'lines', 'reason', 'confidence', 'remembered'],
+            'required' => ['category', 'bank_account', 'description', 'vendor', 'reason', 'confidence', 'remembered'],
             'properties' => [
                 'category' => ['type' => 'string'],
+                'bank_account' => ['type' => 'string'],
                 'description' => ['type' => 'string'],
                 'vendor' => ['type' => ['string', 'null']],
-                'lines' => [
-                    'type' => 'array',
-                    'items' => [
-                        'type' => 'object',
-                        'additionalProperties' => false,
-                        'required' => ['side', 'account_code', 'amount_yen'],
-                        'properties' => [
-                            'side' => ['type' => 'string', 'enum' => ['debit', 'credit']],
-                            'account_code' => ['type' => 'string'],
-                            'amount_yen' => ['type' => 'integer'],
-                        ],
-                    ],
-                ],
                 'reason' => ['type' => 'string'],
                 'confidence' => ['type' => 'number'],
                 'remembered' => ['type' => 'boolean'],

@@ -2,6 +2,7 @@
 
 use App\Enums\AiStatus;
 use App\Enums\AiTask;
+use App\Enums\ConcernFlag;
 use App\Enums\CorrectionReason;
 use App\Enums\EntryStatus;
 use App\Enums\Role;
@@ -59,7 +60,7 @@ test('T09: 偽物の AI で L1→L2→L3 が走り、下書きができ、ai_run
 
     expect($entry->status)->toBe(EntryStatus::Draft)
         ->and($entry->created_by)->toBeNull()
-        ->and($entry->approved_by)->toBeNull()
+        ->and($entry->confirmed_by)->toBeNull()
         ->and($entry->category?->name)->toBe('消耗品')
         ->and($entry->ai_run_id)->toBe($runs->firstOrFail(fn (AiRun $run): bool => $run->task === AiTask::Journalize)->id)
         ->and($entry->ai_check['balanced'] ?? null)->toBeTrue()
@@ -156,23 +157,48 @@ test('T11: 会社Aの直した例は会社Aの L2 にだけ入り、会社Bの L
         ->and($entryB->ai_check['remembered'] ?? null)->toBeFalse();
 });
 
-test('締めた期間の日付が返ってきたら、締めた次の日にして「遅れて届いた」にする', function (): void {
+test('金額の記載がない納品書（後日請求）でも、行のない下書きができ、支払い元は未払金、気になる印が付く', function (): void {
+    app(FakeClaudeClient::class)->withReading([
+        'full_text' => "ENEOS 八幡平SS\n納品書（お客様控）\n軽油 40.0L\nカード払い・後日ご請求",
+        'vendor' => 'ENEOS 八幡平SS',
+        'total_yen' => null,
+        'amount_missing' => true,
+        'payment_method' => 'invoice_later',
+        'tax_breakdown' => [],
+        'confidence' => ['date' => 0.95, 'vendor' => 0.95, 'total' => 0.0],
+    ]);
     ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor);
-    $company->forceFill(['closed_through' => now()->toDateString()])->save();
 
     $source = submitReceipt($company, $user);
-    $entry = $source->journalEntry()->firstOrFail();
 
-    expect($source->late)->toBeTrue()
-        ->and($entry->entry_date->toDateString())->toBe(now()->addDay()->toDateString());
+    /** @var JournalEntry $entry */
+    $entry = $source->journalEntry()->with(['lines', 'bankAccount.account'])->firstOrFail();
+
+    expect($source->ai_status)->toBe(AiStatus::Done)
+        ->and($source->status)->toBe(SourceStatus::Drafted)
+        ->and($source->amount_yen)->toBeNull()
+        ->and($entry->status)->toBe(EntryStatus::Draft)
+        ->and($entry->lines)->toHaveCount(0)
+        ->and($entry->amountYen())->toBeNull()
+        ->and($entry->bankAccount?->account?->name)->toBe('未払金')
+        ->and($entry->ai_check['amount_missing'] ?? null)->toBeTrue()
+        ->and($entry->concern_flags)->toContain(ConcernFlag::AmountMissing->value);
+
+    // 行がないので検算（L3）は呼ばない
+    expect(AiRun::where('task', AiTask::CheckEntry)->count())->toBe(0);
+
+    $this->actingAs($user)
+        ->get(route('company.sources.show', [$company, $source]))
+        ->assertOk()
+        ->assertSee('金額を入れてください');
 });
 
-test('承認済みの仕訳は Model から変更・削除できない', function (): void {
+test('確定した仕訳は Model から削除できず、下書きにも戻せない', function (): void {
     ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor);
     $entry = submitReceipt($company, $user)->journalEntry()->firstOrFail();
 
-    $entry->forceFill(['status' => EntryStatus::Approved, 'approved_at' => now()])->save();
+    $entry->forceFill(['status' => EntryStatus::Confirmed, 'confirmed_at' => now()])->save();
 
-    expect(fn () => $entry->refresh()->forceFill(['description' => '改ざん'])->save())->toThrow(LogicException::class)
-        ->and(fn () => $entry->refresh()->delete())->toThrow(LogicException::class);
+    expect(fn () => $entry->delete())->toThrow(LogicException::class);
+    expect(fn () => $entry->refresh()->forceFill(['status' => EntryStatus::Draft])->save())->toThrow(LogicException::class);
 });
