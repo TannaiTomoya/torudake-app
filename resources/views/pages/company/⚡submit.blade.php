@@ -222,6 +222,9 @@ new #[Title('レシートを送る')] class extends Component {
         </div>
     </header>
 
+    @if (auth()->user()?->two_factor_confirmed_at === null)
+        @include('partials.two-factor-first')
+    @else
     {{-- 1 待ち --}}
     @if ($state === 'waiting')
         @if ($monthCount === 0)
@@ -346,5 +349,6 @@ new #[Title('レシートを送る')] class extends Component {
             <p class="text-note text-warn">{{ $duplicateOf }}</p>
         </div>
         <button type="button" wire:click="retake" class="w-full rounded-xl bg-brand py-3 text-lg font-bold text-ink">別のレシートを撮る</button>
+    @endif
     @endif
 </section>

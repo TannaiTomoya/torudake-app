@@ -14,10 +14,6 @@ $dispatchAuthenticatedUser = function (User $user): RedirectResponse|View {
         return view('dashboard');
     }
 
-    if ($user->two_factor_confirmed_at === null) {
-        return redirect()->route('security.edit');
-    }
-
     return redirect()->to($user->homeUrl());
 };
 

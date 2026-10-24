@@ -158,6 +158,8 @@ test('2段階認証を設定し終えると、その人の最初の画面へ移�
         ->set('code', $code)
         ->call('confirmTwoFactor')
         ->assertHasNoErrors()
+        ->assertNoRedirect()
+        ->call('finish')
         ->assertRedirect(route($route, $company));
 
     expect($user->fresh()?->two_factor_confirmed_at)->not->toBeNull();
@@ -180,6 +182,7 @@ test('2社に入っている人は、2段階認証を設定し終えると今の
         ->test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
         ->set('code', $code)
         ->call('confirmTwoFactor')
+        ->call('finish')
         ->assertRedirect(route('company.home', $second));
 });
 

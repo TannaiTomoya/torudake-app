@@ -22,6 +22,10 @@ new class extends Component {
 
     public bool $setupComplete = false;
 
+    /** @var list<string> */
+    #[Locked]
+    public array $recoveryCodes = [];
+
     #[Validate('required|string|size:6', onUpdate: false)]
     public string $code = '';
 
@@ -82,6 +86,20 @@ new class extends Component {
     }
 
     /**
+     * 設定し終えたあとに閉じられたら（外側を押したときも）、最初の画面へ。
+     */
+    public function closeAfterSetup(): void
+    {
+        $done = $this->setupComplete;
+
+        $this->closeModal();
+
+        if ($done) {
+            $this->redirectHome();
+        }
+    }
+
+    /**
      * 設定し終えたら、その人の最初の画面へ移す（復旧コードは設定の画面でいつでも見られる）。
      */
     private function redirectHome(): void
@@ -103,10 +121,21 @@ new class extends Component {
         $confirmTwoFactorAuthentication(auth()->user(), $this->code);
 
         $this->setupComplete = true;
+        $this->showVerificationStep = false;
 
-        $this->closeModal();
+        $user = auth()->user()?->fresh();
+        $codes = $user?->two_factor_recovery_codes ? json_decode(decrypt($user->two_factor_recovery_codes), true) : [];
+        $this->recoveryCodes = is_array($codes) ? array_values(array_filter($codes, 'is_string')) : [];
 
         $this->dispatch('two-factor-enabled');
+    }
+
+    /**
+     * 復旧コードを紙に書いたら、閉じてその人の最初の画面へ。
+     */
+    public function finish(): void
+    {
+        $this->closeModal();
         $this->redirectHome();
     }
 
@@ -131,6 +160,7 @@ new class extends Component {
             'qrCodeSvg',
             'showVerificationStep',
             'setupComplete',
+            'recoveryCodes',
         );
 
         $this->resetErrorBag();
@@ -144,9 +174,9 @@ new class extends Component {
     {
         if ($this->setupComplete) {
             return [
-                'title' => __('Two-factor authentication enabled'),
-                'description' => __('Two-factor authentication is now enabled. Scan the QR code or enter the setup key in your authenticator app.'),
-                'buttonText' => __('Close'),
+                'title' => '2段階認証を設定しました',
+                'description' => '下の復旧コードを紙に書いて保管してください。スマホをなくしたとき、このコードでログインできます（1つにつき1回）。',
+                'buttonText' => '紙に書きました',
             ];
         }
 
@@ -169,7 +199,7 @@ new class extends Component {
 <flux:modal
     name="two-factor-setup-modal"
     class="max-w-md md:min-w-md"
-    @close="closeModal"
+    @close="closeAfterSetup"
 >
         <div class="space-y-6">
             <div class="flex flex-col items-center space-y-4">
@@ -197,7 +227,18 @@ new class extends Component {
                 </div>
             </div>
 
-            @if ($showVerificationStep)
+            @if ($setupComplete)
+                <div class="space-y-4" data-test="two-factor-recovery">
+                    <ul class="grid grid-cols-2 gap-2 rounded-xl bg-panel p-4 font-mono text-body text-ink">
+                        @foreach ($recoveryCodes as $recoveryCode)
+                            <li>{{ $recoveryCode }}</li>
+                        @endforeach
+                    </ul>
+                    <flux:button variant="primary" class="w-full" wire:click="finish" data-test="two-factor-finish">
+                        {{ $this->modalConfig['buttonText'] }}
+                    </flux:button>
+                </div>
+            @elseif ($showVerificationStep)
                 <div class="space-y-6">
                     <div
                         class="flex flex-col items-center space-y-3 justify-center"

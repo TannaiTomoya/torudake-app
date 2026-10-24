@@ -43,6 +43,9 @@ new #[Title('ホーム')] class extends Component {
         <p class="mt-1 text-note text-ink-sub">決算月：{{ $company->fiscal_year_end_month }}月</p>
     </header>
 
+    @if (auth()->user()?->two_factor_confirmed_at === null)
+        @include('partials.two-factor-first')
+    @else
     <p class="text-note font-bold text-ink-sub">次にやること</p>
 
     @can('viewOwner', $company)
@@ -86,4 +89,5 @@ new #[Title('ホーム')] class extends Component {
             </a>
         @endcan
     @endcan
+    @endif
 </section>
