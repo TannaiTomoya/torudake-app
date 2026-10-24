@@ -1,6 +1,6 @@
 # 02｜技術仕様書 — 撮って送るだけ帳簿（torudake）
 
-版2.0・2026-10-24。要件は [01 要件定義書](01-requirements.md)、テーブル・画面・処理・テストは [03 詳細設計書](03-detailed-design.md)、本番の手順は [runbook](runbook.md)。
+版3.0・2026-10-24 14:30（社長の画面・通知・Excel の1冊・帳票の取り込み・確定の考え方を反映）。要件は [01 要件定義書](01-requirements.md)、テーブル・画面・処理・テストは [03 詳細設計書](03-detailed-design.md)、本番の手順は [runbook](runbook.md)。
 
 ---
 
@@ -18,7 +18,9 @@
 | 写真 | `evidence` ディスク（`storage/app/private/evidences`、非公開） | S3互換は将来 |
 | ジョブ | Laravel のキュー（`database` ドライバ）＋ スケジューラ（cron 毎分） | 本番に設定済み（systemd `torudake-queue`、cron `schedule:run`） |
 | AI | Anthropic Messages API、`claude-opus-5-5`、構造化出力（JSON スキーマ） | 工程3で作る。呼ぶのは `app/Services/Ai/` だけ |
-| Excel | `phpoffice/phpspreadsheet` | 工程7で入れる |
+| Excel | `phpoffice/phpspreadsheet`。**アプリが1冊を持ち続ける**（`storage/app/private/workbooks/{company}.xlsx`）。確定のたびに追記し、社長が戻したら状態の列を書き換える | これから |
+| 通知 | Laravel の通知（`database` チャネル、`notifications` テーブル）。画面右上のベル | これから。メール・LINE は将来 |
+| グラフ | Chart.js（npm で入れ、Vite で組み立てる）。社長の画面の三期比較 | これから |
 | テスト・品質 | **Pest 5**、Larastan（PHPStan レベル7）、Pint | 実装済み。テスト34件 |
 | 開発環境 | **Laravel Sail**：PHP 8.4・MySQL 8.4・Mailpit | 実装済み |
 | 本番 | ABLENET VPS、**Ubuntu 26.04.1**・nginx 1.28・PHP-FPM 8.5.4・Node 24・Let's Encrypt | 稼働中 https://torudake-app.com |
@@ -52,10 +54,10 @@
 | `app/Policies/` | CompanyPolicy（土台）、SourceRecordPolicy、EvidencePolicy、JournalEntryPolicy、PeriodClosingPolicy |
 | `app/Http/Middleware/` | `EnsureCompanyMember`（`company`）、`EnsureTwoFactorEnabled`（`two-factor`）、`AbsoluteSessionTimeout` |
 | `app/Livewire/Forms/` | 入力と検証（`DraftEntryForm`・`CashCountForm` など） |
-| `app/Services/` | SubmitEvidence、DraftEntryService、ApprovalService、CloseService、ExcelExporter、TrainingDataExporter、PurgeExpiredEvidence |
-| `app/Services/Ai/` | `ClaudeClient`（本物）、`FakeClaudeClient`（開発・テスト）、`ReplayClaudeClient`（デモ再生）、`Tasks/`（ReadReceipt・Journalize・CheckEntry・MonthlySummary・CloseCheck） |
-| `app/Jobs/` | `ProcessEvidenceWithAi`（L1→L2） |
-| `app/Support/` | `CloseGuard`、`RemainingCount`（「あと n 件」の式） |
+| `app/Services/` | SubmitEvidence（まとめて送るに対応）、ConfirmEntryService（経理の保存＝確定）、ReturnToBookkeeper（社長から戻す）、WorkbookService（Excel の1冊への追記・書き換え）、OwnerDashboard（社長の画面の数字）、ReportImportService（帳票の取り込み）、TrainingDataExporter、PurgeExpiredEvidence |
+| `app/Services/Ai/` | `ClaudeClient`（本物）、`FakeClaudeClient`（開発・テスト）、`ReplayClaudeClient`（デモ再生）、`Tasks/`（ReadReceipt・Journalize・CheckEntry・**ReadReport**（帳票の表）・**OwnerBrief**（社長へのひとこと）・**Forecast**（来月の見込み）） |
+| `app/Jobs/` | `ProcessEvidenceWithAi`（L1→L2→L3）、`ProcessReportWithAi`（帳票の表を読む）、`SendWeeklyOwnerDigest`（月曜の朝の通知） |
+| `app/Support/` | `RemainingCount`（「あと n 件」＝まだ確定していない件数の式）、`ConcernRules`（気になる仕訳の条件） |
 | `app/Console/Commands/` | `torudake:create-company`、`torudake:add-member` |
 | `resources/prompts/` | AIへの指示文（タスクごと、版つき） |
 | `resources/views/pages/` | 画面（03 §7） |
@@ -74,7 +76,8 @@
 - 権限は Policy。一覧の絞り込みも必ず会社から引く。Policy だけに頼らない。
 - `company_id`・`role`・各種 `status`・`created_by`・`approved_by` は一括代入させない。Livewire のプロパティの ID は `#[Locked]`。
 - 状態を変える処理は Service の `DB::transaction` で、対象の行を `lockForUpdate()` してから確かめる。
-- 承認済みの仕訳は Model の `updating` / `deleting` で例外。**業務テーブルにクエリビルダの一括 `update()` / `delete()` を使わない。**
+- **確定（confirmed）した仕訳は、画面から直接書き換えない。** 直すときは「社長から戻し（returned）」にしてから経理が直して再確定する。Model の `updating` で、状態が confirmed のまま金額・科目を変えようとしたら例外。**業務テーブルにクエリビルダの一括 `update()` / `delete()` を使わない。**
+- 実在の帳票の画像・数字は、リポジトリ（公開）・テストの fixture・デモ用データに入れない。テストとデモは架空の数字だけ。
 - 外部サービス（Anthropic）を呼ぶのは `app/Services/Ai/` だけ。テストは `AI_DRIVER=fake`。
 - テストのデータはファクトリの state で作る（`owner()`・`editor()`・`submitOnly()`・`approved()`・`purged()` など）。
 
@@ -86,7 +89,7 @@
 | `ink` / `ink-sub` | #1F2A33 / #3E4A52 | 本文・濃いボタン / 補足（白地で9.1） |
 | `paper` / `panel` / `line` | #F4F1EA / #F5F3EE / #E2E5E1 | 背景 / 区画 / 罫線 |
 | `brand` / `brand-ink` / `brand-soft` | #E8862E / #A8520F / #FFE3C4 | **強調はこの1色だけ** / オレンジの文字 / 変わった所を光らせる |
-| `ok` / `ok-soft` | #1F6B40 / #E3F1E8 | 承認済み・送れました |
+| `ok` / `ok-soft` | #1F6B40 / #E3F1E8 | 確定・送れました |
 | `warn` / `warn-soft` | #9A4508 / #FDF0DC | 注意 |
 | `ng` / `ng-soft` | #B42318 / #FBE4E1 | エラー |
 | `muted` | #6B767C | アイコン・枠（白地で4.7） |
@@ -112,10 +115,12 @@
 
 | 項目 | 決まり |
 |---|---|
-| モデル | `claude-opus-5-5`。effort は L1・L3 を `low`、L2・L4・L5 を `medium` |
+| モデル | `claude-opus-5-5`。effort は読み取り・検算を `low`、仕訳・帳票の読み取り・社長へのひとこと・見込みを `medium` |
 | 呼び出し | Laravel の HTTP クライアントで Messages API。写真はその場で base64。**Files API・Batch は使わない**（保存されるため） |
 | 出力 | 構造化出力（JSON スキーマ）。スキーマに実データを書かない。形が違えば保存せず、やり直しは1回まで |
 | 会社の分離 | プロンプトに入れる直した例は、その会社の最近20件だけ |
+| 社長へのひとこと | 渡すのは月ごとの合計・分類ごとの合計・上位の取引先の割合（**名前は渡さない**）。「何が起きたか・理由の見立て・確かめるとよい点」まで。「〜すべき」とは言わせない |
+| 見込み | 過去の月の実績から、中央値と8割の範囲を返させる（デモ版は LLM。Python編で規則に置き換えて比べる） |
 | 記録 | 呼ぶたびに `ai_runs` に入力（写真は入れない）・出力・トークン数・時間・成否を残す |
 | 失敗 | 30秒で打ち切り。原資料は残り、人が手で下書きを作れる |
 | 上限 | アプリで1社1日100回。超えたら手入力に切り替え、画面に表示。コンソールで月 $20 |
@@ -148,6 +153,7 @@ vendor/bin/sail composer test
 | 画面 | http://localhost:8081 |
 | MySQL | localhost:3307（DB `torudake`、テストは `testing`） |
 | Mailpit | http://localhost:8026 |
+| 初期データでのログイン | 2段階認証の鍵は16文字以上の固定の値にする（`secret` では短すぎて6桁のコードが作れない。10/24 に発覚）。開発用の鍵と復旧コードは README に書く |
 | 注意 | フォルダ名が日本語なので `.env` の `COMPOSE_PROJECT_NAME=torudake` が必要。`node_modules` はコンテナで入れたので、**Mac で `npm run dev` は動かない**（Sail の中で動かす） |
 
 ### 8.3 本番（稼働中）
@@ -189,4 +195,7 @@ secrets：`SSH_HOST`・`SSH_USER`（ubuntu）・`SSH_PRIVATE_KEY`（camp_actions
 | `AI_DRIVER` | fake | claude（デモの保険は replay） |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | 空でよい / claude-opus-5-5 | 本番のキー / claude-opus-5-5 |
 | `AI_DAILY_LIMIT` | 100 | 100 |
+| `CONCERN_AMOUNT_YEN` | 30000 | 30000（気になる仕訳の金額の目安。会社設定で上書き） |
+
+**`.env` を変えたら、キューの常駐を立ち上げ直す**（`vendor/bin/sail artisan queue:restart`、本番は `php artisan queue:restart`）。常駐は起動したときの設定で動き続けるため、変えても反映されない（10/24 に実際に起きた）。
 | `COMPOSE_PROJECT_NAME` ほか Sail のポート | torudake・8081・3307・8026 | 使わない |
