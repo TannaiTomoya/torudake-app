@@ -324,3 +324,36 @@ test('T21: 送るだけの人は送る画面以外が403になり、原資料は
         ->and(Gate::forUser($submitter)->allows('viewSource', [$company, $otherMember->id]))->toBeFalse()
         ->and(Gate::forUser($otherMember)->allows('viewSource', [$company, $submitter->id]))->toBeTrue();
 });
+
+test('忙しい月：初期値は6・7・10・11・12月で、社長が変えると並べ直して保存され、範囲外の月は拒否される', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+
+    expect($company->refresh()->busy_months)->toBe([6, 7, 10, 11, 12])
+        ->and($company->isBusyMonth(11))->toBeTrue()
+        ->and($company->isBusyMonth(2))->toBeFalse();
+
+    Livewire::actingAs($owner)
+        ->test('pages::company.settings', ['company' => $company])
+        ->assertSee('忙しい月（社長の見立て）')
+        ->set('busyMonths', ['12', '3', '11'])
+        ->call('saveCompany')
+        ->assertHasNoErrors();
+
+    expect($company->refresh()->busy_months)->toBe([3, 11, 12]);
+
+    Livewire::actingAs($owner)
+        ->test('pages::company.settings', ['company' => $company])
+        ->set('busyMonths', [13])
+        ->call('saveCompany')
+        ->assertHasErrors('busyMonths.0');
+
+    expect($company->refresh()->busy_months)->toBe([3, 11, 12]);
+});
+
+test('忙しい月：経理は会社設定を変えられない', function (): void {
+    ['company' => $company] = createCompanyWithMember(Role::Owner);
+    ['user' => $editor] = createCompanyWithMember(Role::Editor, company: $company);
+
+    $this->actingAs($editor)->get(route('company.settings', $company))->assertForbidden();
+    expect($company->refresh()->busy_months)->toBe([6, 7, 10, 11, 12]);
+});

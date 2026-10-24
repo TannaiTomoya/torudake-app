@@ -19,6 +19,9 @@ new class extends Component {
 
     public int $concernAmountYen = 30000;
 
+    /** @var list<int|string> */
+    public array $busyMonths = [];
+
     public function mount(Company $company): void
     {
         $this->authorize('manageSettings', $company);
@@ -28,17 +31,22 @@ new class extends Component {
         $this->name = $company->name;
         $this->fiscalYearEndMonth = $company->fiscal_year_end_month;
         $this->concernAmountYen = $company->concern_amount_yen;
+        $this->busyMonths = $company->busy_months;
     }
 
     public function saveCompany(CompanySettingsService $service): void
     {
         $this->authorize('manageSettings', $this->company);
 
-        /** @var array{name: string, fiscalYearEndMonth: int, concernAmountYen: int} $validated */
+        /** @var array{name: string, fiscalYearEndMonth: int, concernAmountYen: int, busyMonths: list<int|string>} $validated */
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:100'],
             'fiscalYearEndMonth' => ['required', 'integer', 'min:1', 'max:12'],
             'concernAmountYen' => ['required', 'integer', 'min:0', 'max:100000000'],
+            'busyMonths' => ['present', 'array', 'max:12'],
+            'busyMonths.*' => ['integer', 'min:1', 'max:12'],
+        ], [
+            'busyMonths.*' => '忙しい月は1〜12の月から選んでください。',
         ]);
 
         /** @var User $user */
@@ -48,7 +56,9 @@ new class extends Component {
             'name' => $validated['name'],
             'fiscal_year_end_month' => $validated['fiscalYearEndMonth'],
             'concern_amount_yen' => $validated['concernAmountYen'],
+            'busy_months' => array_map(intval(...), array_values($validated['busyMonths'])),
         ]);
+        $this->busyMonths = $this->company->busy_months;
     }
 
     public function renameCategory(string $categoryId, string $newName, CompanySettingsService $service): void
@@ -104,6 +114,21 @@ new class extends Component {
             </div>
             @error('concernAmountYen') <p class="text-note text-ng">{{ $message }}</p> @enderror
         </div>
+
+        <fieldset class="space-y-2">
+            <legend class="block text-body font-bold text-ink">忙しい月（社長の見立て）</legend>
+            <p class="text-note text-ink-sub">三期比較のグラフで色づけし、社長へのひとこと・来月の見込みに伝えます。</p>
+            <div class="grid grid-cols-4 gap-2 sm:grid-cols-6" data-test="busy-months">
+                @foreach (range(1, 12) as $month)
+                    <label class="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-body text-ink">
+                        <input type="checkbox" value="{{ $month }}" wire:model="busyMonths" class="size-5" />
+                        {{ $month }}月
+                    </label>
+                @endforeach
+            </div>
+            @error('busyMonths') <p class="text-note text-ng">{{ $message }}</p> @enderror
+            @error('busyMonths.*') <p class="text-note text-ng">{{ $message }}</p> @enderror
+        </fieldset>
 
         <button type="submit" class="rounded-lg bg-ink px-4 py-2 font-bold text-paper">保存する</button>
     </form>

@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property bool $is_demo
  * @property int $concern_amount_yen
  * @property int|null $approval_required_yen
+ * @property list<int> $busy_months
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -27,6 +28,16 @@ class Company extends Model
 {
     /** @use HasFactory<CompanyFactory> */
     use HasFactory, HasUuids;
+
+    /** 社長の見立ての忙しい月（初期値） */
+    public const DEFAULT_BUSY_MONTHS = [6, 7, 10, 11, 12];
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'busy_months' => '[6,7,10,11,12]',
+    ];
 
     /**
      * @return array<string, string>
@@ -39,7 +50,13 @@ class Company extends Model
             'is_demo' => 'boolean',
             'concern_amount_yen' => 'integer',
             'approval_required_yen' => 'integer',
+            'busy_months' => 'array',
         ];
+    }
+
+    public function isBusyMonth(int $month): bool
+    {
+        return in_array($month, $this->busy_months, true);
     }
 
     /**

@@ -52,6 +52,7 @@ ID は UUIDv7（`HasUuids`）。`users` は bigint（スターターキットの
 | テーブル | 列 | 型 | 内容 |
 |---|---|---|---|
 | companies | concern_amount_yen | bigint default 30000 | 気になる仕訳の金額の目安（Q1） |
+| companies | busy_months | json（初期値 `[6,7,10,11,12]`） | 忙しい月（社長の見立て）。1〜12の月の並び。会社設定で社長・管理者が変える |
 | companies | approval_required_yen | bigint null | 社長の承認が必要な金額（将来 E09。null＝承認なし） |
 | journal_entries | confirmed_by / confirmed_at | FK users null / datetime null | 確定した経理と時刻 |
 | journal_entries | returned_by / returned_at | FK users null / datetime null | 社長が戻した人と時刻（理由は既存の `returned_reason`） |
@@ -187,11 +188,11 @@ confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必
 ### 4.7 OwnerDashboard（F12、社長の画面の数字）
 | 区画 | 数字 | 出どころ |
 |---|---|---|
-| ① ひとこと | 一番大きな変化を1つ・理由の見立て・確かめるとよい点 | `owner_brief`（AI）。渡すのは②⑤の合計だけ |
+| ① ひとこと | 一番大きな変化を1つ・理由の見立て・確かめるとよい点 | `owner_brief`（AI）。渡すのは②⑤の合計と、月ごとの**忙しい月の印**・**3期の平均**・**忙しい月なのに前年同月より少ない**の印だけ |
 | ② 三期比較 | 月×（今期・前期・前々期）の売上 | `external_monthly_figures`（sales） |
 | ② 今期の経費・残ったお金 | 今期の月ごとの確定した経費（分類ごと）、売上 − 経費 | アプリの confirmed の仕訳＋②の売上 |
 | ③ 気になる仕訳 | `concern_flags` があり `owner_seen_at` が null のもの | アプリ |
-| ④ 来月の見込み | 来月の売上と経費の中央値・8割の範囲 | `forecast`（AI）。過去の月の実績を渡す |
+| ④ 来月の見込み | 来月の売上と経費の中央値・8割の範囲 | `forecast`（AI）。過去の月の実績と、月ごとの忙しい月の印・3期の平均を渡す |
 | ⑤ 売上の柱 | 上位3社の割合（A社・B社・C社） | `external_customer_sales` |
 - 比べは**金額の差を主に、%を添える**。前月だけでなく**前年同月**と並べる。
 - 経費は、アプリを使い始めた月からしかない（過去の経費は財務王にあり、取り込まない）。経費のない月は「—」と出す。
@@ -211,7 +212,7 @@ confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必
 5. 監査 `report.import`
 
 ### 4.10 そのほか（版2.0 のまま）
-TrainingDataExporter（JSONL）、PurgeExpiredEvidence（毎日3時）、Artisan コマンド（`torudake:create-company`・`torudake:add-member`・`torudake:seed-demo`）。`torudake:seed-demo` は、**架空の**三期比較（3期分の月ごとの売上）・顧客別（上位2社で約8割）・今期の確定した経費・「あと1件」から始まるデータを入れる。人は作らない（§9）。
+TrainingDataExporter（JSONL）、PurgeExpiredEvidence（毎日3時）、Artisan コマンド（`torudake:create-company`・`torudake:add-member`・`torudake:seed-demo`）。`torudake:seed-demo` は、**架空の**三期比較（3期分の月ごとの売上。架空の基準額×季節の係数で作り、忙しい月の初期値と同じく**秋（10〜12月）が多く、6・7月もやや多い**形にする。デモの見せ場のため、忙しい月のうち1か月は前年同月より少なくする）・顧客別（上位2社で約8割）・今期の確定した経費・「あと1件」から始まるデータを入れる。人は作らない（§9）。
 
 ## 5. 権限（版3.0）
 
@@ -265,6 +266,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 │   「今期8〜9月の売上は前期より10%多い。売上の8割は1社。    │
 │     その会社の今後の工事の予定を確かめるとよい」            │
 │ ② 三期比較（財務王のグラフと同じ形）  ■今期 ■前期 ■前々期 │
+│    忙しい月（会社設定）は背景を薄く色づけ（`brand-soft`）      │
 │   8月 9月 10月 … 7月 の棒グラフ ＋ 表（金額・前年同月との差） │
 │   今期の経費（分類ごと）と、売上 − 経費                     │
 │ ③ 気になる仕訳（2件） → 見た／経理に戻す（理由）           │
@@ -293,6 +295,8 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | T19★ | 帳票の取り込み：三期比較の表が月ごとの数字に、顧客別が A社・B社 に入る。**名前は保存されない** | これから |
 | T20★ | 社長の画面の数字（三期比較・前年同月の差・売上の柱）が、取り込んだ数字と一致 | これから |
 | T21★ | 週1回の通知が社長にだけ届く | これから |
+| T25 | 忙しい月：初期値・保存・範囲外の拒否・経理は変えられない | 済み |
+| T26 | 忙しい月：グラフの色づけ、owner_brief・forecast への入力（印・3期の平均）、「忙しいはずの月なのに前年同月より少ない」がひとことに出る（偽物の AI で確かめる） | これから |
 | T22★ | 30日を過ぎた写真が消える。監査記録 | これから |
 | T23 | 再生モード | これから |
 | T24★ | 移行：approved の仕訳が confirmed になる | これから |
@@ -313,8 +317,8 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | 4 確定 | 15:15–17:00 | 移行（§2.2）、EntryStatus の置き換え、直して確定の画面、ConfirmEntryService、ConcernRules、対象外、RemainingCount | T12・T13・T15・T16・T24 |
 | 5 Excel | 17:00–18:00 | WorkbookService（仕訳帳への追記・書き換え）、ダウンロード | T14 |
 | 6 まとめて送る・ライブ | 18:00–19:30 | 送る画面のためる・まとめて送る、ライブ画面（E・S、キー5） | T18 |
-| 7 社長の画面 | 10/25 8:00–9:30 | 帳票の取り込み（三期比較・顧客別）、OwnerDashboard、owner_brief・forecast、グラフ、戻す、通知 | T17・T19〜T21 |
-| 8 仕上げ | 9:30–10:30 | 写真の30日削除、AIの記録・JSONL、再生モード、`torudake:seed-demo` | T22・T23 |
+| 7 社長の画面 | 10/25 8:00–9:30 | 帳票の取り込み（三期比較・顧客別）、OwnerDashboard、owner_brief・forecast（忙しい月の印・3期の平均）、グラフ（忙しい月の色づけ）、戻す、通知 | T17・T19〜T21・T26 |
+| 8 仕上げ | 9:30–10:30 | 写真の30日削除、AIの記録・JSONL、再生モード、`torudake:seed-demo`（秋が多い季節の形） | T22・T23 |
 | 9 本番とデモ | 10:30–12:00 | 本番に会社と3人を作る、`AI_DRIVER=claude`＋キー＋`queue:restart`、**実際のスマホで台本を2回**、1回録画 | AC12 |
 
 ### 10.1 削る順番（先に決めておく）
