@@ -185,6 +185,7 @@ new class extends Component {
     <header class="border-b border-line pb-3">
         <h1 class="text-xl font-bold text-ink">社長の画面</h1>
         <p class="mt-1 text-note text-ink-sub">{{ $company->name }}・今期は{{ $dashboard['periods']['current'] }}</p>
+        <a href="{{ route('company.reports', $company) }}" wire:navigate class="mt-2 inline-block font-bold text-brand-ink underline" data-test="owner-reports-link">帳票（月別売上）の写真から数字を入れる</a>
     </header>
 
     {{-- ① 今月のひとこと（AI） --}}

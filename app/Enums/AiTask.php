@@ -11,6 +11,7 @@ enum AiTask: string
     case CloseCheck = 'close_check';
     case OwnerBrief = 'owner_brief';
     case Forecast = 'forecast';
+    case ReadReport = 'read_report';
 
     public function label(): string
     {
@@ -22,13 +23,14 @@ enum AiTask: string
             self::CloseCheck => '締めの確認',
             self::OwnerBrief => '社長へのひとこと',
             self::Forecast => '来月の見込み',
+            self::ReadReport => '帳票の読み取り',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::ReadReceipt => 'brand',
+            self::ReadReceipt, self::ReadReport => 'brand',
             self::Journalize => 'brand',
             self::CheckEntry => 'ok',
             self::MonthlySummary => 'ink',

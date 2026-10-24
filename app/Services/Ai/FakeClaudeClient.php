@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Enums\AiTask;
+use Illuminate\Support\Carbon;
 
 /**
  * 開発・自動テスト用。決まった JSON を返し、外へは通信しない。
@@ -20,6 +21,17 @@ class FakeClaudeClient implements AiClient
 
     /** @var array<string, mixed> */
     private array $journalizeOverrides = [];
+
+    /** @var list<array<string, mixed>>|null 帳票の読み取りの rows を差し替える */
+    private ?array $reportRows = null;
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public function withReport(array $rows): void
+    {
+        $this->reportRows = $rows;
+    }
 
     /**
      * @param  array<string, mixed>  $overrides
@@ -62,6 +74,7 @@ class FakeClaudeClient implements AiClient
             AiTask::CheckEntry => $this->checkEntry($request->input),
             AiTask::OwnerBrief => $this->ownerBrief($request->input),
             AiTask::Forecast => $this->forecast($request->input),
+            AiTask::ReadReport => ['rows' => $this->reportRows ?? $this->readReport($request->input)],
             default => [],
         };
 
@@ -239,6 +252,25 @@ class FakeClaudeClient implements AiClient
                 'high_yen' => $expense === null ? null : $round($expense * 1.1),
             ],
             'note' => "過去3期の{$month}月の平均と、今期の伸び{$growth}%から（偽物のAI）",
+        ];
+    }
+
+    /**
+     * 今期の最初の3か月（デモの帳票と同じ架空の数字）。3か月目は自信を低くする。
+     *
+     * @param  array<string, mixed>  $input
+     * @return list<array<string, mixed>>
+     */
+    private function readReport(array $input): array
+    {
+        $periods = is_array($input['periods'] ?? null) ? $input['periods'] : [];
+        $start = is_string($periods['current'] ?? null) ? $periods['current'] : now()->format('Y-m');
+        $month = fn (int $i): string => Carbon::parse($start.'-01')->addMonths($i)->format('Y-m');
+
+        return [
+            ['year_month' => $month(0), 'amount_yen' => 3_672_000, 'confidence' => 0.95],
+            ['year_month' => $month(1), 'amount_yen' => 3_888_000, 'confidence' => 0.95],
+            ['year_month' => $month(2), 'amount_yen' => 4_300_000, 'confidence' => 0.6],
         ];
     }
 

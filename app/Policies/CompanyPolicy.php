@@ -113,6 +113,11 @@ class CompanyPolicy
         return $membership->role->canViewOwner();
     }
 
+    public function importReports(User $user, Company $company): bool
+    {
+        return $this->viewOwner($user, $company);
+    }
+
     public function returnToBookkeeper(User $user, Company $company): bool
     {
         return $this->viewOwner($user, $company);
