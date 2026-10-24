@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ConcernFlag;
 use App\Enums\EntryKind;
 use App\Enums\EntryStatus;
 use App\Enums\SourceStatus;
@@ -79,13 +80,15 @@ class ConfirmEntryService
                 'amount' => $amountYen,
             ];
 
-            $changed = $entry->ai_run_id === null ? [] : $this->changedFields($before, $after);
+            $wasPreviouslyConfirmed = $entry->confirmed_at !== null || $entry->status === EntryStatus::Returned;
+            $tracksAiCorrections = $entry->ai_run_id !== null && ! $wasPreviouslyConfirmed;
+            $changed = $this->changedFields($before, $after);
 
-            if ($changed !== [] && $input->reason === null) {
+            if ($tracksAiCorrections && $changed !== [] && $input->reason === null) {
                 throw ValidationException::withMessages(['reason' => 'AIの下書きを直したときは、直した理由を選んでください。']);
             }
 
-            foreach ($changed as $field) {
+            foreach ($tracksAiCorrections ? $changed : [] as $field) {
                 $correction = new AiCorrection;
                 $correction->forceFill([
                     'company_id' => $company->id,
@@ -103,8 +106,10 @@ class ConfirmEntryService
 
             $this->lineWriter->rewrite($entry, $category, $bankAccount, $amountYen);
 
-            $amountMissing = $entry->ai_run_id !== null && $before['amount'] === null;
-            $corrected = array_intersect($changed, ['category', 'amount']) !== [];
+            $amountMissing = ($tracksAiCorrections && $before['amount'] === null)
+                || in_array(ConcernFlag::AmountMissing->value, $entry->concern_flags ?? [], true);
+            $corrected = in_array(ConcernFlag::Corrected->value, $entry->concern_flags ?? [], true)
+                || array_intersect($changed, ['category', 'amount']) !== [];
 
             $entry->forceFill([
                 'entry_date' => $date,

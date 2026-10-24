@@ -330,8 +330,8 @@ new #[Title('直して確定')] class extends Component {
                         <input type="text" wire:model="description" maxlength="200" class="w-full rounded-lg border border-line bg-paper px-3 py-2 text-body">
                     </label>
 
-                    @if ($entry?->ai_run_id)
-                        <label class="block space-y-1">
+                    @if ($entry?->ai_run_id && $entry->confirmed_at === null && $entry->status !== EntryStatus::Returned)
+                        <label class="block space-y-1" data-test="correction-reason">
                             <span class="font-bold">直した理由</span>
                             <span class="block text-note text-ink-sub">AIの下書きを直したときだけ選ぶ（AIが次から覚えます）</span>
                             <select wire:model="reason" class="w-full rounded-lg border border-line bg-paper px-3 py-2 text-body">

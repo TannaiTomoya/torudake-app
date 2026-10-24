@@ -15,8 +15,11 @@ use App\Models\JournalEntry;
 use App\Models\SourceRecord;
 use App\Models\User;
 use App\Services\Ai\FakeClaudeClient;
+use App\Services\Ai\Tasks\Journalize;
+use App\Services\FailEvidenceAi;
 use App\Services\SubmitEvidence;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
@@ -121,8 +124,7 @@ test('T11: 会社Aの直した例は会社Aの L2 にだけ入り、会社Bの L
     $firstA = submitReceipt($companyA, $userA, 400, 600);
     $entryA = $firstA->journalEntry()->firstOrFail();
 
-    $correction = new AiCorrection;
-    $correction->forceFill([
+    (new AiCorrection)->forceFill([
         'company_id' => $companyA->id,
         'ai_run_id' => $entryA->ai_run_id,
         'journal_entry_id' => $entryA->id,
@@ -156,6 +158,84 @@ test('T11: 会社Aの直した例は会社Aの L2 にだけ入り、会社Bの L
     expect($entryB->category?->name)->toBe('消耗品')
         ->and($entryB->ai_check['remembered'] ?? null)->toBeFalse();
 });
+
+test('T33: 分類名を変更した後は古い分類の直しを除き、現在の分類と口座だけをAIの選択肢にする', function (): void {
+    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor);
+    $category = $company->categories()->where('name', '消耗品')->firstOrFail();
+    $category->forceFill(['name' => '消耗品費'])->save();
+
+    (new AiCorrection)->forceFill([
+        'company_id' => $company->id,
+        'journal_entry_id' => null,
+        'field' => 'category',
+        'before' => '仕入',
+        'after' => '消耗品',
+        'reason' => CorrectionReason::WrongCategory,
+        'kernel' => 'vendor:〇〇石油 八幡平店 → category:消耗品',
+        'vendor' => '〇〇石油 八幡平店',
+        'corrected_by' => $user->id,
+    ])->save();
+    (new AiCorrection)->forceFill([
+        'company_id' => $company->id,
+        'journal_entry_id' => null,
+        'field' => 'credit_account',
+        'before' => '現金',
+        'after' => '古い口座',
+        'reason' => CorrectionReason::WrongPayment,
+        'kernel' => 'vendor:〇〇石油 八幡平店 → payment:古い口座',
+        'vendor' => '〇〇石油 八幡平店',
+        'corrected_by' => $user->id,
+    ])->save();
+
+    $input = Journalize::buildInput($company, ['vendor' => '〇〇石油 八幡平店']);
+    $schema = Journalize::schema(array_column($input['categories'], 'name'), array_column($input['bank_accounts'], 'name'));
+
+    expect($input['corrections'])->toBe([])
+        ->and($schema['properties']['category']['enum'])->toContain('消耗品費')->not->toContain('消耗品')
+        ->and($schema['properties']['bank_account']['enum'])->toContain('現金');
+
+    $source = submitReceipt($company, $user);
+    $entry = $source->journalEntry()->with('category')->firstOrFail();
+    $journalizeRun = AiRun::query()->where('task', AiTask::Journalize)->where('subject_id', $source->id)->firstOrFail();
+
+    expect($source->ai_status)->toBe(AiStatus::Done)
+        ->and(in_array($entry->category?->name, array_column($input['categories'], 'name'), true))->toBeTrue()
+        ->and($entry->category?->name)->not->toBe('消耗品')
+        ->and($journalizeRun->input['corrections'])->toBe([]);
+});
+
+test('T35: 10分以上止まったAI処理だけを失敗にして、手入力へ戻す', function (): void {
+    Queue::fake();
+    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor);
+
+    $stale = submitReceipt($company, $user);
+    $staleDraft = submitReceipt($company, $user, 410);
+    $fresh = submitReceipt($company, $user, 420);
+    $stale->forceFill(['updated_at' => now()->subMinutes(11)])->save();
+    $staleDraft->forceFill(['status' => SourceStatus::Drafted, 'updated_at' => now()->subMinutes(11)])->save();
+
+    expect(app(FailEvidenceAi::class)->failStale())->toBe(2)
+        ->and($stale->refresh()->ai_status)->toBe(AiStatus::Failed)
+        ->and($stale->ai_error)->toContain('10分以上止まった')
+        ->and($staleDraft->refresh()->ai_status)->toBe(AiStatus::Failed)
+        ->and($fresh->refresh()->ai_status)->toBe(AiStatus::Waiting);
+});
+
+test('T36: 形が違う・存在しない・未来の日付でもAIの下書きを作り、原資料の日付は空にする', function (string $date): void {
+    app(FakeClaudeClient::class)->withReading(['date' => $date]);
+    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor);
+
+    $source = submitReceipt($company, $user);
+    $entry = $source->journalEntry()->firstOrFail();
+
+    expect($source->ai_status)->toBe(AiStatus::Done)
+        ->and($source->occurred_on)->toBeNull()
+        ->and($entry->entry_date->toDateString())->toBe(now()->toDateString());
+})->with([
+    '和暦形式' => '2026年10月24日',
+    '存在しない日付' => '2026-02-30',
+    '未来の日付' => '2099-01-01',
+]);
 
 test('金額の記載がない納品書（後日請求）でも、行のない下書きができ、支払い元は未払金、気になる印が付く', function (): void {
     app(FakeClaudeClient::class)->withReading([

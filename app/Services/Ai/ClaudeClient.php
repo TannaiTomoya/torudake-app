@@ -24,6 +24,10 @@ class ClaudeClient implements AiClient
         $content = [];
 
         foreach ($request->attachments as $attachment) {
+            if (! in_array($attachment['media_type'], ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'], true)) {
+                throw new AiException('AIで扱えない画像形式です。JPEG・PNG・WebPまたはPDFで送ってください。');
+            }
+
             $content[] = [
                 'type' => $attachment['media_type'] === 'application/pdf' ? 'document' : 'image',
                 'source' => [

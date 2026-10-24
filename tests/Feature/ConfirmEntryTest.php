@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AiStatus;
 use App\Enums\AiTask;
 use App\Enums\ConcernFlag;
 use App\Enums\CorrectionReason;
@@ -7,10 +8,15 @@ use App\Enums\EntryStatus;
 use App\Enums\Role;
 use App\Enums\Side;
 use App\Enums\SourceStatus;
+use App\Jobs\ProcessEvidenceWithAi;
 use App\Models\AiCorrection;
 use App\Models\AuditLog;
 use App\Models\JournalEntry;
 use App\Services\Ai\FakeClaudeClient;
+use App\Services\OwnerReviewService;
+use App\Services\SubmitEvidence;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -70,6 +76,46 @@ test('T12: AI の下書きを直したのに理由がなければ確定しない
 
     expect($source->refresh()->journalEntry?->status)->toBe(EntryStatus::Draft)
         ->and(AiCorrection::count())->toBe(0);
+});
+
+test('社長から戻された仕訳の再確定はAI修正に数えず、監査ログに前後を残す', function (): void {
+    ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
+    ['user' => $owner] = createCompanyWithMember(Role::Owner, company: $company);
+    $source = sendReceipt($company, $editor);
+
+    Livewire::actingAs($editor)
+        ->test('pages::company.sources.show', ['company' => $company, 'source' => $source->id])
+        ->set('categoryId', categoryId($company, '部品・修理'))
+        ->set('reason', CorrectionReason::WrongCategory->value)
+        ->call('confirm')
+        ->assertHasNoErrors();
+
+    $entry = $source->refresh()->journalEntry()->firstOrFail();
+    app(OwnerReviewService::class)->returnToBookkeeper($company, $owner, $entry->id, '内容をもう一度確認してください');
+
+    Livewire::actingAs($editor)
+        ->test('pages::company.sources.show', ['company' => $company, 'source' => $source->id])
+        ->assertDontSee('直した理由')
+        ->set('categoryId', categoryId($company, '燃料'))
+        ->call('confirm')
+        ->assertHasNoErrors();
+
+    $entry->refresh();
+    $confirmLogs = AuditLog::query()
+        ->where('action', 'entry.confirm')
+        ->where('subject_id', $entry->id)
+        ->orderBy('created_at')
+        ->get();
+
+    expect(AiCorrection::where('journal_entry_id', $entry->id)->count())->toBe(1)
+        ->and(AiCorrection::where('journal_entry_id', $entry->id)->sole()->after)->toBe('部品・修理')
+        ->and($entry->status)->toBe(EntryStatus::Confirmed)
+        ->and($entry->concern_flags)->toContain(ConcernFlag::Corrected->value)
+        ->and($confirmLogs)->toHaveCount(2)
+        ->and($confirmLogs[1]->before['category'])->toBe('部品・修理')
+        ->and($confirmLogs[1]->after['category'])->toBe('燃料')
+        ->and($confirmLogs[1]->after['corrected'])->toBe(['category'])
+        ->and($confirmLogs[1]->after['reason'])->toBeNull();
 });
 
 test('T13: 2回保存しても確定は1回だけ。AI だけでは確定にならない', function (): void {
@@ -194,6 +240,33 @@ test('AI が読めなかった原資料は、経理が手で入れて確定で�
     expect($entry->status)->toBe(EntryStatus::Confirmed)
         ->and($entry->created_by)->toBe($editor->id)
         ->and($entry->amountYen())->toBe(12000);
+});
+
+test('T34: AIジョブの最終失敗は手入力対象になり、保存して次へ進める', function (): void {
+    Queue::fake();
+    ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
+
+    $first = app(SubmitEvidence::class)->submit($company, $editor, UploadedFile::fake()->image('failed.jpg', 400, 600))->source
+        ?? throw new RuntimeException('原資料ができていません');
+    $next = app(SubmitEvidence::class)->submit($company, $editor, UploadedFile::fake()->image('next.jpg', 410, 600))->source
+        ?? throw new RuntimeException('次の原資料ができていません');
+    $first = $first->fresh() ?? throw new RuntimeException('原資料が見つかりません');
+    $next = $next->fresh() ?? throw new RuntimeException('次の原資料が見つかりません');
+
+    (new ProcessEvidenceWithAi($first->id))->failed(new RuntimeException('worker stopped'));
+    (new ProcessEvidenceWithAi($next->id))->failed(new RuntimeException('worker stopped'));
+
+    expect($first->refresh()->ai_status)->toBe(AiStatus::Failed)
+        ->and($first->ai_error)->toBe('AIの処理に失敗しました。');
+
+    Livewire::actingAs($editor)
+        ->test('pages::company.sources.show', ['company' => $company, 'source' => $first->id])
+        ->set('vendor', '手入力の取引先')
+        ->set('categoryId', categoryId($company, '消耗品'))
+        ->set('amountYen', '12000')
+        ->call('confirm')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('company.sources.show', [$company, $next]));
 });
 
 test('他社の原資料は404、閲覧のみの人は直して確定の画面に入れず、アクションも403', function (): void {

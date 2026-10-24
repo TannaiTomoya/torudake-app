@@ -16,6 +16,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class SubmitEvidence
@@ -24,13 +25,16 @@ class SubmitEvidence
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
         'image/webp' => 'webp',
-        'image/heic' => 'heic',
-        'image/heif' => 'heif',
         'application/pdf' => 'pdf',
     ];
 
     public function submit(Company $company, User $user, UploadedFile $file, ?string $note = null, ?string $batchId = null): SubmitResult
     {
+        $mime = (string) $file->getMimeType();
+        if (! isset(self::EXTENSIONS[$mime])) {
+            throw ValidationException::withMessages(['photo' => '写真（JPEG・PNG・WebP）か PDF を送ってください。HEIC/HEIFは自動変換してから送ってください。']);
+        }
+
         $path = $file->getRealPath();
         $sha256 = $path !== false ? hash_file('sha256', $path) : false;
 
@@ -42,8 +46,7 @@ class SubmitEvidence
             return $this->duplicate($company, $sha256);
         }
 
-        $mime = (string) $file->getMimeType();
-        $extension = self::EXTENSIONS[$mime] ?? 'bin';
+        $extension = self::EXTENSIONS[$mime];
         $directory = "companies/{$company->id}";
         $fileName = Str::uuid7()->toString().'.'.$extension;
         $storageKey = "{$directory}/{$fileName}";

@@ -58,6 +58,12 @@ class FakeClaudeClient implements AiClient
     {
         $this->requests[] = $request;
 
+        foreach ($request->attachments as $attachment) {
+            if (! in_array($attachment['media_type'], ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'], true)) {
+                throw new AiException('AIで扱えない画像形式です。JPEG・PNG・WebPまたはPDFで送ってください。');
+            }
+        }
+
         $mode = $this->failures[$request->task->value] ?? null;
 
         if ($mode === 'error') {
@@ -129,7 +135,11 @@ class FakeClaudeClient implements AiClient
         $reading = is_array($input['reading'] ?? null) ? $input['reading'] : [];
         $vendor = is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null;
 
-        $categoryName = '消耗品';
+        $categoryNames = array_values(array_filter(array_map(
+            fn ($category): mixed => is_array($category) ? ($category['name'] ?? null) : null,
+            is_array($input['categories'] ?? null) ? $input['categories'] : [],
+        ), 'is_string'));
+        $categoryName = in_array('消耗品', $categoryNames, true) ? '消耗品' : ($categoryNames[0] ?? '消耗品');
         $rememberedPayment = null;
         $remembered = false;
 
@@ -138,7 +148,7 @@ class FakeClaudeClient implements AiClient
                 continue;
             }
 
-            if (($correction['field'] ?? null) === 'category' && $categoryName === '消耗品' && ! $remembered) {
+            if (($correction['field'] ?? null) === 'category' && in_array($correction['after'], $categoryNames, true) && ! $remembered) {
                 $categoryName = $correction['after'];
                 $remembered = true;
             } elseif (($correction['field'] ?? null) === 'credit_account' && $rememberedPayment === null) {

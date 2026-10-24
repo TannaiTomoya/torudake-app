@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ConcernFlag;
 use App\Enums\EntryStatus;
 use App\Enums\Side;
 use App\Models\AiCorrection;
@@ -20,7 +21,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
- * 会社に1冊の Excel（03 §4.6）。確定のたびに仕訳帳に1行足し、戻す・再確定は管理番号で同じ行を探して書き換える。
+ * 会社に1冊の Excel（03 §4.6）。確定のたびに仕訳帳に1行足し、戻す・再確定は UUID の管理番号で同じ行を探して書き換える。
  */
 class WorkbookService
 {
@@ -46,11 +47,11 @@ class WorkbookService
     ];
 
     /**
-     * 仕訳の ID は UUIDv7 で頭が時刻なので、続けて送った写真でも重ならない末尾の8文字を使う。
+     * 管理番号には仕訳 ID 全体を使い、別の仕訳と重ならないようにする。
      */
     public static function numberFor(JournalEntry $entry): string
     {
-        return strtoupper(substr(str_replace('-', '', $entry->id), -8));
+        return strtoupper($entry->id);
     }
 
     /**
@@ -74,7 +75,7 @@ class WorkbookService
             $spreadsheet = $this->load($workbook);
             $sheet = $this->journalSheet($spreadsheet, $workbook);
 
-            $row = $this->findRow($sheet, $workbook, $entry);
+            $row = $this->findRow($sheet, $workbook, $company, $entry);
             if ($row === null) {
                 $row = $workbook->next_row;
                 $workbook->next_row = $row + 1;
@@ -184,16 +185,21 @@ class WorkbookService
     private function journalSheet(Spreadsheet $spreadsheet, Workbook $workbook): Worksheet
     {
         $sheet = $spreadsheet->getSheetByName(self::JOURNAL_SHEET);
-        if ($sheet !== null) {
-            return $sheet;
+        if ($sheet === null) {
+            $sheet = $spreadsheet->getSheet(0);
+            $sheet->setTitle(self::JOURNAL_SHEET);
+
+            foreach ($workbook->layout as $index => $key) {
+                $sheet->setCellValue([$index + 1, 1], self::DEFAULT_LAYOUT[$key] ?? $key);
+            }
+
+            $sheet->getStyle([1, 1, count($workbook->layout), 1])->getFont()->setBold(true);
+            $sheet->freezePane('A2');
         }
 
-        $sheet = $spreadsheet->getSheet(0);
-        $sheet->setTitle(self::JOURNAL_SHEET);
-
         foreach ($workbook->layout as $index => $key) {
-            $sheet->setCellValue([$index + 1, 1], self::DEFAULT_LAYOUT[$key] ?? $key);
             $sheet->getColumnDimensionByColumn($index + 1)->setWidth(match ($key) {
+                'number' => 38,
                 'vendor', 'description' => 24,
                 'confirmed_at' => 18,
                 'debit_amount', 'credit_amount', 'ai' => 14,
@@ -201,13 +207,10 @@ class WorkbookService
             });
         }
 
-        $sheet->getStyle([1, 1, count($workbook->layout), 1])->getFont()->setBold(true);
-        $sheet->freezePane('A2');
-
         return $sheet;
     }
 
-    private function findRow(Worksheet $sheet, Workbook $workbook, JournalEntry $entry): ?int
+    private function findRow(Worksheet $sheet, Workbook $workbook, Company $company, JournalEntry $entry): ?int
     {
         $column = array_search('number', $workbook->layout, true);
         if ($column === false) {
@@ -215,8 +218,15 @@ class WorkbookService
         }
 
         $number = self::numberFor($entry);
+        $legacyNumber = strtoupper(substr(str_replace('-', '', $entry->id), -8));
 
         if ($entry->workbook_row !== null && (string) $sheet->getCell([$column + 1, $entry->workbook_row])->getValue() === $number) {
+            return $entry->workbook_row;
+        }
+
+        if ($entry->workbook_row !== null
+            && (string) $sheet->getCell([$column + 1, $entry->workbook_row])->getValue() === $legacyNumber
+            && $this->legacyNumberIsUnique($company, $entry, $legacyNumber)) {
             return $entry->workbook_row;
         }
 
@@ -226,7 +236,23 @@ class WorkbookService
             }
         }
 
+        if ($this->legacyNumberIsUnique($company, $entry, $legacyNumber)) {
+            for ($row = 2; $row < $workbook->next_row; $row++) {
+                if ((string) $sheet->getCell([$column + 1, $row])->getValue() === $legacyNumber) {
+                    return $row;
+                }
+            }
+        }
+
         return null;
+    }
+
+    private function legacyNumberIsUnique(Company $company, JournalEntry $entry, string $legacyNumber): bool
+    {
+        return ! $company->journalEntries()
+            ->where('id', '<>', $entry->id)
+            ->whereRaw("UPPER(SUBSTR(REPLACE(id, '-', ''), -8)) = ?", [$legacyNumber])
+            ->exists();
     }
 
     private function writeRow(Worksheet $sheet, Workbook $workbook, int $row, JournalEntry $entry): void
@@ -253,7 +279,8 @@ class WorkbookService
             'confirmed_at' => $entry->confirmed_at === null ? null : Date::PHPToExcel($entry->confirmed_at),
             'ai' => match (true) {
                 $entry->ai_run_id === null => '手入力',
-                AiCorrection::query()->where('journal_entry_id', $entry->id)->exists() => '直した',
+                in_array(ConcernFlag::Corrected->value, $entry->concern_flags ?? [], true)
+                    || AiCorrection::query()->where('journal_entry_id', $entry->id)->exists() => '直した',
                 default => 'AIのまま',
             },
         ];

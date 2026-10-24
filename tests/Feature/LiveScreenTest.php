@@ -73,7 +73,7 @@ test('ライブ画面：流れは直近3件だけ', function (): void {
     expect(substr_count($match[1] ?? '', '<li '))->toBe(3);
 });
 
-test('ライブ画面：S でそのまま確定、Excel に1行入り、あと0件で「今月の帳簿ができました」', function (): void {
+test('ライブ画面：S でそのまま確定、Excel に1行入り、あと0件で「未処理の帳簿ができました」', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
     $source = sendReceipt($company, $owner);
 
@@ -84,7 +84,7 @@ test('ライブ画面：S でそのまま確定、Excel に1行入り、あと0�
         ->assertHasNoErrors()
         ->assertSee('確定しました')
         ->assertSee('あと 0件')
-        ->assertSee('今月の帳簿が');
+        ->assertSee('未処理の帳簿が');
 
     $entry = $source->refresh()->journalEntry()->firstOrFail();
     expect($entry->status)->toBe(EntryStatus::Confirmed)

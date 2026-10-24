@@ -26,11 +26,16 @@ class Journalize
      */
     public function run(Company $company, SourceRecord $source, array $reading): AiOutcome
     {
+        $input = self::buildInput($company, $reading);
+
         return $this->runner->run($company, $source, new AiRequest(
             task: AiTask::Journalize,
             system: AiTaskRunner::prompt(AiTask::Journalize),
-            input: self::buildInput($company, $reading),
-            schema: self::schema(),
+            input: $input,
+            schema: self::schema(
+                array_map(fn (array $category): string => $category['name'], $input['categories']),
+                array_map(fn (array $bankAccount): string => $bankAccount['name'], $input['bank_accounts']),
+            ),
             effort: 'medium',
             photoSha256: $source->evidence?->sha256,
         ), self::PROMPT_VERSION);
@@ -40,7 +45,12 @@ class Journalize
      * 直した例は、必ずその会社のものだけを入れる。
      *
      * @param  array<string, mixed>  $reading
-     * @return array<string, mixed>
+     * @return array{
+     *     reading: array<string, mixed>,
+     *     categories: list<array{name: string, direction: string, account_code: string|null, account_name: string|null}>,
+     *     bank_accounts: list<array{name: string, kind: string, account_code: string|null, default: bool}>,
+     *     corrections: list<array{vendor: string|null, field: string, before: string|null, after: string|null, reason: string, kernel: string|null}>
+     * }
      */
     public static function buildInput(Company $company, array $reading): array
     {
@@ -71,41 +81,60 @@ class Journalize
             ->values()
             ->all();
 
+        $categoryNames = array_column($categories, 'name');
+        $bankAccountNames = array_column($bankAccounts, 'name');
+
         $corrections = $company->aiCorrections()
             ->latest('created_at')
+            ->where(function ($query) use ($categoryNames, $bankAccountNames): void {
+                $query->whereNotIn('field', ['category', 'credit_account'])
+                    ->orWhere(fn ($query) => $query->where('field', 'category')->whereIn('after', $categoryNames))
+                    ->orWhere(fn ($query) => $query->where('field', 'credit_account')->whereIn('after', $bankAccountNames));
+            })
             ->limit((int) config('torudake.ai.corrections_in_prompt'))
             ->get()
-            ->map(fn (AiCorrection $c): array => [
-                'vendor' => $c->vendor,
-                'field' => $c->field,
-                'before' => $c->before,
-                'after' => $c->after,
-                'reason' => $c->reason->value,
-                'kernel' => $c->kernel,
-            ])
+            ->map(function (AiCorrection $c) use ($categoryNames, $bankAccountNames): array {
+                $choices = match ($c->field) {
+                    'category' => $categoryNames,
+                    'credit_account' => $bankAccountNames,
+                    default => null,
+                };
+                $beforeIsCurrent = $choices === null || $c->before === null || in_array($c->before, $choices, true);
+
+                return [
+                    'vendor' => $c->vendor,
+                    'field' => $c->field,
+                    'before' => $beforeIsCurrent ? $c->before : null,
+                    'after' => $c->after,
+                    'reason' => $c->reason->value,
+                    'kernel' => $beforeIsCurrent ? $c->kernel : null,
+                ];
+            })
             ->values()
             ->all();
 
         return [
             'reading' => $reading,
-            'categories' => $categories,
-            'bank_accounts' => $bankAccounts,
-            'corrections' => $corrections,
+            'categories' => array_values($categories),
+            'bank_accounts' => array_values($bankAccounts),
+            'corrections' => array_values($corrections),
         ];
     }
 
     /**
+     * @param  list<string>  $categoryNames
+     * @param  list<string>  $bankAccountNames
      * @return array<string, mixed>
      */
-    public static function schema(): array
+    public static function schema(array $categoryNames, array $bankAccountNames): array
     {
         return [
             'type' => 'object',
             'additionalProperties' => false,
             'required' => ['category', 'bank_account', 'description', 'vendor', 'reason', 'confidence', 'remembered'],
             'properties' => [
-                'category' => ['type' => 'string'],
-                'bank_account' => ['type' => 'string'],
+                'category' => ['type' => 'string', 'enum' => $categoryNames],
+                'bank_account' => ['type' => 'string', 'enum' => $bankAccountNames],
                 'description' => ['type' => 'string'],
                 'vendor' => ['type' => ['string', 'null']],
                 'reason' => ['type' => 'string'],

@@ -30,6 +30,12 @@ new #[Title('ホーム')] class extends Component {
     }
 
     #[Computed]
+    public function previousMonthsRemaining(): int
+    {
+        return RemainingCount::fromPreviousMonths($this->company);
+    }
+
+    #[Computed]
     public function concerns(): int
     {
         return OwnerConcerns::count($this->company);
@@ -82,15 +88,18 @@ new #[Title('ホーム')] class extends Component {
             @if ($remaining > 0)
                 <a href="{{ route('company.sources.index', $company) }}" wire:navigate data-test="remaining"
                    class="block space-y-4 rounded-2xl border-2 border-brand bg-brand-soft p-8 hover:border-ink">
-                    <p class="text-ink-sub">今月 あと</p>
+                    <p class="text-ink-sub">未処理 あと</p>
                     <p class="text-7xl font-bold text-ink">{{ $remaining }}<span class="text-3xl">件</span></p>
+                    @if ($this->previousMonthsRemaining > 0)
+                        <p class="font-bold text-warn">前月以前の未処理 {{ $this->previousMonthsRemaining }}件を含みます</p>
+                    @endif
                     <p class="text-ink-sub">AIの下書きを確かめて、直して保存する</p>
                     <span class="inline-block rounded-xl bg-ink px-6 py-3 text-lg font-bold text-paper">直して保存する</span>
                 </a>
             @else
                 <a href="{{ route('company.submit', $company) }}" wire:navigate data-test="remaining"
                    class="block space-y-4 rounded-2xl border-2 border-ok bg-ok-soft p-8 hover:border-ink">
-                    <p class="text-3xl font-bold text-ok">今月の帳簿ができました</p>
+                    <p class="text-3xl font-bold text-ok">未処理の帳簿ができました</p>
                     <p class="text-ink-sub">新しいレシートが届いたら、ここに件数が出ます</p>
                     <span class="inline-block rounded-xl bg-ink px-6 py-3 text-lg font-bold text-paper">レシートを送る</span>
                 </a>

@@ -2,8 +2,11 @@
 
 namespace App\Support;
 
+use Carbon\CarbonImmutable;
+use Throwable;
+
 /**
- * 読み取りの自信が低い欄と、宛名の種類を決める（直して確定・ライブ画面・気になる印で同じ決まりを使う）。
+ * 読み取り値の日付・自信・宛名を確かめる（原資料・仕訳・画面で同じ決まりを使う）。
  */
 final class ReadingChecks
 {
@@ -11,6 +14,33 @@ final class ReadingChecks
     public const THRESHOLDS = ['date' => 0.7, 'vendor' => 0.7, 'total' => 0.8];
 
     public const ADDRESSEE_KINDS = ['own', 'other_company', 'person', 'none'];
+
+    /**
+     * AI の日付を厳密な YYYY-MM-DD として検証する。存在しない日・未来日は保存対象にしない。
+     */
+    public static function validReceiptDate(mixed $value): ?CarbonImmutable
+    {
+        if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
+            return null;
+        }
+
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value);
+        } catch (Throwable) {
+            return null;
+        }
+
+        $errors = CarbonImmutable::getLastErrors();
+
+        if (! $date instanceof CarbonImmutable
+            || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+            || $date->toDateString() !== $value
+            || $date->isAfter(CarbonImmutable::today())) {
+            return null;
+        }
+
+        return $date;
+    }
 
     /**
      * @param  array<string, mixed>|null  $aiCheck  仕訳の ai_check

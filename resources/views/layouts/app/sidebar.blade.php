@@ -42,7 +42,7 @@
                             <flux:sidebar.item icon="pencil-square" :icon-dot="$remaining > 0" :href="route('company.sources.index', $navCompany)" :current="request()->routeIs('company.sources.*')" wire:navigate data-test="sidebar-sources">
                                 直して保存
                                 @if ($remaining > 0)
-                                    <span class="ms-2 rounded-full bg-brand-soft px-2 text-note font-bold text-brand-ink" aria-label="今月あと何件" data-test="sidebar-remaining">あと{{ $remaining }}件</span>
+                                    <span class="ms-2 rounded-full bg-brand-soft px-2 text-note font-bold text-brand-ink" aria-label="未処理の件数" data-test="sidebar-remaining">あと{{ $remaining }}件</span>
                                 @endif
                             </flux:sidebar.item>
                         @endcan
