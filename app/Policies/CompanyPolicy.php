@@ -102,6 +102,17 @@ class CompanyPolicy
         return $this->viewLive($user, $company);
     }
 
+    public function viewOwner(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canViewOwner();
+    }
+
     public function manageSettings(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);

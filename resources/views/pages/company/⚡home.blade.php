@@ -38,6 +38,13 @@ new class extends Component {
         </div>
     </header>
 
+    @can('viewOwner', $company)
+        <a href="{{ route('company.owner', $company) }}" wire:navigate data-test="owner-link" class="block rounded-xl border-2 border-ink bg-panel p-5 hover:border-brand">
+            <div class="text-xl font-bold text-ink">社長の画面</div>
+            <p class="mt-1 text-note text-ink-sub">三期比較・気になる仕訳・売上の柱</p>
+        </a>
+    @endcan
+
     @can('viewSources', $company)
         @php($remaining = $this->remaining())
         <a href="{{ route('company.sources.index', $company) }}" wire:navigate data-test="remaining"

@@ -47,6 +47,11 @@ enum Role: string
         return in_array($this, [self::Owner, self::Admin], true);
     }
 
+    public function canViewOwner(): bool
+    {
+        return in_array($this, [self::Owner, self::Admin], true);
+    }
+
     public function canManageSettings(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);

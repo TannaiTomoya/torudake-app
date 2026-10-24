@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified', 'two-factor', 'company'])
         Route::livewire('sources/{source}', 'pages::company.sources.show')->name('sources.show');
         Route::livewire('entries', 'pages::company.entries.index')->name('entries.index');
         Route::livewire('entries/{entry}', 'pages::company.entries.show')->name('entries.show');
+        Route::livewire('owner', 'pages::company.owner')->name('owner');
         Route::livewire('live', 'pages::company.live')->name('live');
         Route::livewire('ai', 'pages::company.ai')->name('ai');
         Route::livewire('settings', 'pages::company.settings')->name('settings');

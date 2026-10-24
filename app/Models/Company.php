@@ -151,6 +151,22 @@ class Company extends Model
     }
 
     /**
+     * @return HasMany<ExternalMonthlyFigure, $this>
+     */
+    public function externalMonthlyFigures(): HasMany
+    {
+        return $this->hasMany(ExternalMonthlyFigure::class);
+    }
+
+    /**
+     * @return HasMany<ExternalCustomerSale, $this>
+     */
+    public function externalCustomerSales(): HasMany
+    {
+        return $this->hasMany(ExternalCustomerSale::class);
+    }
+
+    /**
      * @return HasOne<Workbook, $this>
      */
     public function workbook(): HasOne
