@@ -113,6 +113,11 @@ class CompanyPolicy
         return $membership->role->canViewOwner();
     }
 
+    public function returnToBookkeeper(User $user, Company $company): bool
+    {
+        return $this->viewOwner($user, $company);
+    }
+
     public function manageSettings(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);

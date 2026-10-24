@@ -95,6 +95,7 @@ class OwnerInsights
 
     /**
      * ひとことに渡すのは集計した数字だけ（取引先の名前・人の名前は渡さない）。
+     * 気になる仕訳の数は渡さない。社長が「見た」を押すたびに作り直さないため。
      *
      * @param  Dashboard  $dashboard
      * @return array<string, mixed>
@@ -119,7 +120,6 @@ class OwnerInsights
             'totals' => $dashboard['totals'],
             'expense_by_category' => $dashboard['expense_by_category'],
             'customers' => $dashboard['customers']['top'] ?? [],
-            'concern_count' => $dashboard['concerns']->count(),
         ];
     }
 

@@ -79,7 +79,7 @@ test('T26 ひとこと・見込みには、忙しい月の印・3期の平均・
     expect($july)->toMatchArray(['busy' => true, 'busy_but_lower' => true, 'yoy_diff' => -500_000, 'average' => 3_250_000])
         ->and($november)->toMatchArray(['busy' => true, 'average' => 4_800_000])
         ->and(collect($brief['months'])->firstWhere('month', 8)['busy'])->toBeFalse()
-        ->and($brief['concern_count'])->toBe(1)
+        ->and($brief)->not->toHaveKey('concern_count')
         ->and(json_encode($brief, JSON_UNESCAPED_UNICODE))->not->toContain('△△機械')->not->toContain('テスト建機');
 
     $forecast = insightRequests(AiTask::Forecast)[0]->input;

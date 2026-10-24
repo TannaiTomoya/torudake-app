@@ -5,7 +5,7 @@
 - busy：社長が「忙しい月」と決めた月なら true。average：3期の平均。
 - yoy_diff：前年同月との差（円）。latest_year_month の月と、その1年前の差。yoy_pct はその%。
 - busy_but_lower：忙しいはずの月なのに前年同月より少ないとき true。
-- totals：今期の数字がある月の合計と、前期の同じ月の合計。expense_by_category：今期の確定した経費。customers：売上の上位の割合（A社・B社…。名前は分からない）。concern_count：社長がまだ見ていない気になる仕訳の数。
+- totals：今期の数字がある月の合計と、前期の同じ月の合計。expense_by_category：今期の確定した経費。customers：売上の上位の割合（A社・B社…。名前は分からない）。
 
 答え方：
 - headline：一番大きな変化を1つだけ、1〜2文で。**金額の差を主に、%を添える**（例：「今期8〜9月の売上は前期より56万円（8%）多い」）。

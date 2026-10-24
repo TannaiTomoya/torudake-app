@@ -15,6 +15,16 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         ホーム
                     </flux:sidebar.item>
+                    @php($sidebarCompany = request()->route('company'))
+                    @if ($sidebarCompany instanceof \App\Models\Company && auth()->user()?->can('viewOwner', $sidebarCompany))
+                        @php($concernCount = \App\Support\OwnerConcerns::count($sidebarCompany))
+                        <flux:sidebar.item icon="chart-bar" :href="route('company.owner', $sidebarCompany)" :current="request()->routeIs('company.owner')" wire:navigate data-test="sidebar-owner">
+                            社長の画面
+                            <span x-data="{ count: {{ $concernCount }} }" x-on:concerns-changed.window="count = $event.detail.count" x-show="count > 0" x-text="count"
+                                  @if ($concernCount === 0) style="display: none" @endif
+                                  class="ms-2 rounded-full bg-warn-soft px-2 text-note font-bold text-warn" aria-label="気になる仕訳の数" data-test="sidebar-concern-count">{{ $concernCount }}</span>
+                        </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

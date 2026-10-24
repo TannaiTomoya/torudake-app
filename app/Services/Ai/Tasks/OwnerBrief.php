@@ -13,7 +13,7 @@ use App\Services\Ai\AiTaskRunner;
  */
 class OwnerBrief
 {
-    public const PROMPT_VERSION = 'owner_brief.v1';
+    public const PROMPT_VERSION = 'owner_brief.v2';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 

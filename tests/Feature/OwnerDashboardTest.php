@@ -114,7 +114,7 @@ test('気になる仕訳は、印があり社長がまだ見ていない確定�
     putEntry($other, '2026-10-06', '燃料', 90_000, flags: ['amount'], vendor: '他社の店');
 
     $this->actingAs($owner)->get(route('company.owner', $company))
-        ->assertSee('気になる仕訳（1件）')
+        ->assertSee('気になる仕訳（<span data-test="owner-concern-count">1</span>件）', false)
         ->assertSee('△△機械')
         ->assertSee('120,000円')
         ->assertSee('金額が大きい')

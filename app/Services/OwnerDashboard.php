@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\ExternalCustomerSale;
 use App\Models\JournalEntry;
 use App\Support\FiscalYear;
+use App\Support\OwnerConcerns;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -159,15 +160,10 @@ class OwnerDashboard
      */
     private function concerns(Company $company): Collection
     {
-        return $company->journalEntries()
-            ->where('status', EntryStatus::Confirmed)
-            ->whereNull('owner_seen_at')
-            ->whereNotNull('concern_flags')
+        return OwnerConcerns::query($company)
             ->with(['category', 'lines'])
             ->latest('confirmed_at')
-            ->get()
-            ->filter(fn (JournalEntry $entry): bool => ($entry->concern_flags ?? []) !== [])
-            ->values();
+            ->get();
     }
 
     /**

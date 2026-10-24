@@ -10,6 +10,7 @@ use App\Models\SourceRecord;
 use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
+use App\Services\OwnerReviewService;
 use App\Services\WorkbookService;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -98,15 +99,16 @@ test('T14: 確定すると Excel の仕訳帳に1行入り、2回保存しても
 
 test('T14: 社長から戻すと同じ行の状態が「社長から戻し」に、経理が再確定すると同じ行が上書きされる', function (): void {
     ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
+    ['user' => $owner] = createCompanyWithMember(Role::Owner, company: $company);
     $source = sendReceipt($company, $editor);
     $entry = confirmAsIs($company, $editor, $source);
     confirmAsIs($company, $editor, sendReceipt($company, $editor, 410));
 
-    $entry->forceFill(['status' => EntryStatus::Returned, 'returned_reason' => '金額を確かめて'])->save();
-    app(WorkbookService::class)->upsertRow($company, $entry->id);
+    app(OwnerReviewService::class)->returnToBookkeeper($company, $owner, $entry->id, '金額を確かめて');
 
     $sheet = journalSheet($company);
-    expect($sheet->getCell([10, 2])->getValue())->toBe('社長から戻し')
+    expect($entry->refresh()->status)->toBe(EntryStatus::Returned)
+        ->and($sheet->getCell([10, 2])->getValue())->toBe('社長から戻し')
         ->and(count(numbersInSheet($sheet)))->toBe(2);
 
     app(ConfirmEntryService::class)->confirm($company, $editor, $source->id, new ConfirmEntryInput(

@@ -3,8 +3,12 @@
 use App\Enums\ConcernFlag;
 use App\Models\Company;
 use App\Models\OwnerInsight;
+use App\Models\User;
 use App\Services\OwnerDashboard;
 use App\Services\OwnerInsights;
+use App\Services\OwnerReviewService;
+use App\Support\OwnerConcerns;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -15,12 +19,72 @@ new class extends Component {
 
     public Company $company;
 
+    public ?string $returningId = null;
+
+    public string $returnReason = '';
+
+    public ?string $notice = null;
+
+    public int $noticeSeq = 0;
+
     public function mount(Company $company): void
     {
         $this->authorize('viewOwner', $company);
 
         $this->company = $company;
         $this->companyId = $company->id;
+    }
+
+    public function markSeen(OwnerReviewService $service, string $entryId): void
+    {
+        $this->authorize('viewOwner', $this->company);
+
+        $service->markSeen($this->company, $entryId);
+
+        $this->reviewed('見た印を付けました。');
+    }
+
+    public function startReturn(string $entryId): void
+    {
+        $this->authorize('returnToBookkeeper', $this->company);
+        $this->resetErrorBag();
+
+        $this->returningId = $entryId;
+        $this->returnReason = '';
+    }
+
+    public function cancelReturn(): void
+    {
+        $this->resetErrorBag();
+        $this->returningId = null;
+        $this->returnReason = '';
+    }
+
+    public function returnToBookkeeper(OwnerReviewService $service): void
+    {
+        $this->authorize('returnToBookkeeper', $this->company);
+        $this->resetErrorBag();
+
+        if ($this->returningId === null) {
+            return;
+        }
+
+        /** @var User $user */
+        $user = Auth::user();
+
+        $service->returnToBookkeeper($this->company, $user, $this->returningId, $this->returnReason);
+
+        $this->returningId = null;
+        $this->returnReason = '';
+        $this->reviewed('経理に戻しました。');
+    }
+
+    private function reviewed(string $notice): void
+    {
+        $this->notice = $notice;
+        $this->noticeSeq++;
+        unset($this->dashboard, $this->insights);
+        $this->dispatch('concerns-changed', count: OwnerConcerns::count($this->company));
     }
 
     /**
@@ -253,20 +317,48 @@ new class extends Component {
 
     {{-- ③ 気になる仕訳 --}}
     <section class="space-y-4" data-test="owner-concerns">
-        <h2 class="text-xl font-bold">気になる仕訳（{{ $dashboard['concerns']->count() }}件）</h2>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-xl font-bold">気になる仕訳（<span data-test="owner-concern-count">{{ $dashboard['concerns']->count() }}</span>件）</h2>
+            @if ($notice !== null)
+                <p wire:key="notice-{{ $noticeSeq }}" x-data="{ show: true }" x-init="setTimeout(() => show = false, 3000)" x-show="show" x-transition.opacity.duration.500ms
+                   class="rounded-lg bg-ok-soft px-3 py-1 font-bold text-ok" role="status" data-test="owner-notice">{{ $notice }}</p>
+            @endif
+        </div>
         @forelse ($dashboard['concerns'] as $entry)
-            <a href="{{ route('company.entries.show', [$company, $entry]) }}" wire:navigate class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-panel p-4 hover:border-brand" data-test="owner-concern">
-                <span>
-                    <span class="font-bold">{{ $entry->entry_date->isoFormat('M月D日(ddd)') }}　{{ $entry->vendor ?? '取引先なし' }}</span>
-                    <span class="ml-2">{{ $this->yen($entry->amountYen()) }}</span>
-                    <span class="ml-2 text-ink-sub">{{ $entry->category?->name }}</span>
-                </span>
-                <span class="flex flex-wrap gap-1">
-                    @foreach ($entry->concern_flags ?? [] as $flag)
-                        <span class="rounded bg-warn-soft px-2 py-0.5 text-note font-bold text-warn">{{ $this->flagLabel($flag) }}</span>
-                    @endforeach
-                </span>
-            </a>
+            <div wire:key="concern-{{ $entry->id }}" class="space-y-3 rounded-xl border border-line bg-panel p-4" data-test="owner-concern">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <a href="{{ route('company.entries.show', [$company, $entry]) }}" wire:navigate class="hover:underline">
+                        <span class="font-bold">{{ $entry->entry_date->isoFormat('M月D日(ddd)') }}　{{ $entry->vendor ?? '取引先なし' }}</span>
+                        <span class="ml-2">{{ $this->yen($entry->amountYen()) }}</span>
+                        <span class="ml-2 text-ink-sub">{{ $entry->category?->name }}</span>
+                    </a>
+                    <span class="flex flex-wrap gap-1">
+                        @foreach ($entry->concern_flags ?? [] as $flag)
+                            <span class="rounded bg-warn-soft px-2 py-0.5 text-note font-bold text-warn">{{ $this->flagLabel($flag) }}</span>
+                        @endforeach
+                    </span>
+                </div>
+                @if ($returningId === $entry->id)
+                    <form wire:submit="returnToBookkeeper" class="space-y-2">
+                        <label class="block space-y-1">
+                            <span class="font-bold">戻す理由（経理に届きます）</span>
+                            <input type="text" wire:model="returnReason" maxlength="200" placeholder="例 領収書の金額と合っているか確かめて" class="w-full rounded-lg border border-line bg-paper px-3 py-2 text-body" data-test="return-reason">
+                        </label>
+                        @error('returnReason') <span class="block text-ng">{{ $message }}</span> @enderror
+                        <div class="flex flex-wrap gap-2">
+                            <button type="submit" wire:loading.attr="disabled" class="rounded-lg bg-ink px-4 py-2 font-bold text-paper disabled:opacity-60" data-test="return-submit">経理に戻す</button>
+                            <button type="button" wire:click="cancelReturn" class="rounded-lg border border-line bg-paper px-4 py-2 font-bold text-ink">やめる</button>
+                        </div>
+                    </form>
+                @else
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" wire:click="markSeen('{{ $entry->id }}')" wire:loading.attr="disabled" class="rounded-lg border-2 border-ink bg-paper px-4 py-2 font-bold text-ink disabled:opacity-60" data-test="concern-seen">見た</button>
+                        @can('returnToBookkeeper', $company)
+                            <button type="button" wire:click="startReturn('{{ $entry->id }}')" class="rounded-lg border-2 border-ng bg-paper px-4 py-2 font-bold text-ng" data-test="concern-return">経理に戻す</button>
+                        @endcan
+                    </div>
+                @endif
+            </div>
         @empty
             <p class="text-ink-sub">気になる仕訳はありません</p>
         @endforelse

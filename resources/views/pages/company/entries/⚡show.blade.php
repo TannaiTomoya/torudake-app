@@ -1,8 +1,12 @@
 <?php
 
 use App\Enums\ConcernFlag;
+use App\Enums\EntryStatus;
 use App\Models\Company;
 use App\Models\JournalEntry;
+use App\Models\User;
+use App\Services\OwnerReviewService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
@@ -16,6 +20,10 @@ new #[Title('仕訳')] class extends Component {
     public string $entryId = '';
 
     public Company $company;
+
+    public bool $showReturn = false;
+
+    public string $returnReason = '';
 
     public function mount(Company $company, string $entry): void
     {
@@ -35,6 +43,21 @@ new #[Title('仕訳')] class extends Component {
             ->findOrFail($this->entryId);
 
         return $entry;
+    }
+
+    public function returnToBookkeeper(OwnerReviewService $service): void
+    {
+        $this->authorize('returnToBookkeeper', $this->company);
+        $this->resetErrorBag();
+
+        /** @var User $user */
+        $user = Auth::user();
+
+        $service->returnToBookkeeper($this->company, $user, $this->entryId, $this->returnReason);
+
+        $this->showReturn = false;
+        $this->returnReason = '';
+        unset($this->entry);
     }
 }; ?>
 
@@ -62,6 +85,30 @@ new #[Title('仕訳')] class extends Component {
             <dt class="text-ink-sub">確定</dt><dd class="col-span-2">{{ $entry->confirmer?->name }}・{{ $entry->confirmed_at->isoFormat('M月D日(ddd) H:mm') }}</dd>
         @endif
     </dl>
+
+    @if ($entry->status === EntryStatus::Returned)
+        <p class="rounded-lg bg-ng-soft p-3 text-ng" data-test="entry-returned">社長から戻されました：{{ $entry->returned_reason }}</p>
+    @endif
+
+    @if ($entry->status === EntryStatus::Confirmed)
+        @can('returnToBookkeeper', $company)
+            @if (! $showReturn)
+                <button type="button" wire:click="$set('showReturn', true)" class="rounded-lg border-2 border-ng bg-paper px-4 py-2 font-bold text-ng" data-test="entry-return">経理に戻す</button>
+            @else
+                <form wire:submit="returnToBookkeeper" class="space-y-2 rounded-xl border border-line bg-panel p-4">
+                    <label class="block space-y-1">
+                        <span class="font-bold">戻す理由（経理に届きます）</span>
+                        <input type="text" wire:model="returnReason" maxlength="200" placeholder="例 領収書の金額と合っているか確かめて" class="w-full rounded-lg border border-line bg-paper px-3 py-2 text-body" data-test="return-reason">
+                    </label>
+                    @error('returnReason') <span class="block text-ng">{{ $message }}</span> @enderror
+                    <div class="flex flex-wrap gap-2">
+                        <button type="submit" wire:loading.attr="disabled" class="rounded-lg bg-ink px-4 py-2 font-bold text-paper disabled:opacity-60">経理に戻す</button>
+                        <button type="button" wire:click="$set('showReturn', false)" class="rounded-lg border border-line bg-paper px-4 py-2 font-bold text-ink">やめる</button>
+                    </div>
+                </form>
+            @endif
+        @endcan
+    @endif
 
     @if (! empty($entry->concern_flags))
         <div class="flex flex-wrap gap-2">
