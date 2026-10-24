@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Services\Ai\AiClient;
+use App\Services\Ai\ClaudeClient;
+use App\Services\Ai\FakeClaudeClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +18,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(FakeClaudeClient::class);
+
+        $this->app->bind(AiClient::class, function ($app): AiClient {
+            if (config('torudake.ai.driver') === 'claude') {
+                return new ClaudeClient(
+                    apiKey: (string) config('services.anthropic.key'),
+                    model: (string) config('services.anthropic.model'),
+                    url: (string) config('services.anthropic.url'),
+                    version: (string) config('services.anthropic.version'),
+                    timeoutSeconds: (int) config('torudake.ai.timeout_seconds'),
+                );
+            }
+
+            return $app->make(FakeClaudeClient::class);
+        });
     }
 
     /**

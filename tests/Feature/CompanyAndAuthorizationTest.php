@@ -3,45 +3,12 @@
 use App\Enums\Role;
 use App\Models\AuditLog;
 use App\Models\Company;
-use App\Models\Membership;
 use App\Models\User;
 use Database\Seeders\CompanyDefaultSeeder;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
-
-/**
- * Helper to create a company with default accounts/categories/bank accounts and a member.
- *
- * @return array{company: Company, user: User, membership: Membership}
- */
-function createCompanyWithMember(
-    Role $role = Role::Owner,
-    bool $submitOnly = false,
-    bool $withTwoFactor = true,
-    ?Company $company = null,
-): array {
-    $company ??= Company::factory()->create(['name' => 'テスト建機']);
-    CompanyDefaultSeeder::seedForCompany($company);
-
-    $userFactory = User::factory();
-    if ($withTwoFactor) {
-        $userFactory = $userFactory->withTwoFactor();
-    }
-    $user = $userFactory->create();
-
-    $membership = new Membership;
-    $membership->forceFill([
-        'company_id' => $company->id,
-        'user_id' => $user->id,
-        'role' => $role,
-        'submit_only' => $submitOnly,
-        'disabled_at' => null,
-    ])->save();
-
-    return ['company' => $company, 'user' => $user, 'membership' => $membership];
-}
 
 test('T02: 2段階認証が未設定の人は会社の画面に入れず設定画面へリダイレクトされる', function (): void {
     ['company' => $company, 'user' => $user] = createCompanyWithMember(

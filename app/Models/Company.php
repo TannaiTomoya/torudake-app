@@ -91,4 +91,44 @@ class Company extends Model
     {
         return $this->hasMany(AuditLog::class);
     }
+
+    /**
+     * @return HasMany<Evidence, $this>
+     */
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(Evidence::class);
+    }
+
+    /**
+     * @return HasMany<SourceRecord, $this>
+     */
+    public function sourceRecords(): HasMany
+    {
+        return $this->hasMany(SourceRecord::class);
+    }
+
+    /**
+     * @return HasMany<JournalEntry, $this>
+     */
+    public function journalEntries(): HasMany
+    {
+        return $this->hasMany(JournalEntry::class);
+    }
+
+    /**
+     * @return HasMany<AiRun, $this>
+     */
+    public function aiRuns(): HasMany
+    {
+        return $this->hasMany(AiRun::class);
+    }
+
+    /**
+     * @return HasMany<AiCorrection, $this>
+     */
+    public function aiCorrections(): HasMany
+    {
+        return $this->hasMany(AiCorrection::class);
+    }
 }

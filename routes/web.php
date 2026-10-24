@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\EvidenceImageController;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -63,10 +64,7 @@ Route::middleware(['auth', 'verified', 'two-factor', 'company'])
         Route::livewire('ai', 'pages::company.ai')->name('ai');
         Route::livewire('settings', 'pages::company.settings')->name('settings');
 
-        Route::get('evidences/{evidence}/image', function (Company $company, string $evidence): never {
-            Gate::authorize('viewSources', $company);
-            abort(404);
-        })->name('evidences.image');
+        Route::get('evidences/{evidence}/image', EvidenceImageController::class)->name('evidences.image');
 
         Route::get('exports/{month}.xlsx', function (Company $company, string $month) {
             Gate::authorize('exportExcel', $company);
