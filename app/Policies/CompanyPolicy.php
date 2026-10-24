@@ -67,16 +67,6 @@ class CompanyPolicy
         return true;
     }
 
-    public function submitEvidence(User $user, Company $company): bool
-    {
-        return $user->hasVerifiedEmail() && $user->two_factor_confirmed_at !== null && $this->submit($user, $company);
-    }
-
-    public function viewHomeData(User $user, Company $company): bool
-    {
-        return $user->hasVerifiedEmail() && $user->two_factor_confirmed_at !== null && $this->viewHome($user, $company);
-    }
-
     public function viewSource(User $user, Company $company, ?int $submittedByUserId = null): bool
     {
         $membership = $this->activeMembership($user, $company);

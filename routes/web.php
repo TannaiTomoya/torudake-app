@@ -42,7 +42,7 @@ Route::middleware(['auth', 'verified', 'company', 'two-factor'])
     ->scopeBindings()
     ->group(function (): void {
         Route::livewire('/', 'pages::company.home')->can('viewHome', 'company')->name('home');
-        Route::livewire('submit', 'pages::company.submit')->can('submit', 'company')->name('submit');
+        Route::livewire('submit', 'pages::company.submit')->can('viewSubmit', 'company')->name('submit');
         Route::livewire('sources', 'pages::company.sources.index')->can('viewSources', 'company')->name('sources.index');
         Route::livewire('sources/{source}', 'pages::company.sources.show')->can('editDraft', 'company')->name('sources.show');
         Route::livewire('entries', 'pages::company.entries.index')->can('viewSources', 'company')->name('entries.index');

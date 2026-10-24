@@ -110,11 +110,11 @@ test('認証前に送信画面の通信を直接送っても写真を送れず�
     expect($company->sourceRecords()->count())->toBe(1);
 });
 
-test('認証前にホームの件数取得メソッドを直接呼んでも403', function (string $method): void {
+test('認証前にホームの件数取得メソッドを直接呼んでも件数は返らない（computed は画面の外から呼べない）', function (string $method): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner, withTwoFactor: false);
     $payload = pageUpdatePayload($this->actingAs($owner)->get(route('company.home', $company))->assertOk(), $method);
 
-    postPageUpdate($payload)->assertForbidden();
+    expect(postPageUpdate($payload)->isSuccessful())->toBeFalse();
 })->with(['remaining', 'concerns']);
 
 test('メール確認後も古い社長URLに戻らず役割別の入口へ進む', function (): void {
