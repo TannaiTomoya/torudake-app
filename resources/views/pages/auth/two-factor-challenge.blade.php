@@ -79,6 +79,8 @@
                         @enderror
                     </div>
 
+                    <flux:checkbox name="trust_device" value="1" :checked="true" label="この端末を覚える（30日はコードを聞きません）" data-test="trust-device" />
+
                     <flux:button
                         variant="primary"
                         type="submit"

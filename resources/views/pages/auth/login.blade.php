@@ -5,6 +5,14 @@
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
 
+        <!-- 顔でログイン（パスキーに対応したブラウザだけ） -->
+        <div x-data="passkeyLogin" x-show="supported" x-cloak class="flex flex-col gap-3" data-test="passkey-login">
+            <flux:button variant="primary" icon="face-smile" class="w-full !h-14 !text-lg" x-on:click="login()" x-bind:disabled="busy">
+                顔でログイン
+            </flux:button>
+            <p x-show="error" x-text="error" class="text-sm font-bold text-ng" role="alert"></p>
+            <flux:separator text="またはパスワードで" />
+        </div>
 
         <form method="POST" action="{{ route('login.store') }}" class="flex flex-col gap-6">
             @csrf
@@ -39,9 +47,6 @@
                     </flux:link>
                 @endif
             </div>
-
-            <!-- Remember Me -->
-            <flux:checkbox name="remember" :label="__('Remember me')" :checked="old('remember')" />
 
             <div class="flex items-center justify-end">
                 <flux:button variant="primary" type="submit" class="w-full" data-test="login-button">
