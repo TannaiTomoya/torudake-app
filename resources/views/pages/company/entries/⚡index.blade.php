@@ -3,14 +3,17 @@
 use App\Enums\EntryStatus;
 use App\Models\Company;
 use App\Models\JournalEntry;
-use Illuminate\Support\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new #[Title('仕訳の一覧')] class extends Component {
+    use WithPagination;
+
     #[Locked]
     public string $companyId = '';
 
@@ -28,10 +31,10 @@ new #[Title('仕訳の一覧')] class extends Component {
     }
 
     /**
-     * @return Collection<int, JournalEntry>
+     * @return LengthAwarePaginator<int, JournalEntry>
      */
     #[Computed]
-    public function entries(): Collection
+    public function entries(): LengthAwarePaginator
     {
         $this->authorize('viewSources', $this->company);
 
@@ -42,8 +45,15 @@ new #[Title('仕訳の一覧')] class extends Component {
             ->when($status !== null, fn ($query) => $query->where('status', $status))
             ->latest('entry_date')
             ->latest('created_at')
-            ->limit(100)
-            ->get();
+            ->latest('id')
+            ->paginate(25);
+    }
+
+    public function selectStatus(string $status): void
+    {
+        $this->authorize('viewSources', $this->company);
+        $this->status = EntryStatus::tryFrom($status)?->value ?? '';
+        $this->resetPage();
     }
 }; ?>
 
@@ -59,10 +69,10 @@ new #[Title('仕訳の一覧')] class extends Component {
     </header>
 
     <nav class="flex flex-wrap gap-2" aria-label="状態で絞り込む">
-        <button type="button" wire:click="$set('status', '')"
+        <button type="button" wire:click="selectStatus('')"
                 @class(['rounded-full border-2 px-4 py-2 text-note font-bold', 'border-brand bg-brand-soft text-ink' => $status === '', 'border-line bg-paper text-ink-sub' => $status !== ''])>すべて</button>
         @foreach (EntryStatus::cases() as $case)
-            <button type="button" wire:click="$set('status', '{{ $case->value }}')"
+            <button type="button" wire:click="selectStatus('{{ $case->value }}')"
                     @class(['rounded-full border-2 px-4 py-2 text-note font-bold', 'border-brand bg-brand-soft text-ink' => $status === $case->value, 'border-line bg-paper text-ink-sub' => $status !== $case->value])>{{ $case->label() }}</button>
         @endforeach
     </nav>
@@ -92,5 +102,16 @@ new #[Title('仕訳の一覧')] class extends Component {
                 </li>
             @endforeach
         </ul>
+    @endif
+
+    @if ($this->entries->hasPages())
+        <nav class="flex flex-wrap items-center justify-between gap-3" aria-label="仕訳一覧のページ送り" data-test="entries-pagination">
+            <p class="text-note text-ink-sub">{{ $this->entries->firstItem() }}〜{{ $this->entries->lastItem() }}件 / 全{{ $this->entries->total() }}件</p>
+            <div class="flex items-center gap-3">
+                <button type="button" wire:click="previousPage" @disabled($this->entries->onFirstPage()) class="rounded-lg border border-line bg-paper px-4 py-2 font-bold text-ink disabled:opacity-50">前へ</button>
+                <span class="text-note text-ink-sub">{{ $this->entries->currentPage() }} / {{ $this->entries->lastPage() }}ページ</span>
+                <button type="button" wire:click="nextPage" @disabled(! $this->entries->hasMorePages()) class="rounded-lg border border-line bg-paper px-4 py-2 font-bold text-ink disabled:opacity-50">次へ</button>
+            </div>
+        </nav>
     @endif
 </section>

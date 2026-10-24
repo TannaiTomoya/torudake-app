@@ -1,18 +1,10 @@
-<x-layouts::app :title="__('Dashboard')">
-    <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
-        <div class="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-        </div>
-        <div class="relative h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-            <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-        </div>
-    </div>
+<x-layouts::app title="ホーム">
+    <section class="mx-auto max-w-2xl space-y-4 p-4 text-body text-ink">
+        <h1 class="text-2xl font-bold">会社への所属がありません</h1>
+        <p class="rounded-xl border border-line bg-panel p-6">会社の管理者に、メンバーの登録をご依頼ください。登録が済んだら、ホームを開き直してください。</p>
+        <nav aria-label="次にできること" class="flex flex-wrap gap-4 font-bold text-brand-ink underline">
+            <a href="{{ route('dashboard') }}">ホームを開き直す</a>
+            <a href="{{ route('profile.edit') }}" wire:navigate>個人設定</a>
+        </nav>
+    </section>
 </x-layouts::app>

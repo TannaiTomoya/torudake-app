@@ -15,8 +15,8 @@
 | 認証 | **Laravel Fortify**（Livewire スターターキット） | 実装済み：ログイン・パスワード再設定・メール確認・2段階認証・パスワード再確認。**会員登録とパスキーは外した** |
 | 権限 | Policy / Gate ＋ `company` ミドルウェア | 工程2で作る |
 | DB | **MySQL 8.4** | 金額は `BIGINT` の整数円。ID は UUIDv7（`HasUuids`）。users は既定の bigint のまま |
-| 写真 | `evidence` ディスク（`storage/app/private/evidences`、非公開） | S3互換は将来 |
-| ジョブ | Laravel のキュー（`database` ドライバ）＋ スケジューラ（cron 毎分） | 本番に設定済み（systemd `torudake-queue@1`・`@2` の2つ、cron `schedule:run`） |
+| 写真 | `evidence` ディスク（`storage/app/private/evidences`、非公開） | JPEG・PNG・WebP・PDFを受け付ける。HEIC/HEIFはブラウザー内でJPEGに変換してから送る。S3互換は将来 |
+| ジョブ | Laravel のキュー（`database` ドライバ）＋ スケジューラ（cron 毎分） | 本番に設定済み（systemd `torudake-queue@1`・`@2` の2つ、cron `schedule:run`）。失敗コールバックと、10分停滞したAI読み取りを5分ごとに失敗へ戻す |
 | AI | Anthropic Messages API、`claude-opus-5-5`、構造化出力（JSON スキーマ） | 工程3で作る。呼ぶのは `app/Services/Ai/` だけ |
 | Excel | `phpoffice/phpspreadsheet`。**アプリが1冊を持ち続ける**（`storage/app/private/workbooks/{company}.xlsx`）。確定のたびに追記し、社長が戻したら状態の列を書き換える | 仕訳帳は済み（工程5）。社長用・AIの記録のシートはこれから |
 | 通知 | Laravel の通知（`database` チャネル、`notifications` テーブル）。画面右上のベル | これから。メール・LINE は将来 |

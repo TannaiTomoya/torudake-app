@@ -2,6 +2,7 @@
 
 use App\Enums\EntryStatus;
 use App\Enums\Role;
+use App\Jobs\ProcessEvidenceWithAi;
 use App\Models\Company;
 use App\Models\SourceRecord;
 use App\Models\User;
@@ -27,15 +28,19 @@ test('T15: 「あと n 件」＝未処理＋下書き＋社長から戻し。台
     ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
 
     // AI がまだ動いていない（未処理）1枚
-    $realQueue = Queue::getFacadeRoot();
     Queue::fake();
     sendForCount($company, $editor, 400);
     expect(RemainingCount::for($company))->toBe(1);
 
     // AI が下書きを作った2枚。未処理の1枚と合わせて3件
-    Queue::swap($realQueue);
     $drafted = [sendForCount($company, $editor, 410), sendForCount($company, $editor, 420)];
+    foreach ($drafted as $source) {
+        app()->call([new ProcessEvidenceWithAi($source->id), 'handle']);
+    }
+    $drafted = array_map(fn (SourceRecord $source): SourceRecord => $source->refresh(), $drafted);
+    $drafted[0]->journalEntry()->firstOrFail()->forceFill(['entry_date' => now()->subMonth()->startOfMonth()])->save();
     expect(RemainingCount::for($company))->toBe(3);
+    expect(RemainingCount::fromPreviousMonths($company))->toBe(1);
 
     $this->actingAs($editor)->get(route('company.home', $company))->assertSee('3');
 
@@ -52,7 +57,7 @@ test('T15: 「あと n 件」＝未処理＋下書き＋社長から戻し。台
     }
 
     expect(RemainingCount::for($company))->toBe(0);
-    $this->actingAs($editor)->get(route('company.home', $company))->assertSee('今月の帳簿ができました');
+    $this->actingAs($editor)->get(route('company.home', $company))->assertSee('未処理の帳簿ができました');
 
     // 社長から戻された仕訳は、また数える
     $entry = $drafted[0]->refresh()->journalEntry()->firstOrFail();
@@ -60,7 +65,7 @@ test('T15: 「あと n 件」＝未処理＋下書き＋社長から戻し。台
     expect(RemainingCount::for($company))->toBe(1);
 });
 
-test('先月の分と他社の分は数えない', function (): void {
+test('月をまたいだ未処理も全件に含め、指定月の件数は分けて数える。他社の分は含めない', function (): void {
     ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
     ['company' => $other, 'user' => $otherEditor] = createCompanyWithMember(Role::Editor);
 
@@ -71,6 +76,8 @@ test('先月の分と他社の分は数えない', function (): void {
 
     sendForCount($other, $otherEditor, 410);
 
-    expect(RemainingCount::for($company))->toBe(0)
+    expect(RemainingCount::for($company))->toBe(1)
+        ->and(RemainingCount::for($company, now()))->toBe(0)
+        ->and(RemainingCount::fromPreviousMonths($company))->toBe(1)
         ->and(RemainingCount::for($company, now()->subDays(40)))->toBe(1);
 });

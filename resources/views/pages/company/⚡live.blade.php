@@ -120,6 +120,12 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     }
 
     #[Computed]
+    public function previousMonthsRemaining(): int
+    {
+        return RemainingCount::fromPreviousMonths($this->company);
+    }
+
+    #[Computed]
     public function confirmedThisMonth(): int
     {
         return $this->company->journalEntries()
@@ -459,8 +465,11 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
         {{-- あと n 件・流れ --}}
         <aside class="col-span-2 flex min-h-0 flex-col gap-6">
             <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-3xl bg-ink p-6 text-center text-paper">
-                <p class="font-bold">今月の帳簿ができるまで</p>
+                <p class="font-bold">未処理の帳簿ができるまで</p>
                 <p wire:key="remaining-{{ $this->remaining }}" class="live-slide-in text-live-hero font-bold leading-none text-brand" data-test="live-remaining">あと {{ $this->remaining }}件</p>
+                @if ($this->previousMonthsRemaining > 0)
+                    <p class="font-bold text-warn" data-test="live-previous-months">前月以前 {{ $this->previousMonthsRemaining }}件</p>
+                @endif
             </div>
             <div class="shrink-0 overflow-hidden rounded-2xl bg-panel p-4">
                 <p class="text-ink-sub">流れ</p>
@@ -493,7 +502,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
 
     @if ($done)
         <div class="live-slide-in fixed inset-0 flex flex-col items-center justify-center gap-8 bg-paper text-center" data-test="live-done">
-            <p class="text-live-hero font-bold leading-tight text-ink">今月の帳簿が<br>できました</p>
+            <p class="text-live-hero font-bold leading-tight text-ink">未処理の帳簿が<br>できました</p>
             <p class="font-bold text-ink-sub">3 で Excel を開く　5 で社長の画面</p>
         </div>
     @endif

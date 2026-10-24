@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('torudake:purge-evidence')->dailyAt('03:00')->withoutOverlapping();
+Schedule::command('torudake:fail-stale-evidence-ai')->everyFiveMinutes()->withoutOverlapping();

@@ -45,6 +45,19 @@ test('T19: 帳票を読むだけでは月ごとの売上に入らず、自信が
         ->assertSee('4,300,000円');
 });
 
+test('帳票取り込みは未変換のHEICを受け付けない', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+
+    Livewire::actingAs($owner)
+        ->test('pages::company.reports', ['company' => $company])
+        ->set('photo', UploadedFile::fake()->create('report.heic', 10, 'image/heic'))
+        ->call('upload')
+        ->assertHasErrors(['photo']);
+
+    expect($company->reportImports()->count())->toBe(0)
+        ->and($company->evidences()->count())->toBe(0);
+});
+
 test('T19: 保存を押すと月ごとの売上に入り、既存の数字と違う月が分かる', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Admin);
     $first = currentPeriodMonth($company, 0);

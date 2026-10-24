@@ -16,7 +16,7 @@ new #[Title('レシートを送る')] class extends Component {
 
     public const MAX_PHOTOS = 10;
 
-    private const PHOTO_RULES = ['required', 'file', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf'];
+    private const PHOTO_RULES = ['required', 'file', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp,application/pdf'];
 
     #[Locked]
     public string $companyId = '';
@@ -63,9 +63,9 @@ new #[Title('レシートを送る')] class extends Component {
 
         $this->company = $company;
         $this->companyId = $company->id;
-        $this->monthCount = $company->sourceRecords()
+        $this->monthCount = auth()->user()?->can('submit', $company) ? $company->sourceRecords()
             ->where('created_at', '>=', now()->startOfMonth())
-            ->count();
+            ->count() : 0;
     }
 
     /**
@@ -77,7 +77,7 @@ new #[Title('レシートを送る')] class extends Component {
         foreach (['photo', 'picked.*', 'photos.*'] as $key) {
             $messages["{$key}.required"] = '写真を選んでください。';
             $messages["{$key}.max"] = '10MBまでの写真にしてください。';
-            $messages["{$key}.mimetypes"] = '写真（JPEG・PNG・WebP・HEIC）か PDF を送ってください。';
+            $messages["{$key}.mimetypes"] = '写真（JPEG・PNG・WebP）か PDF を送ってください。HEIC/HEIFは自動でJPEGに変換します。';
             $messages["{$key}.file"] = '写真を読み込めませんでした。';
             $messages["{$key}.uploaded"] = '写真を読み込めませんでした。10MBまでの写真にしてください。';
         }
@@ -208,7 +208,7 @@ new #[Title('レシートを送る')] class extends Component {
     }
 }; ?>
 
-<section class="mx-auto flex min-h-[80vh] max-w-md flex-col gap-4 p-4 text-body text-ink">
+<section x-data="heicUploads" x-on:change.capture="prepare($event)" class="mx-auto flex min-h-[80vh] max-w-md flex-col gap-4 p-4 text-body text-ink">
     <header class="flex items-baseline justify-between gap-3 border-b border-line pb-3">
         <h1 class="text-xl font-bold text-ink">レシートを送る</h1>
         <div class="flex flex-wrap items-baseline justify-end gap-x-3 text-note text-ink-sub">
@@ -226,6 +226,8 @@ new #[Title('レシートを送る')] class extends Component {
     @if (auth()->user()?->two_factor_confirmed_at === null)
         @include('partials.two-factor-first')
     @else
+    <p x-show="converting" x-cloak class="rounded-lg bg-panel p-3 text-center text-note text-ink-sub" role="status">HEIC/HEIFをこの端末でJPEGに変換しています…</p>
+    <p x-show="error" x-cloak x-text="error" class="rounded-lg bg-ng-soft p-3 text-note font-bold text-ng" role="alert"></p>
     {{-- 1 待ち --}}
     @if ($state === 'waiting')
         @if ($monthCount === 0)
@@ -239,7 +241,7 @@ new #[Title('レシートを送る')] class extends Component {
         @endif
 
         <label class="flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-muted bg-panel p-8 text-center">
-            <input type="file" class="sr-only" accept="image/*,application/pdf" capture="environment" wire:model="photo" data-test="camera-input">
+            <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" capture="environment" wire:model="photo" x-bind:disabled="converting" data-test="camera-input">
             <flux:icon.camera class="size-12 text-ink" />
             <span class="text-lg font-bold text-ink">レシートを撮る</span>
             <span class="text-note text-ink-sub">撮るたびにためて、まとめて送れます</span>
@@ -285,11 +287,11 @@ new #[Title('レシートを送る')] class extends Component {
         @if (count($photos) < $this::MAX_PHOTOS)
             <div class="grid grid-cols-2 gap-2" wire:loading.remove wire:target="send">
                 <label class="block cursor-pointer rounded-xl {{ $photos === [] ? 'bg-brand' : 'border-2 border-ink bg-paper' }} py-3 text-center text-lg font-bold text-ink">
-                    <input type="file" class="sr-only" accept="image/*,application/pdf" capture="environment" wire:model="photo">
+                    <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" capture="environment" wire:model="photo" x-bind:disabled="converting">
                     {{ $photos === [] ? '撮る' : 'もう1枚撮る' }}
                 </label>
                 <label class="block cursor-pointer rounded-xl border-2 border-ink bg-paper py-3 text-center font-bold text-ink">
-                    <input type="file" class="sr-only" accept="image/*,application/pdf" multiple wire:model="picked" data-test="library-input">
+                    <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" multiple wire:model="picked" x-bind:disabled="converting" data-test="library-input">
                     写真を選ぶ
                 </label>
             </div>
@@ -311,7 +313,7 @@ new #[Title('レシートを送る')] class extends Component {
             <p class="text-note text-ink-sub"><span x-text="s"></span>秒</p>
         </div>
 
-        <button type="button" wire:click="send" wire:loading.attr="disabled" wire:target="send,photo,picked"
+        <button type="button" wire:click="send" wire:loading.attr="disabled" wire:target="send,photo,picked" x-bind:disabled="converting"
                 class="w-full rounded-xl bg-brand py-4 text-lg font-bold text-ink disabled:cursor-not-allowed disabled:border-2 disabled:border-dashed disabled:border-ink disabled:bg-panel"
                 data-test="send-button">
             <span wire:loading.remove wire:target="send">{{ $state === 'failed' ? 'もう一度送る' : 'まとめて送る' }}（{{ count($photos) }}枚）</span>

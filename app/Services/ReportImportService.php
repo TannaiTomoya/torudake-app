@@ -26,6 +26,11 @@ class ReportImportService
 {
     public function upload(Company $company, User $user, UploadedFile $file): ReportImport
     {
+        $mime = (string) $file->getMimeType();
+        if (! in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            throw ValidationException::withMessages(['photo' => '帳票はJPEG・PNG・WebPで送ってください。HEIC/HEIFは自動変換してから送ってください。']);
+        }
+
         $path = $file->getRealPath();
         $sha256 = $path !== false ? hash_file('sha256', $path) : false;
 
@@ -37,7 +42,6 @@ class ReportImportService
             throw ValidationException::withMessages(['photo' => 'この写真はもう送られています。']);
         }
 
-        $mime = (string) $file->getMimeType();
         $directory = "companies/{$company->id}";
         $fileName = Str::uuid7()->toString().'.'.($file->guessExtension() ?? 'bin');
         $storageKey = "{$directory}/{$fileName}";

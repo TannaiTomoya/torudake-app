@@ -13,6 +13,7 @@ use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\SourceRecord;
 use App\Services\Ai\AiException;
+use App\Support\ReadingChecks;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -65,7 +66,7 @@ class AiDraftBuilder
             $entry = new JournalEntry;
             $entry->forceFill([
                 'company_id' => $company->id,
-                'entry_date' => $this->resolveDate($reading['date'] ?? null),
+                'entry_date' => ReadingChecks::validReceiptDate($reading['date'] ?? null) ?? CarbonImmutable::today(),
                 'kind' => EntryKind::Normal,
                 'status' => EntryStatus::Draft,
                 'description' => is_string($draft['description'] ?? null) ? mb_substr($draft['description'], 0, 200) : null,
@@ -123,22 +124,5 @@ class AiDraftBuilder
         return $named
             ?? $active->first(fn (BankAccount $b): bool => $b->is_default_for_receipts)
             ?? $active->first();
-    }
-
-    /**
-     * 読めない・未来の日付は今日にする。
-     */
-    private function resolveDate(mixed $rawDate): CarbonImmutable
-    {
-        $today = CarbonImmutable::today();
-
-        if (is_string($rawDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate) === 1) {
-            $parsed = CarbonImmutable::createFromFormat('!Y-m-d', $rawDate);
-            if ($parsed instanceof CarbonImmutable && $parsed->lessThanOrEqualTo($today)) {
-                return $parsed;
-            }
-        }
-
-        return $today;
     }
 }

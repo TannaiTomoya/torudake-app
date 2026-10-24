@@ -5,14 +5,17 @@ use App\Enums\EntryStatus;
 use App\Enums\SourceStatus;
 use App\Models\Company;
 use App\Models\SourceRecord;
-use Illuminate\Support\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new #[Title('原資料')] class extends Component {
+    use WithPagination;
+
     #[Locked]
     public string $companyId = '';
 
@@ -30,10 +33,10 @@ new #[Title('原資料')] class extends Component {
     }
 
     /**
-     * @return Collection<int, SourceRecord>
+     * @return LengthAwarePaginator<int, SourceRecord>
      */
     #[Computed]
-    public function sources(): Collection
+    public function sources(): LengthAwarePaginator
     {
         $this->authorize('viewSources', $this->company);
 
@@ -44,8 +47,8 @@ new #[Title('原資料')] class extends Component {
             ->when($status !== null, fn ($query) => $query->where('status', $status))
             ->when($this->status === 'returned', fn ($query) => $query->whereRelation('journalEntry', 'status', EntryStatus::Returned))
             ->latest('created_at')
-            ->limit(100)
-            ->get();
+            ->latest('id')
+            ->paginate(25);
     }
 
     /**
@@ -71,7 +74,9 @@ new #[Title('原資料')] class extends Component {
 
     public function selectStatus(string $status): void
     {
+        $this->authorize('viewSources', $this->company);
         $this->status = SourceStatus::tryFrom($status) !== null || $status === 'returned' ? $status : '';
+        $this->resetPage();
     }
 }; ?>
 
@@ -175,5 +180,16 @@ new #[Title('原資料')] class extends Component {
                 </li>
             @endforeach
         </ul>
+    @endif
+
+    @if ($this->sources->hasPages())
+        <nav class="flex flex-wrap items-center justify-between gap-3" aria-label="原資料一覧のページ送り" data-test="sources-pagination">
+            <p class="text-note text-ink-sub">{{ $this->sources->firstItem() }}〜{{ $this->sources->lastItem() }}件 / 全{{ $this->sources->total() }}件</p>
+            <div class="flex items-center gap-3">
+                <button type="button" wire:click="previousPage" @disabled($this->sources->onFirstPage()) class="rounded-lg border border-line bg-paper px-4 py-2 font-bold text-ink disabled:opacity-50">前へ</button>
+                <span class="text-note text-ink-sub">{{ $this->sources->currentPage() }} / {{ $this->sources->lastPage() }}ページ</span>
+                <button type="button" wire:click="nextPage" @disabled(! $this->sources->hasMorePages()) class="rounded-lg border border-line bg-paper px-4 py-2 font-bold text-ink disabled:opacity-50">次へ</button>
+            </div>
+        </nav>
     @endif
 </section>
