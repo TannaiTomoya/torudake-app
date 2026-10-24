@@ -109,7 +109,7 @@
 | 方式 | Fortify のセッション認証 | 済み |
 | 会員登録 | なし（`/register` は404。テスト T01） | 済み |
 | メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール | 工程2 |
-| 2段階認証 | TOTP＋復旧コード。**有効にしていない人は会社の画面に入れず、設定画面へ回す**（`two-factor`） | 工程2 |
+| 2段階認証 | TOTP＋復旧コード。**有効にしていない人は会社の画面に入れず、設定画面へ回す**（`two-factor`）。画面の操作（Livewire のアクション）も `CompanyPolicy::before` で確かめ、「最初にやること」のカードを出す画面を開く（`member`・`viewHome`・`viewSubmit`）以外は拒む。Livewire の更新のたびに `company`・`two-factor` を元の画面のルートで通し直す（persistent middleware。開いたまま会社から外された・2段階認証を切った人の画面も止まる） | 工程2 |
 | セッション | 操作がなければ2時間。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） | 工程2 |
 | パスワード | 12文字以上。漏えい済みは拒否 | 工程2 |
 

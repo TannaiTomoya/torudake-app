@@ -3,6 +3,7 @@
 use App\Models\Company;
 use App\Support\OwnerConcerns;
 use App\Support\RemainingCount;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -21,11 +22,14 @@ new #[Title('ホーム')] class extends Component {
         $this->companyId = $company->id;
     }
 
+    /** computed なので、画面の外から呼べない（2段階認証の前の人に件数を出さない） */
+    #[Computed]
     public function remaining(): int
     {
         return RemainingCount::for($this->company);
     }
 
+    #[Computed]
     public function concerns(): int
     {
         return OwnerConcerns::count($this->company);
@@ -49,7 +53,7 @@ new #[Title('ホーム')] class extends Component {
     <p class="text-note font-bold text-ink-sub">次にやること</p>
 
     @can('viewOwner', $company)
-        @php($concerns = $this->concerns())
+        @php($concerns = $this->concerns)
         <a href="{{ route('company.owner', $company) }}" wire:navigate data-test="owner-link"
            @class(['block space-y-4 rounded-2xl border-2 p-8 hover:border-brand', 'border-warn bg-warn-soft' => $concerns > 0, 'border-ink bg-panel' => $concerns === 0])>
             @if ($concerns > 0)
@@ -74,7 +78,7 @@ new #[Title('ホーム')] class extends Component {
         </nav>
     @else
         @can('editDraft', $company)
-            @php($remaining = $this->remaining())
+            @php($remaining = $this->remaining)
             @if ($remaining > 0)
                 <a href="{{ route('company.sources.index', $company) }}" wire:navigate data-test="remaining"
                    class="block space-y-4 rounded-2xl border-2 border-brand bg-brand-soft p-8 hover:border-ink">

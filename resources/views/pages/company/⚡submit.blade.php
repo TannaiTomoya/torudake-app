@@ -58,7 +58,8 @@ new #[Title('レシートを送る')] class extends Component {
 
     public function mount(Company $company): void
     {
-        $this->authorize('submit', $company);
+        // 開くのは2段階認証の前でもよい（カードが出る）。写真を選ぶ・送るは submit で止める
+        $this->authorize('viewSubmit', $company);
 
         $this->company = $company;
         $this->companyId = $company->id;
