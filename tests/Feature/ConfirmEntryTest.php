@@ -9,36 +9,14 @@ use App\Enums\Side;
 use App\Enums\SourceStatus;
 use App\Models\AiCorrection;
 use App\Models\AuditLog;
-use App\Models\Company;
 use App\Models\JournalEntry;
-use App\Models\SourceRecord;
-use App\Models\User;
 use App\Services\Ai\FakeClaudeClient;
-use App\Services\SubmitEvidence;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function (): void {
     Storage::fake('evidence');
 });
-
-function sendReceipt(Company $company, User $user, int $width = 400): SourceRecord
-{
-    $result = app(SubmitEvidence::class)->submit($company, $user, UploadedFile::fake()->image('receipt.jpg', $width, 600));
-
-    return $result->source?->fresh() ?? throw new RuntimeException('原資料ができていません');
-}
-
-function categoryId(Company $company, string $name): string
-{
-    return (string) $company->categories()->where('name', $name)->value('id');
-}
-
-function bankAccountId(Company $company, string $name): string
-{
-    return (string) $company->bankAccounts()->where('name', $name)->value('id');
-}
 
 test('T12: 経理が分類を直して保存すると確定になり、直した記録に前後・理由・間違いの型が残る', function (): void {
     ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);

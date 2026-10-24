@@ -73,6 +73,13 @@ new class extends Component {
             </a>
         @endcan
 
+        @can('exportExcel', $company)
+            <a href="{{ route('company.workbook', $company) }}" data-test="workbook-download" class="block rounded-xl border border-line bg-panel p-5 hover:border-brand">
+                <div class="font-bold text-ink">Excel をダウンロード</div>
+                <p class="mt-1 text-note text-ink-sub">確定した仕訳がすべて入った1冊</p>
+            </a>
+        @endcan
+
         @can('manageSettings', $company)
             <a href="{{ route('company.settings', $company) }}" wire:navigate class="block rounded-xl border border-line bg-panel p-5 hover:border-brand">
                 <div class="font-bold text-ink">会社設定</div>

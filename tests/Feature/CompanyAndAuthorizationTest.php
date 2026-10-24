@@ -63,6 +63,7 @@ test('T04: 会社Aの人が会社BのURLを開くとすべて404になり、Live
         route('company.settings', $companyB),
         route('company.evidences.image', [$companyB, '01900000-0000-7000-8000-000000000003']),
         route('company.exports.training', $companyB),
+        route('company.workbook', $companyB),
     ];
 
     foreach ($urls as $url) {
@@ -211,6 +212,9 @@ test('T05: 権限の表（版3.0 §5）をロールごとに検証する', funct
 
         $this->get(route('company.settings', $company))
             ->assertStatus($case['expected']['manageSettings'] ? 200 : 403);
+
+        $this->get(route('company.workbook', $company))
+            ->assertStatus($case['expected']['exportExcel'] ? 200 : 403);
     }
 });
 
@@ -313,6 +317,7 @@ test('T21: 送るだけの人は送る画面以外が403になり、原資料は
         route('company.ai', $company),
         route('company.settings', $company),
         route('company.exports.training', $company),
+        route('company.workbook', $company),
     ];
 
     foreach ($forbiddenUrls as $url) {

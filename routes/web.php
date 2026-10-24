@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\EvidenceImageController;
+use App\Http\Controllers\WorkbookDownloadController;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -62,6 +63,7 @@ Route::middleware(['auth', 'verified', 'two-factor', 'company'])
         Route::livewire('settings', 'pages::company.settings')->name('settings');
 
         Route::get('evidences/{evidence}/image', EvidenceImageController::class)->name('evidences.image');
+        Route::get('workbook.xlsx', WorkbookDownloadController::class)->name('workbook');
 
         Route::get('exports/training-data.zip', function (Company $company) {
             Gate::authorize('exportTrainingData', $company);

@@ -49,8 +49,13 @@ new #[Title('仕訳の一覧')] class extends Component {
 
 <section class="mx-auto max-w-4xl space-y-4 p-4 text-body text-ink">
     <header class="flex items-baseline justify-between border-b border-line pb-3">
-        <h1 class="text-2xl font-bold text-ink">仕訳の一覧</h1>
-        <p class="text-note text-ink-sub">{{ $company->name }}</p>
+        <div>
+            <h1 class="text-2xl font-bold text-ink">仕訳の一覧</h1>
+            <p class="text-note text-ink-sub">{{ $company->name }}</p>
+        </div>
+        @can('exportExcel', $company)
+            <a href="{{ route('company.workbook', $company) }}" data-test="workbook-download" class="rounded-lg bg-ink px-4 py-2 text-body font-bold text-paper">Excel をダウンロード</a>
+        @endcan
     </header>
 
     <nav class="flex flex-wrap gap-2" aria-label="状態で絞り込む">

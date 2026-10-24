@@ -18,7 +18,7 @@
 | 写真 | `evidence` ディスク（`storage/app/private/evidences`、非公開） | S3互換は将来 |
 | ジョブ | Laravel のキュー（`database` ドライバ）＋ スケジューラ（cron 毎分） | 本番に設定済み（systemd `torudake-queue@1`・`@2` の2つ、cron `schedule:run`） |
 | AI | Anthropic Messages API、`claude-opus-5-5`、構造化出力（JSON スキーマ） | 工程3で作る。呼ぶのは `app/Services/Ai/` だけ |
-| Excel | `phpoffice/phpspreadsheet`。**アプリが1冊を持ち続ける**（`storage/app/private/workbooks/{company}.xlsx`）。確定のたびに追記し、社長が戻したら状態の列を書き換える | これから |
+| Excel | `phpoffice/phpspreadsheet`。**アプリが1冊を持ち続ける**（`storage/app/private/workbooks/{company}.xlsx`）。確定のたびに追記し、社長が戻したら状態の列を書き換える | 仕訳帳は済み（工程5）。社長用・AIの記録のシートはこれから |
 | 通知 | Laravel の通知（`database` チャネル、`notifications` テーブル）。画面右上のベル | これから。メール・LINE は将来 |
 | グラフ | Chart.js（npm で入れ、Vite で組み立てる）。社長の画面の三期比較 | これから |
 | テスト・品質 | **Pest 5**、Larastan（PHPStan レベル7）、Pint | 実装済み。テスト34件 |

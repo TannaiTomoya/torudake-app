@@ -16,6 +16,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * 経理の保存＝確定（03 §4.3）。直した欄は ai_corrections に前後・理由・間違いの型を残す。
@@ -26,9 +27,24 @@ class ConfirmEntryService
     public function __construct(
         private readonly JournalLineWriter $lineWriter,
         private readonly ConcernRules $concernRules,
+        private readonly WorkbookService $workbook,
     ) {}
 
     public function confirm(Company $company, User $user, string $sourceId, ConfirmEntryInput $input): JournalEntry
+    {
+        $entry = $this->confirmInTransaction($company, $user, $sourceId, $input);
+
+        try {
+            $this->workbook->upsertRow($company, $entry->id);
+        } catch (Throwable $e) {
+            // 確定は済んでいる。書けなかった行はダウンロードの前に syncMissing が足す。
+            report($e);
+        }
+
+        return $entry->refresh();
+    }
+
+    private function confirmInTransaction(Company $company, User $user, string $sourceId, ConfirmEntryInput $input): JournalEntry
     {
         return DB::transaction(function () use ($company, $user, $sourceId, $input): JournalEntry {
             /** @var SourceRecord $source */
