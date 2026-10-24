@@ -111,6 +111,7 @@
 | メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール | 工程2 |
 | 2段階認証 | TOTP＋復旧コード。**有効にしていない人は会社の画面に入れず、設定画面へ回す**（`two-factor`） | 工程2 |
 | セッション | 操作がなければ2時間。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） | 工程2 |
+| ログイン状態の保持 | しない。ログイン画面にチェックを出さず、保持のクッキー（remember）で来たら切ってログイン画面へ戻す（`AbsoluteSessionTimeout`） | 済み |
 | パスワード | 12文字以上。漏えい済みは拒否 | 工程2 |
 
 ## 6. AI（Anthropic）の決まり

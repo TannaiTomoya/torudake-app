@@ -16,19 +16,26 @@ class AbsoluteSessionTimeout
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::guard('web')->check() && $request->hasSession()) {
+        $guard = Auth::guard('web');
+
+        if ($guard->check() && $request->hasSession()) {
             $session = $request->session();
             $now = now()->getTimestamp();
             $loginAt = $session->get('auth.login_at');
 
-            if (! is_int($loginAt)) {
-                $session->put('auth.login_at', $now);
-            } elseif (($now - $loginAt) >= self::MAX_LIFETIME_SECONDS) {
-                Auth::guard('web')->logout();
+            // ログイン状態の保持（remember のクッキー）では入れない。入り直すと24時間の数え直しになるため。
+            $viaRemember = $guard->viaRemember();
+
+            if ($viaRemember || (is_int($loginAt) && ($now - $loginAt) >= self::MAX_LIFETIME_SECONDS)) {
+                $guard->logout();
                 $session->invalidate();
                 $session->regenerateToken();
 
                 return redirect()->route('login');
+            }
+
+            if (! is_int($loginAt)) {
+                $session->put('auth.login_at', $now);
             }
         }
 
