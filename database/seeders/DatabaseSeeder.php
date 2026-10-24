@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Models\Company;
 use App\Models\Membership;
 use App\Models\User;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -45,6 +46,13 @@ class DatabaseSeeder extends Seeder
         $this->seedMember($tannai, '経理担当', 'editor@example.com', Role::Editor, false);
         $this->seedMember($tannai, '現場担当', 'submitter@example.com', Role::Editor, true);
         $this->seedMember($koumuten, '他社社長', 'other@example.com', Role::Owner, false);
+
+        $this->command?->info(sprintf(
+            'ログイン：owner@ / editor@ / submitter@ / other@example.com、パスワード %s、2段階認証の鍵 %s（認証アプリに手入力）、復旧コード %s',
+            UserFactory::DEV_PASSWORD,
+            UserFactory::DEV_TWO_FACTOR_SECRET,
+            UserFactory::DEV_RECOVERY_CODE,
+        ));
     }
 
     private function seedMember(Company $company, string $name, string $email, Role $role, bool $submitOnly): void

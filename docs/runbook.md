@@ -66,6 +66,13 @@ bash /var/www/torudake/deploy.sh
 - [ ] 下書き → 承認 → 締めナビの件数が減る（工程4以降）
 - [ ] `sudo systemctl status torudake-queue` が active
 
+### `.env` を変えたとき
+キューの常駐は起動したときの設定のまま動くので、`.env` を変えたら設定を読み直して常駐を立ち上げ直す（`AI_DRIVER`・`ANTHROPIC_API_KEY` など）。
+```bash
+cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
+```
+手元（Sail）では `vendor/bin/sail artisan queue:restart` のあと、止まった `queue:work` を起動し直す。
+
 ---
 
 ## 3. 戻し方

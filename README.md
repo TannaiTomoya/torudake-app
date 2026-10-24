@@ -31,6 +31,12 @@
 
 Laravel は「間違った数字を確定させない」ために使います。権限は Policy でサーバー側に判定し、承認・取消・締めは `DB::transaction` と行ロックで1回だけ確定させます。
 
+## 開発環境
+
+`vendor/bin/sail up -d` で起動し、http://localhost:8081 を開きます。詳しくは [技術仕様書 §8.2](docs/02-technical-spec.md)。
+
+- 初期データ（`vendor/bin/sail artisan migrate:fresh --seed`）のログイン：owner@ / editor@ / submitter@ / other@example.com、パスワード `password`、2段階認証の鍵 `TORUDAKEDEVLOCAL`（認証アプリに手入力）、復旧コード `recovery-code-1`（1回使うと消えるので、流し直すと戻る）。手元の開発専用の架空の値で、本番では使えません（本番の人は `torudake:add-member` で作り、パスワードと2段階認証は本人が設定します）。
+
 ## ドキュメント
 
 | ファイル | 内容 |
@@ -44,4 +50,4 @@ Laravel は「間違った数字を確定させない」ために使います。
 
 各PDFの元は同じ名前の `.html` です。Chrome のヘッドレス印刷で PDF にしています。
 
-01〜03（版2.0）が開発の正本です。04 はデモの演出の記録です。AI エージェント（Cursor・Claude Code）向けの決まりは [AGENTS.md](AGENTS.md) にあります。
+01〜03（版3.0）が開発の正本です。04 はデモの演出の記録です。AI エージェント（Cursor・Claude Code）向けの決まりは [AGENTS.md](AGENTS.md) にあります。

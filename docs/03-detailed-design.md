@@ -203,7 +203,7 @@ confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必
 5. 監査 `report.import`
 
 ### 4.10 そのほか（版2.0 のまま）
-TrainingDataExporter（JSONL）、PurgeExpiredEvidence（毎日3時）、Artisan コマンド（`torudake:create-company`・`torudake:add-member`・`torudake:seed-demo`）。`torudake:seed-demo` は、**架空の**三期比較（3期分の月ごとの売上）・顧客別（上位2社で約8割）・今期の確定した経費・「あと1件」から始まるデータを入れる。
+TrainingDataExporter（JSONL）、PurgeExpiredEvidence（毎日3時）、Artisan コマンド（`torudake:create-company`・`torudake:add-member`・`torudake:seed-demo`）。`torudake:seed-demo` は、**架空の**三期比較（3期分の月ごとの売上）・顧客別（上位2社で約8割）・今期の確定した経費・「あと1件」から始まるデータを入れる。人は作らない（§9）。
 
 ## 5. 権限（版3.0）
 
@@ -291,7 +291,8 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 
 ## 9. 初期データ
 - 開発：版2.0 のまま。**2段階認証の鍵は16文字以上の固定値に直す**（ブラウザでログインできるように）。社長・経理・送るだけ・他社の4人
-- デモ：`torudake:seed-demo`（§4.10、すべて架空）
+- デモ：`torudake:seed-demo`（§4.10、すべて架空）。**人は作らない**（会社と架空の数字だけ）。本番のデモ用の人は `torudake:add-member` で作り、パスワードと2段階認証は本人が設定する
+- 開発用のパスワード・2段階認証の鍵（`UserFactory::DEV_*`）は、本番（`app()->isProduction()`）で使われたら例外にする
 - 本番：`torudake:create-company`・`torudake:add-member`。実データの帳票は、本番で経理が取り込む（社長の同意メモのあと）
 
 ## 10. 作る順番（10/24 14:30 から）
