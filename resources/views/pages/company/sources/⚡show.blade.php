@@ -222,7 +222,9 @@ new #[Title('直して確定')] class extends Component {
                     @foreach (($check['concerns'] ?? []) as $concern)
                         <p class="text-warn">・{{ $concern }}</p>
                     @endforeach
-                    @if (($check['remembered'] ?? false) === true)
+                    @if (is_string($check['remembered_payment'] ?? null))
+                        <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="remembered-payment">前回、この店は『{{ $check['remembered_payment'] }}』に直されました</p>
+                    @elseif (($check['remembered'] ?? false) === true)
                         <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="remembered">前回の修正を覚えています</p>
                     @endif
                     @if (is_string($check['reason'] ?? null))

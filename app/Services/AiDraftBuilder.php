@@ -25,6 +25,7 @@ class AiDraftBuilder
     public function __construct(
         private readonly JournalLineWriter $lineWriter,
         private readonly ConcernRules $concernRules,
+        private readonly PaymentMemory $paymentMemory,
     ) {}
 
     /**
@@ -50,7 +51,9 @@ class AiDraftBuilder
                 throw AiException::invalidOutput('分類が会社の一覧にありません');
             }
 
-            $bankAccount = $this->resolveBankAccount($company, $reading, $draft);
+            $vendor = is_string($draft['vendor'] ?? null) ? $draft['vendor'] : (is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null);
+            $rememberedPayment = $this->paymentMemory->for($company, $vendor);
+            $bankAccount = $rememberedPayment ?? $this->resolveBankAccount($company, $reading, $draft);
 
             if ($bankAccount === null) {
                 throw AiException::invalidOutput('支払い元の口座がありません');
@@ -72,6 +75,7 @@ class AiDraftBuilder
                 'created_by' => null,
                 'ai_run_id' => $run->id,
                 'concern_flags' => $this->concernRules->for($company, $amountYen, null, false, $amountYen === null),
+                'ai_check' => $rememberedPayment !== null ? ['remembered_payment' => $rememberedPayment->name] : null,
             ])->save();
 
             if ($amountYen !== null) {
@@ -96,7 +100,7 @@ class AiDraftBuilder
     }
 
     /**
-     * 後日の請求書なら「後日の請求」の口座を優先し、次に AI が選んだ名前、最後に会社の既定の口座。
+     * 同じ店で人が直した支払い元があれば、それを先に使う（build）。なければ、後日の請求書なら「後日の請求」の口座を優先し、次に AI が選んだ名前、最後に会社の既定の口座。
      *
      * @param  array<string, mixed>  $reading
      * @param  array<string, mixed>  $draft

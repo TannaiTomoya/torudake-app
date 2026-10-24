@@ -18,12 +18,23 @@ class FakeClaudeClient implements AiClient
     /** @var array<string, mixed> 読み取りの結果を差し替える欄 */
     private array $readingOverrides = [];
 
+    /** @var array<string, mixed> */
+    private array $journalizeOverrides = [];
+
     /**
      * @param  array<string, mixed>  $overrides
      */
     public function withReading(array $overrides): void
     {
         $this->readingOverrides = $overrides;
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    public function withJournalize(array $overrides): void
+    {
+        $this->journalizeOverrides = $overrides;
     }
 
     public function failWith(AiTask $task, string $mode = 'error'): void
@@ -47,7 +58,7 @@ class FakeClaudeClient implements AiClient
 
         $output = match ($request->task) {
             AiTask::ReadReceipt => $this->readReceipt(),
-            AiTask::Journalize => $this->journalize($request->input),
+            AiTask::Journalize => [...$this->journalize($request->input), ...$this->journalizeOverrides],
             AiTask::CheckEntry => $this->checkEntry($request->input),
             default => [],
         };

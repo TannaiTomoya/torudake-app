@@ -89,7 +89,7 @@ test('ライブ画面：E で直して理由を選び S で確定。理由がな
         ->and($entry->category?->name)->toBe('燃料');
 });
 
-test('台本の場面：支払い元を現金→社長の立替に直すと、同じ店の2枚目は「前回の修正を覚えています」で社長の立替になる', function (): void {
+test('台本の場面：支払い元を現金→社長の立替に直すと、同じ店の2枚目は「前回、この店は『社長の立替』に直されました」と出て支払い元が合う。確定は S', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
     $first = sendReceipt($company, $owner);
     $advance = bankAccountId($company, '社長の立替');
@@ -115,19 +115,70 @@ test('台本の場面：支払い元を現金→社長の立替に直すと、�
     $second = sendReceipt($company, $owner, 410);
     $entry = $second->journalEntry()->with(['bankAccount', 'lines.account'])->firstOrFail();
 
-    expect($entry->bankAccount?->name)->toBe('社長の立替')
+    expect($entry->status)->toBe(EntryStatus::Draft)
+        ->and($entry->bankAccount?->name)->toBe('社長の立替')
         ->and($entry->lines[1]->account?->name)->toBe('役員借入金')
-        ->and($entry->ai_check['remembered'] ?? null)->toBeTrue()
-        ->and($entry->ai_check['reason'] ?? null)->toBe('前回、同じ店の支払い元を社長の立替に直したため');
+        ->and($entry->ai_check['remembered_payment'] ?? null)->toBe('社長の立替');
 
     $this->actingAs($owner)->get(route('company.live', $company))
-        ->assertSee('前回の修正を覚えています')
-        ->assertSee('社長の立替')
-        ->assertSee('仕訳　消耗品費 3,850円 ／ 役員借入金 3,850円');
+        ->assertSee('前回、この店は『社長の立替』に直されました')
+        ->assertDontSee('前回の修正を覚えています')
+        ->assertSee('仕訳　消耗品費 3,850円 ／ 役員借入金 3,850円')
+        ->assertSee('S 保存（確定）して次へ');
+
+    $this->actingAs($owner)->get(route('company.sources.show', [$company, $second->id]))
+        ->assertSee('前回、この店は『社長の立替』に直されました');
+
+    Livewire::actingAs($owner)
+        ->test('pages::company.live', ['company' => $company])
+        ->call('save', $second->id)
+        ->assertHasNoErrors();
+
+    expect($entry->refresh()->status)->toBe(EntryStatus::Confirmed)
+        ->and(AiCorrection::query()->count())->toBe(1);
 
     $sheet = journalSheet($company);
     expect($sheet->getCell([7, 2])->getValue())->toBe('役員借入金')
-        ->and($sheet->getCell([13, 2])->getValue())->toBe('直した');
+        ->and($sheet->getCell([13, 2])->getValue())->toBe('直した')
+        ->and($sheet->getCell([7, 3])->getValue())->toBe('役員借入金')
+        ->and($sheet->getCell([13, 3])->getValue())->toBe('AIのまま');
+});
+
+test('支払い元の記憶は直した記録で決める：AI が現金と答えても、表記の違う同じ店なら社長の立替。別の店・他社の記録は使わない', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    ['company' => $other, 'user' => $otherUser] = createCompanyWithMember(Role::Owner);
+    $fake = app(FakeClaudeClient::class);
+
+    // 他社で同じ店を「事業用カード」に直した記録
+    $foreign = sendReceipt($other, $otherUser, 290);
+    Livewire::actingAs($otherUser)->test('pages::company.live', ['company' => $other])
+        ->call('startEdit', $foreign->id)
+        ->set('bankAccountId', bankAccountId($other, '事業用カード'))
+        ->set('reason', CorrectionReason::WrongPayment->value)
+        ->call('save', $foreign->id)->assertHasNoErrors();
+
+    $first = sendReceipt($company, $owner, 300);
+    expect($first->journalEntry()->firstOrFail()->ai_check['remembered_payment'] ?? null)->toBeNull();
+
+    Livewire::actingAs($owner)->test('pages::company.live', ['company' => $company])
+        ->call('startEdit', $first->id)
+        ->set('bankAccountId', bankAccountId($company, '社長の立替'))
+        ->set('reason', CorrectionReason::WrongPayment->value)
+        ->call('save', $first->id)->assertHasNoErrors();
+
+    // 全角・空白の違う同じ店。AI は決めつけず現金と答える
+    $fake->withReading(['vendor' => '〇〇石油　八幡平店 ']);
+    $fake->withJournalize(['bank_account' => '現金', 'remembered' => false, 'vendor' => '〇〇石油　八幡平店 ']);
+    $same = sendReceipt($company, $owner, 310)->journalEntry()->with('bankAccount')->firstOrFail();
+    expect($same->bankAccount?->name)->toBe('社長の立替')
+        ->and($same->ai_check['remembered_payment'] ?? null)->toBe('社長の立替');
+
+    // 別の店は既定の現金のまま
+    $fake->withReading(['vendor' => '△△ホームセンター']);
+    $fake->withJournalize(['bank_account' => '現金', 'remembered' => false, 'vendor' => '△△ホームセンター']);
+    $otherStore = sendReceipt($company, $owner, 320)->journalEntry()->with('bankAccount')->firstOrFail();
+    expect($otherStore->bankAccount?->name)->toBe('現金')
+        ->and($otherStore->ai_check['remembered_payment'] ?? null)->toBeNull();
 });
 
 test('ライブ画面：金額の記載がないときは S を押せず、E で金額を入れると確定できる', function (): void {

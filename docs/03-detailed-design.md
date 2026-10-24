@@ -145,7 +145,7 @@ AI：    waiting → reading（ai_stage）→ done / failed
 ### 4.2 ProcessEvidenceWithAi（F06、実装済み）
 読み取り → 仕訳の下書き → 検算。版3.0 で足すこと：検算の結果から `concern_flags` の AI の印（ai_duplicate・ai_private・ai_unbalanced）を入れる。
 - L1（`read_receipt.v2`）は `amount_missing`（金額がそもそも書かれていない）と `payment_method`（cash / card / invoice_later / unknown）も返す。
-- L2（`journalize.v2`）は分類と支払い元（口座の名前）だけを返し、**借方・貸方の行はコードが組む**（`JournalLineWriter`）。`invoice_later` なら支払い元は「後日の請求」の口座。
+- L2（`journalize.v3`）は分類と支払い元（口座の名前）だけを返し、**借方・貸方の行はコードが組む**（`JournalLineWriter`）。支払い元は、①同じ店で人が直した支払い元（`PaymentMemory`、直した記録から。店名の空白・全角半角の違いは同じ店）②`invoice_later` なら「後日の請求」の口座 ③AI が選んだ口座 ④既定の口座、の順。①のときは画面に「前回、この店は『○○』に直されました」（`ai_check.remembered_payment`）。
 - **金額の記載がない書類**（ガソリンカードの納品書など）は、行のない下書きを作り、`amount_missing` の印を付ける。検算（L3）は呼ばない。経理が金額を入れたら確定できる（記載のなかった金額を入れたのは「直した」に数えない）。
 - 常駐は2つ（`torudake-queue@1`・`@2`）。`retry_after`（300秒）はジョブの時間の上限（240秒）より長くする。
 

@@ -336,7 +336,9 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                                     @endforeach
                                 </dl>
 
-                                @if (($entry?->ai_check['remembered'] ?? false) === true)
+                                @if (is_string($entry?->ai_check['remembered_payment'] ?? null))
+                                    <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered-payment">前回、この店は『{{ $entry->ai_check['remembered_payment'] }}』に直されました</p>
+                                @elseif (($entry?->ai_check['remembered'] ?? false) === true)
                                     <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered">前回の修正を覚えています</p>
                                 @endif
                                 @if (is_string($entry?->ai_check['reason'] ?? null) && $entry->ai_check['reason'] !== '')

@@ -95,6 +95,7 @@ class ProcessEvidenceWithAi implements ShouldQueue
                 }
 
                 $aiCheck = [
+                    ...($entry->ai_check ?? []),
                     ...$check,
                     'amount_missing' => $amountYen === null,
                     'payment_method' => $reading['payment_method'] ?? null,
