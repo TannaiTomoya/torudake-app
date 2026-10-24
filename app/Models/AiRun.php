@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * @property AiTask $task
  * @property string|null $subject_type
  * @property string|null $subject_id
+ * @property string|null $photo_sha256
  * @property string $model
  * @property string $prompt_version
  * @property string $driver

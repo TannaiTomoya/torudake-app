@@ -324,7 +324,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | T25 | 忙しい月：初期値・保存・範囲外の拒否・経理は変えられない | 済み |
 | T26 | 忙しい月：グラフの色づけ、owner_brief・forecast への入力（印・3期の平均）、「忙しいはずの月なのに前年同月より少ない」がひとことに出る（偽物の AI で確かめる）。同じ入力なら AI を呼ばない | 済み |
 | T22★ | 30日を過ぎた写真が消える。監査記録 | 済み（`torudake:purge-evidence`、毎日3時。消した写真は「写真は保存期間が過ぎたため削除しました」） |
-| T23 | 再生モード | これから |
+| T23 | 再生モード：デモ用の会社どうしで、同じ写真（`ai_runs.photo_sha256`）の練習の記録を同じ秒数で再生し AI を呼ばない。「再生」と出す。記録のない写真・実在の会社・claude/fake では本物（テストでは偽物）を呼ぶ | 済み |
 | T27 | AIの記録：「AIが作った仕訳 n件のうち、そのまま確定 m件」・一番多い直し・間違いの型（表示は日本語、kernel はそのまま）。学習データは JSONL 3つ（ai_runs・ai_corrections・journal_entries）の zip、その会社のその月の分だけ、名前・メールなし、書き出しは監査記録。経理は 403・他社は 404 | 済み |
 | T24★ | 移行：approved の仕訳が confirmed になる | これから |
 

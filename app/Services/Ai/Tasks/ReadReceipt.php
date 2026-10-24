@@ -30,6 +30,7 @@ class ReadReceipt
             schema: self::schema(),
             effort: 'low',
             attachments: [['media_type' => $mime, 'data' => $base64]],
+            photoSha256: $source->evidence?->sha256,
         ), self::PROMPT_VERSION);
     }
 

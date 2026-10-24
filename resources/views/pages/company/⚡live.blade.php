@@ -142,6 +142,21 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
         return round(((int) $ms) / 1000, 1);
     }
 
+    #[Computed]
+    public function aiReplayed(): bool
+    {
+        $source = $this->current;
+        if ($source === null) {
+            return false;
+        }
+
+        return AiRun::query()
+            ->where('company_id', $this->company->id)
+            ->whereIn('subject_id', array_filter([$source->id, $source->journal_entry_id]))
+            ->where('driver', 'replay')
+            ->exists();
+    }
+
     /**
      * @return Collection<int, Category>
      */
@@ -320,7 +335,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                             @elseif ($current->ai_status === AiStatus::Failed)
                                 <p class="font-bold text-ng" data-test="ai-failed">AIが読めませんでした。E で手で入れられます</p>
                             @else
-                                <p class="font-bold text-brand-ink">AIが読み取りました{{ $this->aiSeconds !== null ? '（'.$this->aiSeconds.'秒）' : '' }}</p>
+                                <p class="font-bold text-brand-ink">AIが読み取りました{{ $this->aiSeconds !== null ? '（'.$this->aiSeconds.'秒）' : '' }}@if ($this->aiReplayed)<span class="ml-3 rounded bg-panel px-2 py-0.5 align-middle text-note font-bold text-ink-sub" data-test="live-replay">再生</span>@endif</p>
                             @endif
 
                             @if (! $isEditing)

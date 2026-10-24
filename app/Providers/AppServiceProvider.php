@@ -21,7 +21,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(FakeClaudeClient::class);
 
         $this->app->bind(AiClient::class, function ($app): AiClient {
-            if (config('torudake.ai.driver') === 'claude') {
+            if (in_array(config('torudake.ai.driver'), ['claude', 'replay'], true)) {
                 return new ClaudeClient(
                     apiKey: (string) config('services.anthropic.key'),
                     model: (string) config('services.anthropic.model'),

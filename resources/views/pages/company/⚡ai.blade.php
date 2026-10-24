@@ -173,7 +173,9 @@ new #[Title('AIの記録')] class extends Component {
                             <span class="flex items-baseline gap-3 whitespace-nowrap">
                                 <span class="font-bold">{{ $run->task->label() }}</span>
                                 <span class="tabular-nums">{{ number_format($run->latency_ms / 1000, 1) }}秒</span>
-                                @if ($run->valid)
+                                @if ($run->driver === 'replay')
+                                    <span class="text-note font-bold text-ink-sub">再生</span>
+                                @elseif ($run->valid)
                                     <span class="text-note text-ok">できた</span>
                                 @else
                                     <span class="text-note font-bold text-ng">失敗</span>

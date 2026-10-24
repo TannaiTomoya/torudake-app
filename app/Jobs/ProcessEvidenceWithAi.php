@@ -91,7 +91,7 @@ class ProcessEvidenceWithAi implements ShouldQueue
 
                 if ($amountYen !== null) {
                     $this->stage($source, AiStatus::Reading, '仕訳');
-                    $check = $checkEntry->run($company, $entry)->output;
+                    $check = $checkEntry->run($company, $entry, $evidence->sha256)->output;
                 }
 
                 $aiCheck = [

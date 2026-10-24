@@ -19,7 +19,7 @@ class CheckEntry
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 
-    public function run(Company $company, JournalEntry $entry): AiOutcome
+    public function run(Company $company, JournalEntry $entry, ?string $photoSha256 = null): AiOutcome
     {
         $lines = $entry->lines()->with('account')->get()
             ->map(fn (JournalLine $line): array => [
@@ -43,6 +43,7 @@ class CheckEntry
             schema: self::schema(),
             effort: 'low',
             maxTokens: 1024,
+            photoSha256: $photoSha256,
         ), self::PROMPT_VERSION);
     }
 

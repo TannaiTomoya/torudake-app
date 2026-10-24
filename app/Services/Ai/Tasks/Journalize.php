@@ -32,6 +32,7 @@ class Journalize
             input: self::buildInput($company, $reading),
             schema: self::schema(),
             effort: 'medium',
+            photoSha256: $source->evidence?->sha256,
         ), self::PROMPT_VERSION);
     }
 

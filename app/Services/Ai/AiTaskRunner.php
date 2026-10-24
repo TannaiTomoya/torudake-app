@@ -6,9 +6,11 @@ use App\Enums\AiTask;
 use App\Models\AiRun;
 use App\Models\Company;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Sleep;
 
 /**
  * AI を1回呼び、形を確かめ、ai_runs に残す。形が違えばやり直しは1回まで。
+ * 再生モードでは、練習の記録があればそれを同じ間隔で返し、なければ本物を呼ぶ。
  */
 class AiTaskRunner
 {
@@ -32,6 +34,17 @@ class AiTaskRunner
 
     public function run(Company $company, ?Model $subject, AiRequest $request, string $promptVersion): AiOutcome
     {
+        $recorded = $this->recording($company, $request, $promptVersion);
+
+        if ($recorded !== null && $recorded->output !== null) {
+            $startedAt = hrtime(true);
+            Sleep::for(min($recorded->latency_ms, (int) config('torudake.ai.timeout_seconds') * 1000))->milliseconds();
+
+            $run = $this->record($company, $subject, $request, $promptVersion, $recorded->output, true, 0, 0, $startedAt, null, 'replay', $recorded->model);
+
+            return new AiOutcome($recorded->output, $run);
+        }
+
         $lastErrors = [];
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
@@ -73,6 +86,28 @@ class AiTaskRunner
     }
 
     /**
+     * 再生モード（AI_DRIVER=replay）で、デモ用の会社に同じ写真・同じプロンプトの版の練習の記録（本物の Claude）があれば返す。
+     * 探すのはデモ用の会社どうしだけ。実在の会社では再生しない。
+     */
+    private function recording(Company $company, AiRequest $request, string $promptVersion): ?AiRun
+    {
+        if (config('torudake.ai.driver') !== 'replay' || ! $company->is_demo || $request->photoSha256 === null) {
+            return null;
+        }
+
+        return AiRun::query()
+            ->where('photo_sha256', $request->photoSha256)
+            ->where('task', $request->task)
+            ->where('prompt_version', $promptVersion)
+            ->where('driver', 'claude')
+            ->where('valid', true)
+            ->whereNotNull('output')
+            ->whereHas('company', fn ($query) => $query->where('is_demo', true))
+            ->latest('created_at')
+            ->first();
+    }
+
+    /**
      * @param  array<string, mixed>|null  $output
      */
     private function record(
@@ -86,6 +121,8 @@ class AiTaskRunner
         int $outputTokens,
         int|float $startedAt,
         ?string $error,
+        ?string $driver = null,
+        ?string $model = null,
     ): AiRun {
         $run = new AiRun;
         $run->forceFill([
@@ -93,9 +130,10 @@ class AiTaskRunner
             'task' => $request->task,
             'subject_type' => $subject !== null ? $subject::class : null,
             'subject_id' => $subject !== null ? (string) $subject->getKey() : null,
-            'model' => $this->client->modelName(),
+            'photo_sha256' => $request->photoSha256,
+            'model' => $model ?? $this->client->modelName(),
             'prompt_version' => $promptVersion,
-            'driver' => $this->client->driverName(),
+            'driver' => $driver ?? $this->client->driverName(),
             'input' => $request->input,
             'output' => $output,
             'valid' => $valid,
