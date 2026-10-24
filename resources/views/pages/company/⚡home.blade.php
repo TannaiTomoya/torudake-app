@@ -26,12 +26,17 @@ new #[Title('ホーム')] class extends Component {
     #[Computed]
     public function remaining(): int
     {
+        $this->authorize('viewHomeData', $this->company);
+
         return RemainingCount::for($this->company);
     }
 
     #[Computed]
     public function concerns(): int
     {
+        $this->authorize('viewHomeData', $this->company);
+        $this->authorize('viewOwner', $this->company);
+
         return OwnerConcerns::count($this->company);
     }
 }; ?>

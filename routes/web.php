@@ -25,7 +25,7 @@ Route::get('/', function (Request $request) use ($dispatchAuthenticatedUser): Re
     }
 
     return $dispatchAuthenticatedUser($user);
-})->name('home');
+})->middleware(['auth', 'verified'])->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () use ($dispatchAuthenticatedUser): void {
     Route::get('dashboard', function (Request $request) use ($dispatchAuthenticatedUser): RedirectResponse|View {
@@ -41,17 +41,17 @@ Route::middleware(['auth', 'verified', 'company', 'two-factor'])
     ->name('company.')
     ->scopeBindings()
     ->group(function (): void {
-        Route::livewire('/', 'pages::company.home')->name('home');
-        Route::livewire('submit', 'pages::company.submit')->name('submit');
-        Route::livewire('sources', 'pages::company.sources.index')->name('sources.index');
-        Route::livewire('sources/{source}', 'pages::company.sources.show')->name('sources.show');
-        Route::livewire('entries', 'pages::company.entries.index')->name('entries.index');
-        Route::livewire('entries/{entry}', 'pages::company.entries.show')->name('entries.show');
-        Route::livewire('owner', 'pages::company.owner')->name('owner');
-        Route::livewire('reports', 'pages::company.reports')->name('reports');
-        Route::livewire('live', 'pages::company.live')->name('live');
-        Route::livewire('ai', 'pages::company.ai')->name('ai');
-        Route::livewire('settings', 'pages::company.settings')->name('settings');
+        Route::livewire('/', 'pages::company.home')->can('viewHome', 'company')->name('home');
+        Route::livewire('submit', 'pages::company.submit')->can('submit', 'company')->name('submit');
+        Route::livewire('sources', 'pages::company.sources.index')->can('viewSources', 'company')->name('sources.index');
+        Route::livewire('sources/{source}', 'pages::company.sources.show')->can('editDraft', 'company')->name('sources.show');
+        Route::livewire('entries', 'pages::company.entries.index')->can('viewSources', 'company')->name('entries.index');
+        Route::livewire('entries/{entry}', 'pages::company.entries.show')->can('viewSources', 'company')->name('entries.show');
+        Route::livewire('owner', 'pages::company.owner')->can('viewOwner', 'company')->name('owner');
+        Route::livewire('reports', 'pages::company.reports')->can('importReports', 'company')->name('reports');
+        Route::livewire('live', 'pages::company.live')->can('viewLive', 'company')->name('live');
+        Route::livewire('ai', 'pages::company.ai')->can('viewAi', 'company')->name('ai');
+        Route::livewire('settings', 'pages::company.settings')->can('manageSettings', 'company')->name('settings');
 
         Route::get('evidences/{evidence}/image', EvidenceImageController::class)->name('evidences.image');
         Route::get('workbook.xlsx', WorkbookDownloadController::class)->name('workbook');

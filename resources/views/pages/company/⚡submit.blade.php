@@ -63,9 +63,9 @@ new #[Title('レシートを送る')] class extends Component {
 
         $this->company = $company;
         $this->companyId = $company->id;
-        $this->monthCount = $company->sourceRecords()
+        $this->monthCount = auth()->user()?->can('submitEvidence', $company) ? $company->sourceRecords()
             ->where('created_at', '>=', now()->startOfMonth())
-            ->count();
+            ->count() : 0;
     }
 
     /**
@@ -87,7 +87,7 @@ new #[Title('レシートを送る')] class extends Component {
 
     public function updatedPhoto(): void
     {
-        $this->authorize('submit', $this->company);
+        $this->authorize('submitEvidence', $this->company);
 
         $this->validate(['photo' => self::PHOTO_RULES]);
 
@@ -99,7 +99,7 @@ new #[Title('レシートを送る')] class extends Component {
 
     public function updatedPicked(): void
     {
-        $this->authorize('submit', $this->company);
+        $this->authorize('submitEvidence', $this->company);
 
         $this->validate(['picked' => ['array'], 'picked.*' => self::PHOTO_RULES]);
 
@@ -128,7 +128,7 @@ new #[Title('レシートを送る')] class extends Component {
 
     public function removePhoto(int $index): void
     {
-        $this->authorize('submit', $this->company);
+        $this->authorize('submitEvidence', $this->company);
 
         unset($this->photos[$index]);
         $this->photos = array_values($this->photos);
@@ -137,7 +137,7 @@ new #[Title('レシートを送る')] class extends Component {
 
     public function send(SubmitEvidence $service): void
     {
-        $this->authorize('submit', $this->company);
+        $this->authorize('submitEvidence', $this->company);
         $this->resetErrorBag();
 
         if ($this->photos === []) {
@@ -200,7 +200,7 @@ new #[Title('レシートを送る')] class extends Component {
 
     public function retake(): void
     {
-        $this->authorize('submit', $this->company);
+        $this->authorize('submitEvidence', $this->company);
 
         $this->reset('photo', 'picked', 'photos', 'note', 'duplicateOf', 'sentCount', 'duplicateCount', 'failedCount');
         $this->resetValidation();

@@ -17,7 +17,8 @@ class TrainingDataExportController extends Controller
     {
         Gate::authorize('exportTrainingData', $company);
 
-        $monthParam = (string) $request->query('month', '');
+        $monthParam = $request->query('month', '');
+        $monthParam = is_string($monthParam) ? $monthParam : '';
         $month = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $monthParam) === 1
             ? CarbonImmutable::createFromFormat('!Y-m', $monthParam) ?: CarbonImmutable::now()->startOfMonth()
             : CarbonImmutable::now()->startOfMonth();

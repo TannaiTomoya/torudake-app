@@ -6,7 +6,7 @@
     }
     $navMembership = $navCompany !== null ? $navUser?->activeMembershipFor($navCompany) : null;
     $submitOnly = $navMembership?->submit_only === true;
-    $twoFactorEnabled = $navUser?->two_factor_confirmed_at !== null;
+    $businessReady = $navUser?->hasVerifiedEmail() && $navUser->two_factor_confirmed_at !== null;
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
@@ -27,7 +27,7 @@
                         ホーム
                     </flux:sidebar.item>
 
-                    @if ($twoFactorEnabled)
+                    @if ($businessReady)
                     @can('viewOwner', $navCompany)
                         @php($concernCount = \App\Support\OwnerConcerns::count($navCompany))
                         <flux:sidebar.item icon="chart-bar" :icon-dot="$concernCount > 0" :href="route('company.owner', $navCompany)" :current="request()->routeIs('company.owner')" wire:navigate data-test="sidebar-owner">
@@ -75,7 +75,7 @@
             <flux:spacer />
 
             <flux:sidebar.nav class="[&_[data-content]]:text-body">
-                @if ($twoFactorEnabled && $navMembership !== null && $navUser->can('manageSettings', $navCompany))
+                @if ($businessReady && $navMembership !== null && $navUser->can('manageSettings', $navCompany))
                     <flux:sidebar.item icon="cog-6-tooth" :href="route('company.settings', $navCompany)" :current="request()->routeIs('company.settings')" wire:navigate data-test="sidebar-settings">
                         設定
                     </flux:sidebar.item>
