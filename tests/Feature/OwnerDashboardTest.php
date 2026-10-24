@@ -35,15 +35,70 @@ test('T20 社長の画面の三期比較・前年同月の差・3期の平均・
     $this->actingAs($owner)->get(route('company.owner', $company))
         ->assertOk()
         ->assertSee('三期比較（売上）')
-        ->assertSee('3,600,000円')
-        ->assertSee('+600,000円（+20%）')
-        ->assertSee('−500,000円（−20%）')
-        ->assertSee('3,133,333円')
-        ->assertSee('前期の同じ月より +100,000円（+2%）')
+        ->assertSee('360万円')
+        ->assertSee('+60万円<span class="block text-note md:ml-1 md:inline">（+20%）</span>', false)
+        ->assertSee('−50万円<span class="block text-note md:ml-1 md:inline">（−20%）</span>', false)
+        ->assertSeeInOrder(['今期の売上（2か月）', '560万円', '前期の同じ月より +10万円（+2%）'])
+        ->assertDontSee('data-test="owner-total"', false)
         ->assertSeeInOrder(['A社', '80%', 'B社', '20%']);
 });
 
-test('T26 忙しい月は表とグラフで色づけし、忙しい月なのに前年同月より少ないと印を出す', function (): void {
+test('社長の画面は上から ひとこと・数字3つ・三期比較。表と「くわしく見る」はたたんでいても数字がページにある', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    putSales($company, '2026-08', 3_600_000);
+    putSales($company, '2025-08', 3_000_000);
+    putSales($company, '2025-11', 5_000_000);
+    putSales($company, '2024-11', 4_600_000);
+    putCustomer($company, 1, 'A社', 8_000_000);
+    putEntry($company, '2026-09-05', '燃料', 150_000);
+
+    $html = $this->actingAs($owner)->get(route('company.owner', $company))
+        ->assertOk()
+        ->assertSeeInOrder(['data-test="owner-brief"', 'data-test="owner-numbers"', 'data-test="owner-three-period"', 'data-test="owner-details"'], false)
+        ->assertSeeInOrder(['data-test="owner-brief-check"', '見立てを読む', 'x-show="open"', '見立て：'], false)
+        ->assertSee('表で見る')
+        ->assertSee('くわしく見る')
+        ->assertSee("\$persist(false).as('torudake-owner-details')", false)
+        ->getContent();
+
+    preg_match('/data-test="owner-table">(.*?)<\/table>/s', $html, $table);
+    preg_match('/data-test="owner-details">(.*)<footer/s', $html, $details);
+
+    expect($html)->toContain('x-cloak x-show="open" class="mt-3 space-y-2" data-test="owner-table"')
+        ->and($table[1] ?? '')->toContain('<th class="px-1.5 py-2 md:px-3">差</th>')
+        ->toContain('360万円')
+        ->toContain('+60万円<span class="block text-note md:ml-1 md:inline">（+20%）</span>')
+        ->toContain('+40万円<span class="block text-note md:ml-1 md:inline">（+9%）＊</span>')
+        ->not->toContain('3期の平均')
+        ->not->toContain('前々期')
+        ->not->toContain('bg-brand-soft')
+        ->and($html)->toContain('＊今期の数字がまだない月の差は、前期と前々期の差です。')
+        ->and(substr_count($html, '前期と前々期'))->toBe(1)
+        ->and($details[1] ?? '')->toContain('今期の経費と残ったお金')
+        ->toContain('150,000円')
+        ->toContain('燃料')
+        ->toContain('売上の柱')
+        ->toContain('A社');
+});
+
+test('気になる仕訳が0件のときは「0件 ✓」だけで欄は出さない。あれば件数と欄を出す', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+
+    $this->actingAs($owner)->get(route('company.owner', $company))
+        ->assertSee('0件 ✓')
+        ->assertDontSee('data-test="owner-concerns"', false)
+        ->assertDontSee('data-test="owner-concern-count"', false);
+
+    putEntry($company, '2026-10-01', '部品・修理', 120_000, flags: ['amount'], vendor: '△△機械');
+
+    $this->actingAs($owner)->get(route('company.owner', $company))
+        ->assertDontSee('0件 ✓')
+        ->assertSee('href="#owner-concerns"', false)
+        ->assertSee('data-test="owner-concerns"', false)
+        ->assertSee('△△機械');
+});
+
+test('T26 忙しい月はグラフの薄い帯と表の「忙」の字で示し、忙しい月なのに前年同月より少ないと赤で印を出す', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
     putSales($company, '2026-07', 3_000_000);
     putSales($company, '2025-07', 3_500_000);
@@ -62,7 +117,9 @@ test('T26 忙しい月は表とグラフで色づけし、忙しい月なのに�
 
     expect($html)->toContain('data-month="10" data-busy="1"')
         ->toContain('data-month="8" data-busy="0"')
+        ->toContain('title="忙しい月">忙</span>')
         ->toContain('data-test="busy-but-lower"')
+        ->toContain('<td class="px-1.5 py-2 md:px-3 font-bold text-ng">')
         ->toContain('ownerChart(');
 
     $chart = Livewire::actingAs($owner)->test('pages::company.owner', ['company' => $company])->instance()->chartData();

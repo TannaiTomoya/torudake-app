@@ -1,6 +1,8 @@
 const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(`--color-${name}`).trim();
 
-// 社長の画面の三期比較。忙しい月は背景を薄く色づける（docs/03 §7.3）
+// 社長の画面の三期比較。忙しい月は背景の薄い帯だけで示す（docs/03 §7.3）
+const fontSize = (chart, wide, narrow) => ({ size: chart.width < 600 ? narrow : wide });
+
 document.addEventListener('alpine:init', () => {
     window.Alpine.data('ownerChart', (data) => ({
         chart: null,
@@ -39,7 +41,10 @@ document.addEventListener('alpine:init', () => {
                     maintainAspectRatio: false,
                     animation: false,
                     plugins: {
-                        legend: { labels: { color: token('ink'), font: { size: 16 } } },
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: token('ink'), boxWidth: 14, font: (ctx) => fontSize(ctx.chart, 16, 13) },
+                        },
                         tooltip: {
                             callbacks: {
                                 label: (item) => `${item.dataset.label} ${item.raw === null ? '—' : `${Number(item.raw).toLocaleString('ja-JP')}円`}`,
@@ -47,9 +52,26 @@ document.addEventListener('alpine:init', () => {
                         },
                     },
                     scales: {
-                        x: { ticks: { color: token('ink'), font: { size: 16 } }, grid: { display: false } },
+                        x: {
+                            ticks: {
+                                color: token('ink'),
+                                autoSkip: false,
+                                maxRotation: 0,
+                                font: (ctx) => fontSize(ctx.chart, 16, 12),
+                                callback(value) {
+                                    const label = this.getLabelForValue(value);
+                                    return this.chart.width < 600 ? label.replace('月', '') : label;
+                                },
+                            },
+                            grid: { display: false },
+                        },
                         y: {
-                            ticks: { color: token('ink-sub'), font: { size: 14 }, callback: (v) => `${Math.round(v / 10000).toLocaleString('ja-JP')}万円` },
+                            ticks: {
+                                color: token('ink-sub'),
+                                maxTicksLimit: 5,
+                                font: (ctx) => fontSize(ctx.chart, 14, 12),
+                                callback: (v) => `${Math.round(v / 10000).toLocaleString('ja-JP')}万`,
+                            },
                             grid: { color: token('line') },
                         },
                     },
