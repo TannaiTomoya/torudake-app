@@ -200,7 +200,32 @@ test('T17 社長の画面に入れるのは社長・管理者だけ。経理・�
     $this->actingAs($submitter)->get(route('company.owner', $company))->assertForbidden();
 
     $this->actingAs($owner)->get(route('company.home', $company))->assertSee('data-test="owner-link"', false);
-    $this->actingAs($owner)->get(route('company.live', $company))->assertSee(route('company.owner', $company));
+});
+
+test('ライブ画面のキー5と「5 社長の画面」は社長の画面に行く', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    $ownerUrl = route('company.owner', $company);
+
+    $this->actingAs($owner)->get(route('company.live', $company))
+        ->assertSee("else if (\$event.key === '5') { window.location = '{$ownerUrl}' }", false)
+        ->assertSee('href="'.$ownerUrl.'" class="text-ink underline" data-test="live-owner-link"', false);
+});
+
+test('売上の数字がまだないときは、グラフの代わりに「数字がまだありません」と出す', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+
+    $this->actingAs($owner)->get(route('company.owner', $company))
+        ->assertOk()
+        ->assertSee('数字がまだありません')
+        ->assertSee('data-test="owner-chart-empty"', false)
+        ->assertDontSee('data-test="owner-chart"', false)
+        ->assertDontSee('data-busy=', false);
+
+    putSales($company, '2024-08', 2_800_000);
+
+    $this->actingAs($owner)->get(route('company.owner', $company))
+        ->assertDontSee('data-test="owner-chart-empty"', false)
+        ->assertSee('data-test="owner-chart"', false);
 });
 
 test('torudake:seed-demo はデモ用の会社にだけ、秋が多く前期の7月だけ前年より少ない架空の数字を入れる。2回流しても増えない', function (): void {

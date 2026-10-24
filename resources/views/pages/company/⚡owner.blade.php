@@ -49,6 +49,17 @@ new class extends Component {
         ];
     }
 
+    public function hasSales(): bool
+    {
+        foreach ($this->dashboard['months'] as $row) {
+            if ($row['current'] !== null || $row['previous'] !== null || $row['before'] !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function yen(?int $amount): string
     {
         return $amount === null ? '—' : number_format($amount).'円';
@@ -97,10 +108,18 @@ new class extends Component {
             <p class="text-note text-ink-sub"><span class="inline-block size-3 rounded-sm bg-brand-soft align-middle"></span> 色のついた月は忙しい月（会社設定）</p>
         </div>
 
-        <div wire:ignore x-data="ownerChart(@js($this->chartData()))" class="h-80 rounded-xl border border-line bg-panel p-4">
-            <canvas x-ref="canvas" aria-label="三期比較の棒グラフ" role="img"></canvas>
-        </div>
+        @if ($this->hasSales())
+            <div wire:ignore x-data="ownerChart(@js($this->chartData()))" class="h-80 rounded-xl border border-line bg-panel p-4" data-test="owner-chart">
+                <canvas x-ref="canvas" aria-label="三期比較の棒グラフ" role="img"></canvas>
+            </div>
+        @else
+            <div class="flex h-40 flex-col items-center justify-center gap-1 rounded-xl border border-line bg-panel p-4 text-center" data-test="owner-chart-empty">
+                <p class="font-bold text-ink-sub">数字がまだありません</p>
+                <p class="text-note text-ink-sub">売上の三期比較を取り込むと、ここにグラフが出ます</p>
+            </div>
+        @endif
 
+        @if ($this->hasSales())
         <div class="overflow-x-auto rounded-xl border border-line">
             <table class="w-full text-right">
                 <thead class="bg-panel text-note text-ink-sub">
@@ -140,6 +159,7 @@ new class extends Component {
                 </tbody>
             </table>
         </div>
+        @endif
     </section>
 
     {{-- ② 今期の経費・残ったお金 --}}
@@ -157,8 +177,11 @@ new class extends Component {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-line">
-                        @foreach ($dashboard['months'] as $row)
-                            @continue($row['current'] === null && $row['expense'] === null)
+                        @php($expenseRows = array_filter($dashboard['months'], fn (array $row): bool => $row['current'] !== null || $row['expense'] !== null))
+                        @if ($expenseRows === [])
+                            <tr><td colspan="4" class="px-3 py-4 text-center text-ink-sub">数字がまだありません</td></tr>
+                        @endif
+                        @foreach ($expenseRows as $row)
                             <tr data-expense-month="{{ $row['month'] }}">
                                 <td class="px-3 py-2 text-left font-bold">{{ $row['month'] }}月</td>
                                 <td class="px-3 py-2">{{ $this->yen($row['current']) }}</td>
