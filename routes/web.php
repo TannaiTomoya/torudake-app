@@ -1,12 +1,11 @@
 <?php
 
 use App\Http\Controllers\EvidenceImageController;
+use App\Http\Controllers\TrainingDataExportController;
 use App\Http\Controllers\WorkbookDownloadController;
-use App\Models\Company;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
@@ -66,13 +65,7 @@ Route::middleware(['auth', 'verified', 'two-factor', 'company'])
         Route::get('evidences/{evidence}/image', EvidenceImageController::class)->name('evidences.image');
         Route::get('workbook.xlsx', WorkbookDownloadController::class)->name('workbook');
 
-        Route::get('exports/training-data.zip', function (Company $company) {
-            Gate::authorize('exportTrainingData', $company);
-
-            return response('Training data placeholder', 200, [
-                'Content-Type' => 'text/plain; charset=UTF-8',
-            ]);
-        })->name('exports.training');
+        Route::get('exports/training-data.zip', TrainingDataExportController::class)->name('exports.training');
     });
 
 require __DIR__.'/settings.php';
