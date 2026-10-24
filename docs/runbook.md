@@ -103,12 +103,55 @@ sudo systemctl status 'torudake-queue@*' --no-pager | grep -E 'torudake-queue@|A
 ```
 `deploy.sh` の `queue:restart` は2つとも立ち上げ直すので、デプロイの手順は変わらない。
 
+### デモ用の会社を2つ作る（1回だけ、VPS で）
+練習用（本物の Claude に読ませて記録を作る）と本番用（当日に送る）。再生はデモ用の会社（`--demo`）どうしでだけ働く。
+- **会社名は2つとも、デモの領収証の宛名と同じ名前にする**。違うと、自分の会社あての領収証にも「宛名が別の会社」の印が付く（「(株)」と「株式会社」・空白の違いは同じとみなす。「（練習）」などを足すと別の名前になる）。
+- 同じ名前の会社が並ぶので、このあとは名前ではなく **ID** で指定する。
+
+1. 本番用、練習用の順に作り、表示された ID を控える（決算月は `--fiscal-year-end`、省略すると7月）。
+```bash
+cd /var/www/torudake && php artisan torudake:create-company "宛名と同じ会社名" --demo
+```
+```bash
+php artisan torudake:create-company "宛名と同じ会社名" --demo
+```
+2. 2つともデモ用になっているか確かめる。
+```bash
+php artisan tinker --execute='App\Models\Company::where("is_demo", true)->get()->each(fn ($c) => print("{$c->id} {$c->name}\n"));'
+```
+3. 本番用に、社長の画面の架空の数字（三期比較・顧客別・今期の経費）を入れる。練習用には入れない。
+```bash
+php artisan torudake:seed-demo 本番用のID
+```
+4. 人を入れる。**本番用を先に**入れる（ログインすると、先に入った会社が開く）。PC はライブ画面で直して保存する「経理担当」（admin。ライブ画面・社長の画面も見られる）、スマホは送るだけの「現場」。名前はプロジェクターに映るので、本名にしない。
+```bash
+php artisan torudake:add-member 本番用のID PCのメール admin --name=経理担当
+```
+```bash
+php artisan torudake:add-member 本番用のID スマホのメール editor --name=現場 --submit-only
+```
+```bash
+php artisan torudake:add-member 練習用のID PCのメール admin --name=経理担当
+```
+```bash
+php artisan torudake:add-member 練習用のID スマホのメール editor --name=現場 --submit-only
+```
+5. パスワードを決める。メールは今 `log` なので、再設定のリンクはログに出る。**メールアドレスごとに一番下のリンク**を使う（前のリンクは使えなくなる。有効なのは60分）。
+```bash
+grep -ho 'https://torudake-app.com/reset-password/[^" ]*' storage/logs/*.log | tail -8
+```
+6. スマホと PC でそれぞれリンクを開いてパスワードを決め、ログインすると2段階認証の設定画面に移るので、認証アプリで設定する。復旧コードは紙に控える。
+7. ブックマークする（練習用は ID を入れた URL を直接開く）。
+   - PC：`https://torudake-app.com/c/本番用のID/live`・`/c/練習用のID/live`
+   - スマホ：`https://torudake-app.com/c/本番用のID/submit`・`/c/練習用のID/submit`
+
 ### デモの再生モード（AI が遅い・止まったときの保険）
-1. デモ用の会社を2つ作る（練習用・本番用。どちらも `torudake:create-company --demo`）。
+1. デモ用の会社を2つ作る（上の「デモ用の会社を2つ作る」）。
 2. `AI_DRIVER=claude` のまま、練習用の会社で**デモで使う写真**を送り、本物の Claude に読ませる（これが記録になる）。**練習の記録は、プロンプトの版を上げる変更（「読み取りの自信と宛名の印」など）を push したあとで作る**（版が違う記録は再生しない）。
 3. デモの前に `.env` を `AI_DRIVER=replay` にし、上の「`.env` を変えたとき」の手順で読み直す。
 4. デモでは本番用の会社に、**練習で撮った同じ写真**を送る（その場で撮り直すと SHA-256 が変わり、再生されない）。記録のある写真は練習と同じ秒数で再生され、ライブ画面に小さく「再生」と出る。記録のない写真は本物の Claude を呼ぶ。
 5. 再生するのはデモ用の会社どうしだけ。実在の会社では `replay` にしても本物を呼ぶ。プロンプトの版を上げたら、練習をやり直す。
+6. デモが終わったら `.env` を `AI_DRIVER=claude` に戻し、同じ手順で読み直す。
 
 ---
 
