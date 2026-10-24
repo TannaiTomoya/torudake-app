@@ -108,7 +108,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     {
         return $this->company->sourceRecords()->with('journalEntry')
             ->where('status', '!=', SourceStatus::Ignored)
-            ->latest('created_at')->latest('id')->limit(5)->get();
+            ->latest('created_at')->latest('id')->limit(3)->get();
     }
 
     #[Computed]
@@ -124,12 +124,6 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
             ->where('status', EntryStatus::Confirmed)
             ->whereBetween('entry_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
             ->count();
-    }
-
-    #[Computed]
-    public function todayCount(): int
-    {
-        return $this->company->sourceRecords()->where('created_at', '>=', now()->startOfDay())->count();
     }
 
     #[Computed]
@@ -278,14 +272,14 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
         const id = card ? card.dataset.currentSource : null;
         if (($event.key === 'e' || $event.key === 'E') && id && card.dataset.open === '1') { $event.preventDefault(); $wire.startEdit(id) }
         else if (($event.key === 's' || $event.key === 'S') && id && card.dataset.canSave === '1') { $event.preventDefault(); $wire.save(id) }
-        else if ($event.key === 'Escape') { $wire.cancelEdit() }
-        else if ($event.key === '1') { window.location = '{{ route('company.live', $company) }}' }
+        else if ($event.key === 'Escape' && card && card.dataset.editing === '1') { $wire.cancelEdit() }
+        else if ($event.key === 'Escape') { window.location = '{{ route('company.home', $company) }}' }
         else if ($event.key === '3') { window.location = '{{ route('company.workbook', $company) }}' }
         else if ($event.key === '4') { window.location = '{{ route('company.ai', $company) }}' }
         else if ($event.key === '5') { window.location = '{{ $this->ownerUrl() }}' }
      ">
     <header class="relative flex items-center justify-between">
-        <h1 class="font-bold">撮って送るだけ帳簿</h1>
+        <h1 class="font-bold"><a href="{{ route('company.home', $company) }}" class="text-ink hover:underline" data-test="live-home-link">撮って送るだけ帳簿</a></h1>
         <p class="font-bold text-ink-sub">{{ $company->name }}・{{ now()->month }}月</p>
         <p class="font-bold text-ng">● ライブ</p>
 
@@ -304,7 +298,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                 </div>
             @else
                 <div wire:key="card-{{ $current->id }}" class="live-slide-in flex min-h-0 flex-1 flex-col gap-4"
-                     data-current-source="{{ $current->id }}" data-open="{{ $isOpen ? '1' : '0' }}" data-can-save="{{ $canSave || $isEditing ? '1' : '0' }}" data-test="live-current">
+                     data-current-source="{{ $current->id }}" data-open="{{ $isOpen ? '1' : '0' }}" data-editing="{{ $isEditing ? '1' : '0' }}" data-can-save="{{ $canSave || $isEditing ? '1' : '0' }}" data-test="live-current">
                     <div class="flex min-h-0 flex-1 gap-6">
                         <div class="w-1/3 shrink-0 overflow-hidden rounded-2xl border border-line bg-paper">
                             @if ($current->evidence === null || $current->evidence->storage_key === null)
@@ -429,23 +423,13 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
 
         </section>
 
-        {{-- あと n 件・処理時間・流れ --}}
+        {{-- あと n 件・流れ --}}
         <aside class="col-span-2 flex min-h-0 flex-col gap-6">
-            <div class="rounded-3xl bg-ink p-6 text-center text-paper">
+            <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-3xl bg-ink p-6 text-center text-paper">
                 <p class="font-bold">今月の帳簿ができるまで</p>
                 <p wire:key="remaining-{{ $this->remaining }}" class="live-slide-in text-live-hero font-bold leading-none text-brand" data-test="live-remaining">あと {{ $this->remaining }}件</p>
             </div>
-            <div class="grid grid-cols-2 gap-6">
-                <div class="rounded-2xl bg-panel p-4">
-                    <p class="text-ink-sub">AIの処理時間</p>
-                    <p class="text-live-lg font-bold">{{ $this->aiSeconds !== null ? $this->aiSeconds.'秒' : '—' }}</p>
-                </div>
-                <div class="rounded-2xl bg-panel p-4">
-                    <p class="text-ink-sub">今日送った枚数</p>
-                    <p class="text-live-lg font-bold" data-test="live-today">{{ $this->todayCount }}枚</p>
-                </div>
-            </div>
-            <div class="min-h-0 flex-1 overflow-hidden rounded-2xl bg-panel p-4">
+            <div class="shrink-0 overflow-hidden rounded-2xl bg-panel p-4">
                 <p class="text-ink-sub">流れ</p>
                 <ul class="divide-y divide-line" data-test="live-recent">
                     @foreach ($this->recent as $item)
@@ -470,8 +454,8 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     </div>
 
     <footer class="flex items-center justify-between font-bold text-ink-sub">
-        <p>写真は30日で自動削除・AIの学習には使われない・確定は人が保存</p>
-        <p data-test="live-keys">1 ライブ　3 Excel　4 AIの記録　<a href="{{ $this->ownerUrl() }}" class="text-ink underline" data-test="live-owner-link">5 社長の画面</a></p>
+        <p>確定は人が保存します。写真は30日で消え、AIの学習には使われません。</p>
+        <p data-test="live-keys">3 Excel　4 AIの記録　<a href="{{ $this->ownerUrl() }}" class="text-ink underline" data-test="live-owner-link">5 社長の画面</a>　Esc ホーム</p>
     </footer>
 
     @if ($done)

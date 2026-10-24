@@ -36,14 +36,41 @@ test('ライブ画面：あと n 件・最新の1件（店名・日付・合計�
         ->assertSee('S 保存（確定）して次へ')
         ->assertSee('E 直す')
         ->assertSee('5 社長の画面')
-        ->assertSee(route('company.home', $company))
-        ->assertSee('今日送った枚数')
+        ->assertSee('AIが読み取りました')
+        ->assertSee('確定は人が保存します。写真は30日で消え、AIの学習には使われません。')
+        ->assertDontSee('AIの処理時間')
+        ->assertDontSee('今日送った枚数')
         ->assertDontSee($owner->email)
         ->assertDontSee($owner->name)
         ->assertDontSee($otherUser->email);
+});
 
-    expect($this->actingAs($owner)->get(route('company.live', $company))->getContent())
-        ->toContain('data-test="live-today">1枚');
+test('ライブ画面：Esc と左上の「撮って送るだけ帳簿」でホームへ。直している最中の Esc はやめるだけ。サイドバーは出さない', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    $homeUrl = route('company.home', $company);
+
+    $this->actingAs($owner)->get(route('company.live', $company))
+        ->assertOk()
+        ->assertSee('href="'.$homeUrl.'" class="text-ink hover:underline" data-test="live-home-link">撮って送るだけ帳簿</a>', false)
+        ->assertSee("else if (\$event.key === 'Escape' && card && card.dataset.editing === '1') { \$wire.cancelEdit() }", false)
+        ->assertSee("else if (\$event.key === 'Escape') { window.location = '{$homeUrl}' }", false)
+        ->assertSee('3 Excel　4 AIの記録')
+        ->assertSee('　Esc ホーム</p>', false)
+        ->assertDontSee('1 ライブ')
+        ->assertDontSee('data-test="sidebar"', false);
+});
+
+test('ライブ画面：流れは直近3件だけ', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    foreach ([300, 310, 320, 330] as $size) {
+        sendReceipt($company, $owner, $size);
+        $this->travel(1)->minutes();
+    }
+
+    $html = $this->actingAs($owner)->get(route('company.live', $company))->getContent();
+    preg_match('/data-test="live-recent">(.*?)<\/ul>/s', $html, $match);
+
+    expect(substr_count($match[1] ?? '', '<li '))->toBe(3);
 });
 
 test('ライブ画面：S でそのまま確定、Excel に1行入り、あと0件で「今月の帳簿ができました」', function (): void {
