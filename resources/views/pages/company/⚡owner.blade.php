@@ -2,7 +2,9 @@
 
 use App\Enums\ConcernFlag;
 use App\Models\Company;
+use App\Models\OwnerInsight;
 use App\Services\OwnerDashboard;
+use App\Services\OwnerInsights;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -49,6 +51,20 @@ new class extends Component {
         ];
     }
 
+    /**
+     * @return array{brief: OwnerInsight, forecast: OwnerInsight}
+     */
+    #[Computed]
+    public function insights(): array
+    {
+        return app(OwnerInsights::class)->refresh($this->company, $this->dashboard);
+    }
+
+    public function man(?int $yen): string
+    {
+        return $yen === null ? '—' : number_format((int) round($yen / 10000)).'万円';
+    }
+
     public function hasSales(): bool
     {
         foreach ($this->dashboard['months'] as $row) {
@@ -85,6 +101,9 @@ new class extends Component {
 @php
     $dashboard = $this->dashboard;
     $totals = $dashboard['totals'];
+    $brief = $this->insights['brief'];
+    $forecast = $this->insights['forecast'];
+    $updating = $brief->isUpdating() || $forecast->isUpdating();
 @endphp
 
 <section class="mx-auto max-w-5xl space-y-8 p-4 text-body text-ink">
@@ -100,6 +119,34 @@ new class extends Component {
             </p>
         @endif
     </header>
+
+    {{-- ① 今月のひとこと（AI） --}}
+    <section @if ($updating) wire:poll.2s @endif class="space-y-3 rounded-xl border-2 border-ink bg-panel p-5" data-test="owner-brief">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-xl font-bold">今月のひとこと（AI）</h2>
+            @if ($brief->isUpdating())
+                <span class="rounded bg-brand-soft px-2 py-0.5 text-note font-bold text-brand-ink" data-test="owner-brief-updating">更新中</span>
+            @elseif ($brief->generated_at !== null)
+                <span class="text-note text-ink-sub">{{ $brief->generated_at->isoFormat('M月D日(ddd) H:mm') }}に作成</span>
+            @endif
+        </div>
+        @php($b = $brief->output)
+        @if (is_array($b))
+            <p class="text-xl font-bold leading-relaxed" data-test="owner-brief-headline">{{ $b['headline'] ?? '' }}</p>
+            @if (is_string($b['busy_alert'] ?? null) && $b['busy_alert'] !== '')
+                <p class="rounded-lg bg-ng-soft px-3 py-2 font-bold text-ng" data-test="owner-brief-busy-alert">{{ $b['busy_alert'] }}</p>
+            @endif
+            <p class="text-ink-sub">見立て：{{ $b['reason'] ?? '' }}</p>
+            <p>確かめるとよい点：{{ $b['check'] ?? '' }}</p>
+        @elseif ($brief->isUpdating())
+            <p class="text-ink-sub">AIが数字を見ています…</p>
+        @else
+            <p class="text-ink-sub">ひとことを作れませんでした。{{ $brief->error }}</p>
+        @endif
+        @if ($brief->error !== null && is_array($b) && ! $brief->isUpdating())
+            <p class="text-note text-warn">最新の数字では作り直せませんでした（前回のひとことです）</p>
+        @endif
+    </section>
 
     {{-- ② 三期比較 --}}
     <section class="space-y-4" data-test="owner-three-period">
@@ -223,6 +270,38 @@ new class extends Component {
         @empty
             <p class="text-ink-sub">気になる仕訳はありません</p>
         @endforelse
+    </section>
+
+    {{-- ④ 来月の見込み（AI） --}}
+    <section class="space-y-3" data-test="owner-forecast">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-xl font-bold">来月の見込み（AI）</h2>
+            @if ($forecast->isUpdating())
+                <span class="rounded bg-brand-soft px-2 py-0.5 text-note font-bold text-brand-ink" data-test="owner-forecast-updating">更新中</span>
+            @endif
+        </div>
+        @php($f = $forecast->output)
+        @if (is_array($f))
+            <div class="grid gap-4 md:grid-cols-2">
+                @foreach (['sales' => '売上', 'expense' => '経費'] as $key => $label)
+                    @php($range = is_array($f[$key] ?? null) ? $f[$key] : [])
+                    <div class="rounded-xl border border-line bg-panel p-4" data-test="owner-forecast-{{ $key }}">
+                        <p class="text-note text-ink-sub">{{ $f['month'] ?? '' }}月の{{ $label }}</p>
+                        @if (is_int($range['median_yen'] ?? null))
+                            <p class="text-2xl font-bold">だいたい {{ $this->man($range['median_yen']) }}</p>
+                            <p class="text-ink-sub">8割の確からしさで {{ $this->man($range['low_yen'] ?? null) }}〜{{ $this->man($range['high_yen'] ?? null) }}</p>
+                        @else
+                            <p class="text-ink-sub">数字が足りないため、まだ出せません</p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+            <p class="text-note text-ink-sub">根拠：{{ $f['note'] ?? '' }}</p>
+        @elseif ($forecast->isUpdating())
+            <p class="text-ink-sub">AIが見込みを出しています…</p>
+        @else
+            <p class="text-ink-sub">見込みを出せませんでした。{{ $forecast->error }}</p>
+        @endif
     </section>
 
     {{-- ⑤ 売上の柱 --}}

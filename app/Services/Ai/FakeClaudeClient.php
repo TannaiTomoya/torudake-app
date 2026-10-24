@@ -60,6 +60,8 @@ class FakeClaudeClient implements AiClient
             AiTask::ReadReceipt => $this->readReceipt(),
             AiTask::Journalize => [...$this->journalize($request->input), ...$this->journalizeOverrides],
             AiTask::CheckEntry => $this->checkEntry($request->input),
+            AiTask::OwnerBrief => $this->ownerBrief($request->input),
+            AiTask::Forecast => $this->forecast($request->input),
             default => [],
         };
 
@@ -160,6 +162,78 @@ class FakeClaudeClient implements AiClient
             },
             'confidence' => $remembered ? 0.92 : 0.55,
             'remembered' => $remembered,
+        ];
+    }
+
+    /**
+     * 入力の数字から決まった形で作る。忙しい月なのに前年同月より少ない月があれば busy_alert に出す。
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    private function ownerBrief(array $input): array
+    {
+        $man = fn (int $yen): string => number_format((int) round(abs($yen) / 10000)).'万円';
+        $totals = is_array($input['totals'] ?? null) ? $input['totals'] : [];
+        $count = is_int($totals['months_with_sales'] ?? null) ? $totals['months_with_sales'] : 0;
+        $diff = is_int($totals['diff'] ?? null) ? $totals['diff'] : 0;
+        $pct = is_int($totals['pct'] ?? null) ? $totals['pct'] : null;
+
+        $headline = $count === 0
+            ? 'まだ今期の売上の数字がありません'
+            : "今期{$count}か月の売上は、前期の同じ月より{$man($diff)}".($pct !== null ? '（'.abs($pct).'%）' : '').($diff < 0 ? '少ない' : '多い');
+
+        $busyAlert = null;
+        foreach (is_array($input['months'] ?? null) ? $input['months'] : [] as $row) {
+            if (is_array($row) && ($row['busy_but_lower'] ?? false) === true && is_int($row['yoy_diff'] ?? null) && is_int($row['month'] ?? null)) {
+                $busyAlert = "{$row['month']}月は忙しい月なのに、前年同月より{$man($row['yoy_diff'])}少なかった";
+                break;
+            }
+        }
+
+        $customers = is_array($input['customers'] ?? null) ? $input['customers'] : [];
+        $top = is_array($customers[0] ?? null) ? $customers[0] : null;
+
+        return [
+            'headline' => $headline,
+            'reason' => '秋の忙しい時期に向けて、工事が増えているのかもしれません',
+            'check' => $top !== null && is_string($top['label'] ?? null) && is_int($top['share_pct'] ?? null)
+                ? "売上の{$top['share_pct']}%を占める{$top['label']}の、今後の工事の予定を確かめるとよい"
+                : '気になる仕訳を確かめるとよい',
+            'busy_alert' => $busyAlert,
+        ];
+    }
+
+    /**
+     * 3期の同じ月の平均×今期の伸び。範囲は±15%。経費は確定した月が2か月以上あれば平均±10%。
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    private function forecast(array $input): array
+    {
+        $round = fn (float $yen): int => (int) round($yen, -4);
+        $month = is_int($input['target_month'] ?? null) ? $input['target_month'] : 1;
+        $average = is_int($input['target_average'] ?? null) ? $input['target_average'] : null;
+        $growth = is_int($input['growth_pct'] ?? null) ? $input['growth_pct'] : 0;
+        $expenses = array_values(array_filter(is_array($input['monthly_expenses'] ?? null) ? $input['monthly_expenses'] : [], 'is_int'));
+
+        $sales = $average === null ? null : $average * (1 + $growth / 100);
+        $expense = count($expenses) >= 2 ? array_sum($expenses) / count($expenses) : null;
+
+        return [
+            'month' => $month,
+            'sales' => [
+                'median_yen' => $sales === null ? null : $round($sales),
+                'low_yen' => $sales === null ? null : $round($sales * 0.85),
+                'high_yen' => $sales === null ? null : $round($sales * 1.15),
+            ],
+            'expense' => [
+                'median_yen' => $expense === null ? null : $round($expense),
+                'low_yen' => $expense === null ? null : $round($expense * 0.9),
+                'high_yen' => $expense === null ? null : $round($expense * 1.1),
+            ],
+            'note' => "過去3期の{$month}月の平均と、今期の伸び{$growth}%から（偽物のAI）",
         ];
     }
 

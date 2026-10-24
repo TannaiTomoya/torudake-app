@@ -18,6 +18,7 @@ use Illuminate\Support\Collection;
  *
  * @phpstan-type MonthRow array{
  *     month: int,
+ *     year_months: array{current: string, previous: string, before: string},
  *     busy: bool,
  *     current: int|null,
  *     previous: int|null,
@@ -72,6 +73,7 @@ class OwnerDashboard
 
             $months[] = [
                 'month' => $month,
+                'year_months' => ['current' => $ym[0], 'previous' => $ym[1], 'before' => $ym[2]],
                 'busy' => $company->isBusyMonth($month),
                 'current' => $cur,
                 'previous' => $prev,

@@ -9,6 +9,8 @@ enum AiTask: string
     case CheckEntry = 'check_entry';
     case MonthlySummary = 'monthly_summary';
     case CloseCheck = 'close_check';
+    case OwnerBrief = 'owner_brief';
+    case Forecast = 'forecast';
 
     public function label(): string
     {
@@ -18,6 +20,8 @@ enum AiTask: string
             self::CheckEntry => '検算',
             self::MonthlySummary => '月次集計',
             self::CloseCheck => '締めの確認',
+            self::OwnerBrief => '社長へのひとこと',
+            self::Forecast => '来月の見込み',
         };
     }
 
@@ -29,6 +33,7 @@ enum AiTask: string
             self::CheckEntry => 'ok',
             self::MonthlySummary => 'ink',
             self::CloseCheck => 'warn',
+            self::OwnerBrief, self::Forecast => 'ink',
         };
     }
 }

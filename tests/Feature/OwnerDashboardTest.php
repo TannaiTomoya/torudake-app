@@ -1,69 +1,11 @@
 <?php
 
-use App\Enums\EntryKind;
 use App\Enums\EntryStatus;
-use App\Enums\FigureMetric;
-use App\Enums\FigureSource;
 use App\Enums\Role;
-use App\Models\Company;
-use App\Models\ExternalCustomerSale;
-use App\Models\ExternalMonthlyFigure;
-use App\Models\JournalEntry;
-use App\Services\JournalLineWriter;
 use App\Services\OwnerDashboard;
 use Livewire\Livewire;
 
 beforeEach(fn () => $this->travelTo(now()->setDate(2026, 10, 24)->setTime(9, 0)));
-
-function putSales(Company $company, string $yearMonth, int $amount): void
-{
-    $figure = new ExternalMonthlyFigure;
-    $figure->forceFill([
-        'company_id' => $company->id,
-        'year_month' => $yearMonth,
-        'metric' => FigureMetric::Sales,
-        'amount_yen' => $amount,
-        'source' => FigureSource::Manual,
-    ])->save();
-}
-
-function putCustomer(Company $company, int $rank, string $label, int $amount): void
-{
-    $row = new ExternalCustomerSale;
-    $row->forceFill([
-        'company_id' => $company->id,
-        'period_from' => '2025-08-01',
-        'period_to' => '2026-07-31',
-        'rank' => $rank,
-        'label' => $label,
-        'amount_yen' => $amount,
-    ])->save();
-}
-
-/**
- * @param  list<string>|null  $flags
- */
-function putEntry(Company $company, string $date, string $category, int $amount, EntryStatus $status = EntryStatus::Confirmed, ?array $flags = null, ?string $vendor = '〇〇石油 八幡平店'): JournalEntry
-{
-    $categoryModel = $company->categories()->where('name', $category)->firstOrFail();
-    $bankAccount = $company->bankAccounts()->where('name', '現金')->firstOrFail();
-
-    $entry = new JournalEntry;
-    $entry->forceFill([
-        'company_id' => $company->id,
-        'entry_date' => $date,
-        'kind' => EntryKind::Normal,
-        'status' => $status,
-        'vendor' => $vendor,
-        'category_id' => $categoryModel->id,
-        'bank_account_id' => $bankAccount->id,
-        'confirmed_at' => $status === EntryStatus::Confirmed ? now() : null,
-        'concern_flags' => $flags,
-    ])->save();
-    app(JournalLineWriter::class)->rewrite($entry, $categoryModel, $bankAccount, $amount);
-
-    return $entry;
-}
 
 test('T20 社長の画面の三期比較・前年同月の差・3期の平均・売上の柱が、入れた数字と一致する', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);

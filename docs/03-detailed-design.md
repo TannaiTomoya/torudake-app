@@ -18,7 +18,8 @@
 | 5 | Excel の1冊（仕訳帳への追記・書き換え・ダウンロード） | 済み。社長用・AIの記録のシートは工程7・8 |
 | 6 | まとめて送る（ためる・×で外す・同じ batch_id・重複や失敗があってもほかは送れる）、ライブ画面（E 直す・S 保存、キー1・3・4・5） | 済み |
 | 7b | 社長の画面（三期比較・前年同月の差・3期の平均・忙しい月の色づけと「忙しい月なのに前年より少ない」・今期の経費と残ったお金・気になる仕訳・売上の柱）、`torudake:seed-demo`（架空の三期比較・顧客別・今期の経費）。帳票の3テーブルを1つの移行ファイルで作った | 済み。ひとこと・見込みは 7c、戻す・見たは 7d |
-| 7a・7c〜7f、8・9 | §10 の順に作る（7 は 7b→7a→7c→7d→7e→7f） | これから |
+| 7c | 社長へのひとこと（`owner_brief.v1`）・来月の見込み（`forecast.v1`）。入力のハッシュが同じなら AI を呼ばず、違えばジョブで作り直し、できるまで前回のものに「更新中」 | 済み |
+| 7d・8・7a・7e・7f・9 | この順に作る（戻す → 工程8 → 取り込み → 通知 → 社長用シート） | これから |
 
 **版3.0 で変わること（実装済みの部分への影響）**
 | 変更 | 実装済みへの影響 | やり方 |
@@ -111,6 +112,15 @@ UNIQUE(company_id, year_month, metric)。同じ月を取り込み直したら上
 | amount_yen | bigint | 売上金額（返品・値引き後） |
 | report_import_id | FK null | もとの取り込み（デモの架空の数字は null） |
 
+#### owner_insights（社長へのひとこと・来月の見込み）
+| 列 | 型 | 内容 |
+|---|---|---|
+| id / company_id / kind | | kind は brief / forecast。UNIQUE(company_id, kind) |
+| input_hash | char(64) null | output を作ったときの入力のハッシュ（プロンプトの版＋入力の JSON の sha256） |
+| output / ai_run_id / generated_at | | AI の答えと、その実行・時刻 |
+| pending_hash / pending_at | | 作り直しを頼んだ入力のハッシュと時刻（「更新中」） |
+| error | text null | 作り直せなかった理由（前回の output は残す） |
+
 #### notifications（Laravel 標準）
 `php artisan make:notifications-table`。社長への通知（§4.8）。
 
@@ -122,7 +132,8 @@ UNIQUE(company_id, year_month, metric)。同じ月を取り込み直したら上
 | ConcernFlag | amount 金額が大きい / **amount_missing 金額の記載なし** / ai_duplicate 重複の疑い / ai_private 私的支出の疑い / ai_unbalanced 貸借が合わない / corrected 経理がAIを直した |
 | BankAccountKind（足す） | invoice 後日の請求（未払金） |
 | ReportKind | sales_three_period 売上高三期比較 / customer_sales 顧客別売上集計 |
-| AiTask（足す） | read_report 帳票の読み取り / owner_brief 社長へのひとこと / forecast 来月の見込み |
+| AiTask（足す） | read_report 帳票の読み取り（7a）/ owner_brief 社長へのひとこと / forecast 来月の見込み |
+| InsightKind | brief 今月のひとこと / forecast 来月の見込み |
 
 ## 3. 状態の移り変わり
 
@@ -204,6 +215,7 @@ confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必
 - 比べは**金額の差を主に、%を添える**。前月だけでなく**前年同月**と並べる。
 - 前年同月の差は、その月に今期の数字があれば今期−前期、まだなければ前期−前々期（画面に「前期と前々期」と添える）。「忙しい月なのに前年より少ない」も同じ差で決める。
 - 経費は、アプリを使い始めた月からしかない（過去の経費は財務王にあり、取り込まない）。経費のない月は「—」と出す。
+- ①④（`OwnerInsights`）：社長の画面を開くたびに入力（②③⑤の数字＝確定した仕訳を含む）のハッシュを出し、`owner_insights.input_hash` と同じなら AI を呼ばない。違えば `GenerateOwnerInsight` をキューに入れ、できるまで前回のものに「更新中」と出して2秒ごとに読み直す。頼んでから5分たっても終わらなければ頼み直す。AI が失敗したら前回のものを残し、5分は頼み直さない。デモの前に一度開いておけば、同じ数字のうちは待たずに出る。
 
 ### 4.8 通知（F11）
 | 通知 | いつ | 中身 |
@@ -304,7 +316,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | T20★ | 社長の画面の数字（三期比較・前年同月の差・売上の柱）が、取り込んだ数字と一致 | 済み |
 | T21★ | 週1回の通知が社長にだけ届く | これから |
 | T25 | 忙しい月：初期値・保存・範囲外の拒否・経理は変えられない | 済み |
-| T26 | 忙しい月：グラフの色づけ、owner_brief・forecast への入力（印・3期の平均）、「忙しいはずの月なのに前年同月より少ない」がひとことに出る（偽物の AI で確かめる） | 色づけ・印・3期の平均は済み。ひとこと・見込みは 7c |
+| T26 | 忙しい月：グラフの色づけ、owner_brief・forecast への入力（印・3期の平均）、「忙しいはずの月なのに前年同月より少ない」がひとことに出る（偽物の AI で確かめる）。同じ入力なら AI を呼ばない | 済み |
 | T22★ | 30日を過ぎた写真が消える。監査記録 | これから |
 | T23 | 再生モード | これから |
 | T24★ | 移行：approved の仕訳が confirmed になる | これから |

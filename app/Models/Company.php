@@ -167,6 +167,14 @@ class Company extends Model
     }
 
     /**
+     * @return HasMany<OwnerInsight, $this>
+     */
+    public function ownerInsights(): HasMany
+    {
+        return $this->hasMany(OwnerInsight::class);
+    }
+
+    /**
      * @return HasOne<Workbook, $this>
      */
     public function workbook(): HasOne
