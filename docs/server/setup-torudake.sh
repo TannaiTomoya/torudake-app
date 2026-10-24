@@ -21,9 +21,18 @@ PHP_MIN="8.3"        # Laravel 13 の最低。OS に入っている PHP（8.3 �
 NODE_MAJOR="22"
 SWAP_SIZE="2G"
 
+# 途中で質問を出さずに、既定の答えで進む（出力を隠しているので、質問が出ると見えずに止まるため）
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a COMPOSER_ALLOW_SUPERUSER=1
+
 step() { echo; echo "==> $*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# 本番の VPS（Ubuntu）以外では何もせずに止まる（Mac などで動かしてしまったときの守り）
+if [ ! -f /etc/os-release ] || ! grep -q '^ID=ubuntu' /etc/os-release; then
+  echo "このスクリプトは本番の VPS（Ubuntu）専用です。ここでは何もせずに終わります。"
+  echo "VPS に入ってから（行の頭が ubuntu@camp-vps:~$ になってから）実行してください。"
+  exit 1
+fi
 if [ "$(id -u)" -ne 0 ]; then echo "sudo を付けて実行してください"; exit 1; fi
 
 step "1/10 スワップ（メモリ1.6GBなので、composer と npm の途中で止まらないように ${SWAP_SIZE} 足す）"
@@ -72,7 +81,7 @@ systemctl restart "php${PHP_VERSION}-fpm"
 step "4/10 データベース（${DB_NAME} と専用ユーザー。パスワードは画面に出さず .env にだけ書く）"
 DB_PASS_FILE="/root/.torudake-db-password"
 if [ ! -f "$DB_PASS_FILE" ]; then
-  umask 077 && openssl rand -base64 24 | tr -d '/+=' > "$DB_PASS_FILE"
+  ( umask 077 && openssl rand -base64 24 | tr -d '/+=' > "$DB_PASS_FILE" )   # 「読めない設定」はこの1行だけに閉じ込める
 fi
 DB_PASS="$(cat "$DB_PASS_FILE")"
 mysql <<SQL
@@ -119,10 +128,14 @@ sudo -u "$DEPLOY_USER" npm ci --silent
 sudo -u "$DEPLOY_USER" npm run build --silent
 sudo -u "$DEPLOY_USER" php artisan migrate --force
 sudo -u "$DEPLOY_USER" php artisan optimize
-chmod -R ug+rwX storage bootstrap/cache
-chgrp -R www-data storage bootstrap/cache
+chown -R "$DEPLOY_USER":www-data "$APP_DIR"
+chmod -R go+rX "$APP_DIR"                       # Web サーバー（www-data）が読めるように
+chmod 640 "$APP_DIR/.env"                        # パスワード入りの .env は持ち主と www-data だけ
+chmod -R ug+rwX storage bootstrap/cache          # ログや一時ファイルは www-data が書ける
+sudo -u www-data test -r "$APP_DIR/public/index.php" || { echo "www-data が index.php を読めない"; exit 1; }
 
-step "8/10 nginx（サイト1つ）"
+step "8/10 nginx（サイト1つ。2回目からは certbot が足した HTTPS の設定を残すため書き換えない）"
+if [ ! -f /etc/nginx/sites-available/torudake ]; then
 cat > /etc/nginx/sites-available/torudake <<NGINX
 server {
     listen 80;
@@ -151,6 +164,9 @@ server {
     location ~ /\.(?!well-known).* { deny all; }
 }
 NGINX
+else
+  echo "nginx の設定はすでにある（触らない）"
+fi
 ln -sf /etc/nginx/sites-available/torudake /etc/nginx/sites-enabled/torudake
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
@@ -164,7 +180,9 @@ fi
 
 step "10/10 定期実行（写真の30日削除など）とジョブの常駐"
 CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
-( crontab -u "$DEPLOY_USER" -l 2>/dev/null | grep -v "${APP_DIR} && php artisan schedule:run"; echo "$CRON_LINE" ) | crontab -u "$DEPLOY_USER" -
+# crontab がまだないと「今の設定を読む」が失敗扱いになるので、|| true で続ける
+( { crontab -u "$DEPLOY_USER" -l 2>/dev/null || true; } | { grep -v "${APP_DIR} && php artisan schedule:run" || true; }; echo "$CRON_LINE" ) | crontab -u "$DEPLOY_USER" -
+crontab -u "$DEPLOY_USER" -l | grep -q "schedule:run" && echo "cron に schedule:run を入れた"
 cat > /etc/systemd/system/torudake-queue.service <<UNIT
 [Unit]
 Description=torudake queue worker
@@ -182,7 +200,7 @@ RestartSec=5
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload && systemctl enable --now torudake-queue >/dev/null 2>&1
-echo "cron とジョブの常駐を設定した"
+systemctl is-active --quiet torudake-queue && echo "ジョブの常駐（torudake-queue）が動いている"
 
 echo
 echo "==> 確認"
