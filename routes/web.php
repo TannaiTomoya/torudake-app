@@ -36,7 +36,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($dispatchAuthent
     })->name('dashboard');
 });
 
-Route::middleware(['auth', 'verified', 'two-factor', 'company'])
+Route::middleware(['auth', 'verified', 'company', 'two-factor'])
     ->prefix('c/{company}')
     ->name('company.')
     ->scopeBindings()

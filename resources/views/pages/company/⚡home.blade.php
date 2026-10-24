@@ -61,6 +61,17 @@ new #[Title('ホーム')] class extends Component {
             @endif
             <span class="inline-block rounded-xl bg-ink px-6 py-3 text-lg font-bold text-paper">社長の画面を開く</span>
         </a>
+        <nav aria-label="ほかの作業" class="flex flex-wrap gap-4 text-body font-bold text-brand-ink underline">
+            @can('submit', $company)
+                <a href="{{ route('company.submit', $company) }}" wire:navigate>レシートを送る</a>
+            @endcan
+            @can('editDraft', $company)
+                <a href="{{ route('company.sources.index', $company) }}" wire:navigate>直して保存する</a>
+            @endcan
+            @can('viewAi', $company)
+                <a href="{{ route('company.ai', $company) }}" wire:navigate>AIの記録</a>
+            @endcan
+        </nav>
     @else
         @can('editDraft', $company)
             @php($remaining = $this->remaining())
