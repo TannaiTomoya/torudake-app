@@ -182,3 +182,19 @@ test('2社に入っている人は、2段階認証を設定し終えると今の
         ->call('confirmTwoFactor')
         ->assertRedirect(route('company.home', $second));
 });
+
+test('送る画面：今月0枚なら手順の案内を出し、枚数は出さない。1枚送ったら案内は出さない', function (): void {
+    ['company' => $company, 'user' => $worker] = createCompanyWithMember(Role::Editor, submitOnly: true);
+
+    $this->actingAs($worker)->get(route('company.submit', $company))
+        ->assertSee('レシートを送る')
+        ->assertSee('data-test="first-guide"', false)
+        ->assertSee('金額を書き写す必要はありません。経理が確かめて帳簿に入れます。')
+        ->assertDontSee('data-test="month-count"', false);
+
+    sendReceipt($company, $worker);
+
+    $this->actingAs($worker)->get(route('company.submit', $company))
+        ->assertDontSee('data-test="first-guide"', false)
+        ->assertSee('data-test="month-count">1枚', false);
+});

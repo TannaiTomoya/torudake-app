@@ -209,7 +209,7 @@ new #[Title('レシートを送る')] class extends Component {
 
 <section class="mx-auto flex min-h-[80vh] max-w-md flex-col gap-4 p-4 text-body text-ink">
     <header class="flex items-baseline justify-between gap-3 border-b border-line pb-3">
-        <h1 class="text-xl font-bold text-ink">送る</h1>
+        <h1 class="text-xl font-bold text-ink">レシートを送る</h1>
         <div class="flex flex-wrap items-baseline justify-end gap-x-3 text-note text-ink-sub">
             <p>{{ $company->name }}</p>
             @if (auth()->user()?->activeMembershipFor($company)?->submit_only)
@@ -224,7 +224,15 @@ new #[Title('レシートを送る')] class extends Component {
 
     {{-- 1 待ち --}}
     @if ($state === 'waiting')
-        <p class="text-note text-ink-sub">今月送った枚数 <span class="font-bold text-ink" data-test="month-count">{{ $monthCount }}枚</span></p>
+        @if ($monthCount === 0)
+            <ol class="space-y-1 rounded-2xl bg-panel p-4 text-body text-ink" data-test="first-guide">
+                <li>① レシートを撮る（何枚でも）</li>
+                <li>② 「まとめて送る」を押す</li>
+                <li>③ おわり。金額を書き写す必要はありません。経理が確かめて帳簿に入れます。</li>
+            </ol>
+        @else
+            <p class="text-note text-ink-sub">今月送った枚数 <span class="font-bold text-ink" data-test="month-count">{{ $monthCount }}枚</span></p>
+        @endif
 
         <label class="flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-muted bg-panel p-8 text-center">
             <input type="file" class="sr-only" accept="image/*,application/pdf" capture="environment" wire:model="photo" data-test="camera-input">
