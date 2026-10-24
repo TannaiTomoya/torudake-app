@@ -100,5 +100,15 @@ select:focus[data-flux-control] {
     100% { background-color: transparent; }
 }
 
+/* ライブ画面は 1920×1080 の舞台を窓に合わせて縮める（倍率 --live-scale は layouts/live の script が決める） */
+.live-stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1920px;
+    height: 1080px;
+    transform: translate(-50%, -50%) scale(var(--live-scale, 1));
+}
+
 .live-slide-in { animation: live-slide-in 0.4s ease-out both; }
 .live-reveal { animation: live-reveal 1.4s ease-out both; }

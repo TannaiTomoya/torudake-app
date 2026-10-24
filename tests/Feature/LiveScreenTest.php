@@ -26,6 +26,8 @@ test('ライブ画面：あと n 件・最新の1件（店名・日付・合計�
 
     $this->actingAs($owner)->get(route('company.live', $company))
         ->assertOk()
+        ->assertSeeHtml('class="live-stage"')
+        ->assertSeeHtml('Math.min(window.innerWidth / 1920, window.innerHeight / 1080)')
         ->assertSee('あと 1件')
         ->assertSee('〇〇石油 八幡平店')
         ->assertSee('3,850円')

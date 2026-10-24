@@ -270,7 +270,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     $done = $this->remaining === 0 && $this->confirmedThisMonth > 0;
 @endphp
 
-<div wire:poll.500ms class="flex h-screen flex-col gap-6 p-8 text-live text-ink"
+<div wire:poll.500ms class="flex h-full flex-col gap-6 p-8 text-live text-ink"
      x-data
      x-on:keydown.window="
         if (['INPUT', 'SELECT', 'TEXTAREA'].includes($event.target.tagName)) { if ($event.key === 'Escape') { $wire.cancelEdit() } return }
@@ -284,10 +284,15 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
         else if ($event.key === '4') { window.location = '{{ route('company.ai', $company) }}' }
         else if ($event.key === '5') { window.location = '{{ $this->ownerUrl() }}' }
      ">
-    <header class="flex items-center justify-between">
+    <header class="relative flex items-center justify-between">
         <h1 class="font-bold">撮って送るだけ帳簿</h1>
         <p class="font-bold text-ink-sub">{{ $company->name }}・{{ now()->month }}月</p>
         <p class="font-bold text-ng">● ライブ</p>
+
+        @if ($flash !== '')
+            <p wire:key="flash-{{ md5($flash.$this->confirmedThisMonth) }}" x-data="{ show: true }" x-init="setTimeout(() => show = false, 3000)" x-show="show" x-transition.opacity.duration.500ms
+               class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-xl border-2 border-ok bg-ok-soft px-6 font-bold text-ok" role="status" data-test="live-flash">{{ $flash }}</p>
+        @endif
     </header>
 
     <div class="grid min-h-0 flex-1 grid-cols-5 gap-6">
@@ -422,10 +427,6 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                 </div>
             @endif
 
-            @if ($flash !== '')
-                <p wire:key="flash-{{ md5($flash.$this->confirmedThisMonth) }}" x-data="{ show: true }" x-init="setTimeout(() => show = false, 3000)" x-show="show" x-transition.opacity.duration.500ms
-                   class="fixed left-1/2 top-8 z-10 -translate-x-1/2 rounded-2xl border-4 border-ok bg-ok-soft px-8 py-3 font-bold text-ok shadow-lg" role="status" data-test="live-flash">{{ $flash }}</p>
-            @endif
         </section>
 
         {{-- あと n 件・処理時間・流れ --}}
