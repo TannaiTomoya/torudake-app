@@ -48,7 +48,7 @@ test('T12: 経理が分類を直して保存すると確定になり、直した
         ->and($correction->before)->toBe('消耗品')
         ->and($correction->after)->toBe('燃料')
         ->and($correction->reason)->toBe(CorrectionReason::WrongCategory)
-        ->and($correction->kernel)->toBe('vendor:〇〇石油 八幡平店→category:燃料')
+        ->and($correction->kernel)->toBe('vendor:〇〇石油 八幡平店 → category:燃料')
         ->and($correction->corrected_by)->toBe($editor->id);
 
     expect(AuditLog::where('action', 'entry.confirm')->where('subject_id', $entry->id)->exists())->toBeTrue();

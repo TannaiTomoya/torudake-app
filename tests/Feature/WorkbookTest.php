@@ -3,6 +3,7 @@
 use App\Enums\CorrectionReason;
 use App\Enums\EntryStatus;
 use App\Enums\Role;
+use App\Models\AiCorrection;
 use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\SourceRecord;
@@ -124,7 +125,8 @@ test('T14: 社長から戻すと同じ行の状態が「社長から戻し」に
         ->and($sheet->getCell([6, 2])->getValue())->toBe(4000)
         ->and($sheet->getCell([13, 2])->getValue())->toBe('直した')
         ->and(count(numbersInSheet($sheet)))->toBe(2)
-        ->and($entry->refresh()->workbook_row)->toBe(2);
+        ->and($entry->refresh()->workbook_row)->toBe(2)
+        ->and(AiCorrection::query()->where('field', 'amount')->value('kernel'))->toBe('amount:3850 → 4000');
 });
 
 test('書けなかった行はダウンロードの前に足され、ファイルにだけ入っていた行は二重にならない', function (): void {

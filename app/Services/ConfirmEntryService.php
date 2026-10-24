@@ -230,9 +230,9 @@ class ConfirmEntryService
         $vendor = (string) ($after['vendor'] ?? '取引先不明');
 
         return match ($field) {
-            'category' => "vendor:{$vendor}→category:{$after['category']}",
-            'credit_account' => "vendor:{$vendor}→payment:{$after['credit_account']}",
-            default => "{$field}:{$before[$field]}→{$after[$field]}",
+            'category' => "vendor:{$vendor} → category:{$after['category']}",
+            'credit_account' => "vendor:{$vendor} → payment:{$after['credit_account']}",
+            default => "{$field}:{$before[$field]} → {$after[$field]}",
         };
     }
 }

@@ -301,15 +301,17 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                 <div wire:key="card-{{ $current->id }}" class="live-slide-in flex min-h-0 flex-1 flex-col gap-4"
                      data-current-source="{{ $current->id }}" data-open="{{ $isOpen ? '1' : '0' }}" data-can-save="{{ $canSave || $isEditing ? '1' : '0' }}" data-test="live-current">
                     <div class="flex min-h-0 flex-1 gap-6">
-                        <div class="w-2/5 shrink-0 overflow-hidden rounded-2xl border border-line bg-paper">
-                            @if ($current->evidence !== null && $current->evidence->storage_key !== null && str_starts_with($current->evidence->mime, 'image/'))
+                        <div class="w-1/3 shrink-0 overflow-hidden rounded-2xl border border-line bg-paper">
+                            @if ($current->evidence === null || $current->evidence->storage_key === null)
+                                <div class="flex size-full items-center justify-center p-4 text-center font-bold text-ink-sub" data-test="live-photo-purged">写真は保存期間が過ぎたため削除しました</div>
+                            @elseif (str_starts_with($current->evidence->mime, 'image/'))
                                 <img src="{{ route('company.evidences.image', [$company, $current->evidence->id]) }}" alt="送られた写真" class="size-full object-contain">
                             @else
                                 <div class="flex size-full items-center justify-center font-bold text-ink-sub">PDF</div>
                             @endif
                         </div>
 
-                        <div class="flex min-w-0 flex-1 flex-col gap-3">
+                        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
                             @if ($isReading)
                                 <div wire:key="reading-{{ $current->id }}" x-data="{ base: {{ (int) $current->created_at?->diffInMilliseconds(now()) }}, t0: Date.now(), now: Date.now() }" x-init="setInterval(() => now = Date.now(), 100)" data-test="reading">
                                     <p class="font-bold text-brand-ink">AIが読んでいます…（{{ $current->ai_stage ?? '受け取り' }}）<span x-text="((base + now - t0) / 1000).toFixed(1)"></span>秒</p>
@@ -325,33 +327,17 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                             @if (! $isEditing)
                                 <dl class="divide-y divide-line">
                                     @foreach ($rows as $label => $value)
-                                        <div wire:key="row-{{ $current->id }}-{{ $label }}-{{ md5((string) $value) }}" class="live-reveal flex items-baseline justify-between gap-4 rounded-lg px-2 py-2" style="animation-delay: {{ $loop->index * 0.4 }}s">
-                                            <dt class="text-ink-sub">{{ $label }}</dt>
+                                        <div wire:key="row-{{ $current->id }}-{{ $label }}-{{ md5((string) $value) }}" class="live-reveal flex items-baseline justify-between gap-4 rounded-lg px-2 py-0.5" style="animation-delay: {{ $loop->index * 0.4 }}s">
+                                            <dt class="shrink-0 whitespace-nowrap text-ink-sub">{{ $label }}</dt>
                                             @if ($value === null)
                                                 <dd class="font-bold text-warn" data-test="live-amount-missing">金額を入れてください</dd>
                                             @else
-                                                <dd class="truncate text-live-lg font-bold">{{ $value }}</dd>
+                                                <dd class="min-w-0 truncate text-live-lg font-bold leading-tight">{{ $value }}</dd>
                                             @endif
                                         </div>
                                     @endforeach
                                 </dl>
 
-                                @if (is_string($entry?->ai_check['remembered_payment'] ?? null))
-                                    <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered-payment">前回、この店は『{{ $entry->ai_check['remembered_payment'] }}』に直されました</p>
-                                @elseif (($entry?->ai_check['remembered'] ?? false) === true)
-                                    <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered">前回の修正を覚えています</p>
-                                @endif
-                                @if (is_string($entry?->ai_check['reason'] ?? null) && $entry->ai_check['reason'] !== '')
-                                    <p class="line-clamp-2 text-ink-sub">理由：{{ $entry->ai_check['reason'] }}</p>
-                                @endif
-                                @if ($debit !== null && $credit !== null)
-                                    <p class="rounded-xl border border-line bg-paper px-4 py-2 font-bold" data-test="live-journal">
-                                        仕訳　{{ $debit->account?->name }} {{ number_format($debit->amount_yen) }}円 ／ {{ $credit->account?->name }} {{ number_format($credit->amount_yen) }}円
-                                    </p>
-                                @endif
-                                @if (! $isOpen)
-                                    <p class="self-start rounded-lg bg-ok-soft px-3 py-1 font-bold text-ok">{{ $entry?->status->label() ?? $current->status->label() }}</p>
-                                @endif
                             @else
                                 {{-- E 直す：ライブ画面の上で直す --}}
                                 <div class="flex flex-col gap-3" data-test="live-edit">
@@ -381,6 +367,30 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                                             @endforeach
                                         </select>
                                     </label>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="flex shrink-0 flex-col gap-2">
+                        @if (! $isEditing)
+                                @if (is_string($entry?->ai_check['remembered_payment'] ?? null))
+                                    <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered-payment">前回、この店は『{{ $entry->ai_check['remembered_payment'] }}』に直されました</p>
+                                @elseif (($entry?->ai_check['remembered'] ?? false) === true)
+                                    <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered">前回の修正を覚えています</p>
+                                @endif
+                                @if (is_string($entry?->ai_check['reason'] ?? null) && $entry->ai_check['reason'] !== '')
+                                    <p class="truncate text-ink-sub">理由：{{ $entry->ai_check['reason'] }}</p>
+                                @endif
+                                @if ($debit !== null && $credit !== null)
+                                    <p class="whitespace-nowrap rounded-xl border border-line bg-paper px-4 py-2 font-bold" data-test="live-journal">
+                                        仕訳　{{ $debit->account?->name }} {{ number_format($debit->amount_yen) }}円 ／ {{ $credit->account?->name }} {{ number_format($credit->amount_yen) }}円
+                                    </p>
+                                @endif
+                                @if (! $isOpen)
+                                    <p class="self-start rounded-lg bg-ok-soft px-3 py-1 font-bold text-ok">{{ $entry?->status->label() ?? $current->status->label() }}</p>
+                                @endif
+                        @else
                                     @if ($entry?->ai_run_id !== null)
                                         <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="直した理由">
                                             @foreach (CorrectionReason::cases() as $case)
@@ -390,13 +400,11 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                                         </div>
                                         @error('reason') <p class="text-ng">{{ $message }}</p> @enderror
                                     @endif
-                                </div>
-                            @endif
-                        </div>
+                        @endif
                     </div>
 
                     @if ($isOpen)
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid shrink-0 grid-cols-3 gap-4">
                             @if ($isEditing)
                                 <button type="button" wire:click="cancelEdit" class="h-[76px] rounded-2xl border-2 border-ink bg-paper font-bold">やめる（Esc）</button>
                             @else
@@ -415,7 +423,8 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
             @endif
 
             @if ($flash !== '')
-                <p wire:key="flash-{{ md5($flash.$this->confirmedThisMonth) }}" class="live-reveal mt-3 rounded-xl bg-ok-soft px-4 py-2 font-bold text-ok" role="status">{{ $flash }}</p>
+                <p wire:key="flash-{{ md5($flash.$this->confirmedThisMonth) }}" x-data="{ show: true }" x-init="setTimeout(() => show = false, 3000)" x-show="show" x-transition.opacity.duration.500ms
+                   class="fixed left-1/2 top-8 z-10 -translate-x-1/2 rounded-2xl border-4 border-ok bg-ok-soft px-8 py-3 font-bold text-ok shadow-lg" role="status" data-test="live-flash">{{ $flash }}</p>
             @endif
         </section>
 

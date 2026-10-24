@@ -130,7 +130,7 @@ test('T11: 会社Aの直した例は会社Aの L2 にだけ入り、会社Bの L
         'before' => '消耗品',
         'after' => '燃料',
         'reason' => CorrectionReason::WrongCategory,
-        'kernel' => 'vendor:〇〇石油 八幡平店→category:燃料',
+        'kernel' => 'vendor:〇〇石油 八幡平店 → category:燃料',
         'vendor' => '〇〇石油 八幡平店',
         'corrected_by' => $userA->id,
     ])->save();
@@ -145,7 +145,7 @@ test('T11: 会社Aの直した例は会社Aの L2 にだけ入り、会社Bの L
     $journalizeInputA = AiRun::where('company_id', $companyA->id)->where('task', AiTask::Journalize)
         ->where('subject_id', $secondA->id)->firstOrFail()->input;
     expect($journalizeInputA['corrections'])->toHaveCount(1)
-        ->and($journalizeInputA['corrections'][0]['kernel'])->toBe('vendor:〇〇石油 八幡平店→category:燃料');
+        ->and($journalizeInputA['corrections'][0]['kernel'])->toBe('vendor:〇〇石油 八幡平店 → category:燃料');
 
     $entrySecondA = $secondA->journalEntry()->with('category', 'lines.account')->firstOrFail();
     expect($entrySecondA->category?->name)->toBe('燃料')

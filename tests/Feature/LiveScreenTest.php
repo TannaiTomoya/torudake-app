@@ -82,7 +82,9 @@ test('ライブ画面：E で直して理由を選び S で確定。理由がな
     $component->set('reason', CorrectionReason::WrongCategory->value)
         ->call('save', $source->id)
         ->assertHasNoErrors()
-        ->assertSet('editingSourceId', '');
+        ->assertSet('editingSourceId', '')
+        ->assertSeeHtml('data-test="live-flash"')
+        ->assertSeeHtml('setTimeout(() => show = false, 3000)');
 
     $entry = $source->refresh()->journalEntry()->with('category')->firstOrFail();
     expect($entry->status)->toBe(EntryStatus::Confirmed)
@@ -110,7 +112,7 @@ test('台本の場面：支払い元を現金→社長の立替に直すと、�
         ->and($correction->before)->toBe('現金')
         ->and($correction->after)->toBe('社長の立替')
         ->and($correction->reason)->toBe(CorrectionReason::WrongPayment)
-        ->and($correction->kernel)->toBe('vendor:〇〇石油 八幡平店→payment:社長の立替');
+        ->and($correction->kernel)->toBe('vendor:〇〇石油 八幡平店 → payment:社長の立替');
 
     $second = sendReceipt($company, $owner, 410);
     $entry = $second->journalEntry()->with(['bankAccount', 'lines.account'])->firstOrFail();
