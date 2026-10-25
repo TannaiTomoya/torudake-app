@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\ExternalMonthlyFigure;
 use App\Models\ReportImport;
 use App\Models\User;
+use App\Services\Ai\FakeClaudeClient;
 use App\Support\FiscalYear;
 use Illuminate\Http\UploadedFile;
 use Livewire\Livewire;
@@ -33,6 +34,8 @@ test('T19: 帳票を読むだけでは月ごとの売上に入らず、自信が
 
     $import = readReportPhoto($company, $owner);
 
+    expect(app(FakeClaudeClient::class)->requests[0]->attachments[0]['media_type'])->toBe('image/jpeg');
+
     expect($import->status)->toBe(ReportStatus::Review)
         ->and($import->rows)->toHaveCount(3)
         ->and($import->evidence?->purge_after->isFuture())->toBeTrue()
@@ -45,18 +48,18 @@ test('T19: 帳票を読むだけでは月ごとの売上に入らず、自信が
         ->assertSee('4,300,000円');
 });
 
-test('帳票取り込みは未変換のHEICを受け付けない', function (): void {
+test('帳票取り込みは未変換のHEIC・HEIFを受け付けない', function (string $format): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
 
     Livewire::actingAs($owner)
         ->test('pages::company.reports', ['company' => $company])
-        ->set('photo', UploadedFile::fake()->create('report.heic', 10, 'image/heic'))
+        ->set('photo', UploadedFile::fake()->create("report.{$format}", 10, "image/{$format}"))
         ->call('upload')
         ->assertHasErrors(['photo']);
 
     expect($company->reportImports()->count())->toBe(0)
         ->and($company->evidences()->count())->toBe(0);
-});
+})->with(['heic', 'heif']);
 
 test('T19: 保存を押すと月ごとの売上に入り、既存の数字と違う月が分かる', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Admin);

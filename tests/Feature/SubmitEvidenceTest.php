@@ -64,11 +64,13 @@ test('T07: 画像・PDF以外と10MB超は弾かれ、行もファイルもで�
         ->call('send')
         ->assertHasErrors(['photo']);
 
-    Livewire::actingAs($user)
-        ->test('pages::company.submit', ['company' => $company])
-        ->set('photo', UploadedFile::fake()->create('receipt.heic', 10, 'image/heic'))
-        ->assertHasErrors(['photo'])
-        ->assertSet('state', 'waiting');
+    foreach (['heic', 'heif'] as $format) {
+        Livewire::actingAs($user)
+            ->test('pages::company.submit', ['company' => $company])
+            ->set('photo', UploadedFile::fake()->create("receipt.{$format}", 10, "image/{$format}"))
+            ->assertHasErrors(['photo'])
+            ->assertSet('state', 'waiting');
+    }
 
     Livewire::actingAs($user)
         ->test('pages::company.submit', ['company' => $company])

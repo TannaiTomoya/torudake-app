@@ -138,7 +138,7 @@
 |---|---|
 | 他社のデータを見られる | UUIDv7、会社から引く、`company` ミドルウェア、全画面のテスト |
 | 写真の URL が漏れる | 非公開ディスク、Policy を通るルートだけ、ファイル名は UUIDv7、`Cache-Control: private, no-store` |
-| 画像以外のファイル | `mimetypes`（JPEG・PNG・WebP・HEIC・PDF）と10MB |
+| 画像以外のファイル | サーバーは `mimetypes`（JPEG・PNG・WebP・PDF）と10MBを検査する。HEIC/HEIFは端末内でJPEGに変換してから送る。変換に失敗した選択は送らず、選び直しを案内する |
 | 二重送信 | SHA-256 と `UNIQUE(company_id, sha256)`、処理中はボタンを押せない |
 | 写真が長く残る | 毎日3時に30日を過ぎた写真を削除。DB のバックアップに写真は入らない |
 | AI に本番を壊される | AI は JSON を返すだけ。保存はコード、承認は人。本番の SSH・DB を AI のツールに渡さない |
