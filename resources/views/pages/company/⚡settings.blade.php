@@ -22,6 +22,8 @@ new class extends Component {
     /** @var list<int|string> */
     public array $busyMonths = [];
 
+    public string $categoryNotice = '';
+
     public function mount(Company $company): void
     {
         $this->authorize('manageSettings', $company);
@@ -64,16 +66,14 @@ new class extends Component {
     public function renameCategory(string $categoryId, string $newName, CompanySettingsService $service): void
     {
         $this->authorize('manageSettings', $this->company);
-
-        $trimmed = trim($newName);
-        if ($trimmed === '' || mb_strlen($trimmed) > 100) {
-            return;
-        }
+        $this->resetErrorBag('categoryName');
+        $this->categoryNotice = '';
 
         /** @var User $user */
         $user = Auth::user();
 
-        $service->renameCategory($this->company, $user, $categoryId, $trimmed);
+        $service->renameCategory($this->company, $user, $categoryId, $newName);
+        $this->categoryNotice = '分類名を保存しました。';
     }
 
     public function setDefaultBankAccount(string $bankAccountId, CompanySettingsService $service): void
@@ -135,11 +135,20 @@ new class extends Component {
 
     <div class="space-y-3 rounded-xl border border-line bg-panel p-5">
         <h2 class="text-lg font-bold text-ink">分類と勘定科目</h2>
+        @error('categoryName') <p class="text-ng">{{ $message }}</p> @enderror
+        @if ($categoryNotice !== '') <p role="status" class="text-ok">{{ $categoryNotice }}</p> @endif
         <ul class="divide-y divide-line">
             @foreach ($company->categories()->with('account')->orderBy('sort_order')->get() as $category)
-                <li class="flex items-center justify-between py-2">
-                    <span class="font-bold text-ink">{{ $category->name }}（{{ $category->direction->label() }}）</span>
-                    <span class="text-note text-ink-sub">→ {{ $category->account?->name }}</span>
+                <li wire:key="category-{{ $category->id }}" class="space-y-2 py-3" x-data="{ newName: @js($category->name) }">
+                    <form x-on:submit.prevent="$wire.renameCategory('{{ $category->id }}', newName)" class="flex flex-wrap items-end gap-3">
+                        <label for="category-name-{{ $category->id }}" class="flex-1 space-y-1 font-bold text-ink">
+                            <span class="block text-note">分類名（{{ $category->direction->label() }}）@if ($category->archived_at !== null) ・使用停止済み@endif</span>
+                            <input id="category-name-{{ $category->id }}" type="text" x-model="newName" value="{{ $category->name }}" required maxlength="100"
+                                   class="w-full rounded-lg border border-line bg-paper px-3 py-2 text-body">
+                        </label>
+                        <button type="submit" wire:loading.attr="disabled" wire:target="renameCategory" class="rounded-lg bg-ink px-4 py-2 font-bold text-paper disabled:opacity-60">名前を保存</button>
+                    </form>
+                    <p class="text-note text-ink-sub">→ {{ $category->account?->name }}</p>
                 </li>
             @endforeach
         </ul>

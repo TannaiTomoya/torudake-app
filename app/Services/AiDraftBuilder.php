@@ -43,10 +43,16 @@ class AiDraftBuilder
                 return null;
             }
 
-            $category = $company->categories()
+            $categories = $company->categories()
                 ->whereNull('archived_at')
                 ->where('name', is_string($draft['category'] ?? null) ? $draft['category'] : '')
-                ->first();
+                ->limit(2)->get();
+
+            if ($categories->count() > 1) {
+                throw new AiException('同じ名前の分類が複数あります。会社設定で分類名を確認してください。');
+            }
+
+            $category = $categories->first();
 
             if ($category === null) {
                 throw AiException::invalidOutput('分類が会社の一覧にありません');
