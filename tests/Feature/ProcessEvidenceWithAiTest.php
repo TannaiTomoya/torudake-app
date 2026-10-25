@@ -223,7 +223,8 @@ test('T35: 10分以上止まったAI処理だけを失敗にして、手入力�
         ->and($fresh->refresh()->ai_status)->toBe(AiStatus::Waiting);
 });
 
-test('T36: 形が違う・存在しない・未来の日付でもAIの下書きを作り、原資料の日付は空にする', function (string $date): void {
+test('T36: 形が違う・存在しない・未来の日付でもAIの下書きを作り、原資料の日付は空にする', function (?string $date): void {
+    $this->travelTo(now()->setDate(2026, 10, 25)->setTime(0, 30));
     app(FakeClaudeClient::class)->withReading(['date' => $date]);
     ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor);
 
@@ -231,12 +232,27 @@ test('T36: 形が違う・存在しない・未来の日付でもAIの下書き�
     $entry = $source->journalEntry()->firstOrFail();
 
     expect($source->ai_status)->toBe(AiStatus::Done)
+        ->and($source->status)->toBe(SourceStatus::Drafted)
+        ->and($source->ai_error)->toBeNull()
         ->and($source->occurred_on)->toBeNull()
-        ->and($entry->entry_date->toDateString())->toBe(now()->toDateString());
+        ->and($entry->entry_date->toDateString())->toBe('2026-10-25')
+        ->and($entry->status)->toBe(EntryStatus::Draft)
+        ->and($entry->amountYen())->toBe(3850)
+        ->and(AiRun::query()->where('company_id', $company->id)->where('valid', true)->count())->toBe(3)
+        ->and(AiRun::query()->where('subject_id', $source->id)->where('task', AiTask::ReadReceipt)->sole()->output['date'])->toBe($date);
 })->with([
-    '和暦形式' => '2026年10月24日',
+    '日本語の西暦' => '2026年10月24日',
+    '和暦' => '令和8年10月24日',
     '存在しない日付' => '2026-02-30',
     '未来の日付' => '2099-01-01',
+    '翌日' => '2026-10-26',
+    'うるう年ではない年' => '2025-02-29',
+    '月がゼロ' => '2026-00-24',
+    '日がゼロ' => '2026-10-00',
+    '日時が含まれる' => '2026-10-24T12:00:00+09:00',
+    '末尾に改行' => "2026-10-24\n",
+    '空欄' => '',
+    '読み取れない' => null,
 ]);
 
 test('金額の記載がない納品書（後日請求）でも、行のない下書きができ、支払い元は未払金、気になる印が付く', function (): void {
