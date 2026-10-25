@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\AiStatus;
 use App\Enums\AiTask;
+use App\Enums\EntryStatus;
 use App\Enums\Role;
 use App\Models\AiRun;
 use App\Models\Company;
@@ -133,4 +135,54 @@ test('AI_DRIVER が claude・fake のときは再生しない', function (): voi
     sendReceipt($stage, $user, 400);
 
     expect($fake->requests)->toHaveCount(3);
+});
+
+test('T33: 練習後に分類・口座を変更や使用停止した場合、旧名の記録を再生せず現行の選択肢でAIを呼ぶ', function (string $choice, bool $archived): void {
+    ['runs' => $practice] = practiceInDemoCompany();
+    ['company' => $stage, 'user' => $user] = createCompanyWithMember(Role::Owner);
+    $stage->forceFill(['is_demo' => true])->save();
+    $target = $choice === 'category'
+        ? $stage->categories()->where('name', '消耗品')->firstOrFail()
+        : $stage->bankAccounts()->where('name', '現金')->firstOrFail();
+    $target->forceFill($archived ? ['archived_at' => now()] : ['name' => '架空の変更後の名前'])->save();
+    if ($choice === 'bank_account' && $archived) {
+        $stage->bankAccounts()->where('name', '社長の立替')->firstOrFail()->forceFill(['is_default_for_receipts' => true])->save();
+    }
+    $snapshot = $practice->map(fn (AiRun $run): array => $run->getAttributes())->all();
+    $fake = useReplayDriver();
+
+    $source = sendReceipt($stage, $user);
+    $entry = $source->journalEntry()->with('category', 'bankAccount')->first();
+    $run = $stage->aiRuns()->where('task', AiTask::Journalize)->sole();
+    expect($source->ai_status)->toBe(AiStatus::Done)
+        ->and($entry?->status)->toBe(EntryStatus::Draft)
+        ->and($entry?->confirmed_at)->toBeNull()
+        ->and($fake->requests)->toHaveCount(1)
+        ->and($fake->requests[0]->task)->toBe(AiTask::Journalize)
+        ->and($run->driver)->toBe('fake')
+        ->and($run->valid)->toBeTrue()
+        ->and($run->output[$choice])->not->toBe($choice === 'category' ? '消耗品' : '現金')
+        ->and($choice === 'category' ? $entry?->category?->name : $entry?->bankAccount?->name)->toBe($run->output[$choice])
+        ->and($practice->map(fn (AiRun $run): array => $run->fresh()->getAttributes())->all())->toBe($snapshot);
+    Sleep::assertSleptTimes(2);
+})->with([
+    '分類名変更' => ['category', false], '口座名変更' => ['bank_account', false],
+    '分類使用停止' => ['category', true], '口座使用停止' => ['bank_account', true],
+]);
+
+test('T33: 旧名の再生記録を除外した後も、AIが2回旧名を返す場合は下書きを保存しない', function (): void {
+    practiceInDemoCompany();
+    ['company' => $stage, 'user' => $user] = createCompanyWithMember(Role::Owner);
+    $stage->forceFill(['is_demo' => true])->save();
+    $stage->categories()->where('name', '消耗品')->firstOrFail()->forceFill(['name' => '架空の変更後の名前'])->save();
+    $fake = useReplayDriver();
+    $fake->withJournalize(['category' => '消耗品']);
+
+    $source = sendReceipt($stage, $user);
+    expect($source->ai_status)->toBe(AiStatus::Failed)
+        ->and($source->ai_error)->toContain('選択肢にありません')
+        ->and($stage->journalEntries()->count())->toBe(0)
+        ->and($stage->aiRuns()->where('task', AiTask::Journalize)->where('valid', false)->count())->toBe(2)
+        ->and($stage->aiRuns()->where('task', AiTask::Journalize)->where('driver', 'replay')->count())->toBe(0)
+        ->and($fake->requests)->toHaveCount(2);
 });
