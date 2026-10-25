@@ -1,3 +1,4 @@
+import { createHeicUploads } from './heic-uploads';
 import { PasskeyExistsError, Passkeys, UserCancelledError } from '@laravel/passkeys';
 
 const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(`--color-${name}`).trim();
@@ -136,57 +137,5 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    // HEIC/HEIF はブラウザー内で JPEG に変換してから Livewire に渡す。
-    window.Alpine.data('heicUploads', () => ({
-        converting: false,
-        error: '',
-
-        async prepare(event) {
-            const input = event.target;
-            if (!(input instanceof HTMLInputElement) || input.type !== 'file') return;
-            if (input.dataset.heicReady === '1') {
-                delete input.dataset.heicReady;
-                return;
-            }
-
-            const files = Array.from(input.files ?? []);
-            const isHeicName = (file) => /\.(heic|heif)$/i.test(file.name);
-            const isHeicType = (file) => /^image\/hei[cf]$/i.test(file.type);
-            if (!files.some((file) => isHeicName(file) || isHeicType(file))) return;
-
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            this.error = '';
-            this.converting = true;
-
-            try {
-                const { heicTo, isHeic } = await import('heic-to');
-                const transfer = new DataTransfer();
-
-                for (const file of files) {
-                    if (isHeicName(file) || isHeicType(file)) {
-                        if (file.size > 10 * 1024 * 1024) throw new Error('too-large');
-                        if (!await isHeic(file)) throw new Error('invalid-heic');
-
-                        const blob = await heicTo({ blob: file, type: 'image/jpeg', quality: 0.9 });
-                        const name = file.name.replace(/\.(heic|heif)$/i, '.jpg');
-                        const jpeg = new File([blob], name, { type: 'image/jpeg', lastModified: file.lastModified });
-                        if (jpeg.size > 10 * 1024 * 1024) throw new Error('too-large');
-                        transfer.items.add(jpeg);
-                    } else {
-                        transfer.items.add(file);
-                    }
-                }
-
-                input.files = transfer.files;
-                input.dataset.heicReady = '1';
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            } catch {
-                input.value = '';
-                this.error = 'HEIC/HEIFを変換できませんでした。JPEGで保存してから選び直してください。';
-            } finally {
-                this.converting = false;
-            }
-        },
-    }));
+    window.Alpine.data('heicUploads', createHeicUploads);
 });

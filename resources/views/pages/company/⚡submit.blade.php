@@ -241,7 +241,7 @@ new #[Title('レシートを送る')] class extends Component {
         @endif
 
         <label class="flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-muted bg-panel p-8 text-center">
-            <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" capture="environment" wire:model="photo" x-bind:disabled="converting" data-test="camera-input">
+            <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/heic-sequence,image/heif-sequence,application/pdf" capture="environment" wire:model="photo" x-bind:disabled="converting" data-test="camera-input">
             <flux:icon.camera class="size-12 text-ink" />
             <span class="text-lg font-bold text-ink">レシートを撮る</span>
             <span class="text-note text-ink-sub">撮るたびにためて、まとめて送れます</span>
@@ -287,11 +287,11 @@ new #[Title('レシートを送る')] class extends Component {
         @if (count($photos) < $this::MAX_PHOTOS)
             <div class="grid grid-cols-2 gap-2" wire:loading.remove wire:target="send">
                 <label class="block cursor-pointer rounded-xl {{ $photos === [] ? 'bg-brand' : 'border-2 border-ink bg-paper' }} py-3 text-center text-lg font-bold text-ink">
-                    <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" capture="environment" wire:model="photo" x-bind:disabled="converting">
+                    <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/heic-sequence,image/heif-sequence,application/pdf" capture="environment" wire:model="photo" x-bind:disabled="converting">
                     {{ $photos === [] ? '撮る' : 'もう1枚撮る' }}
                 </label>
                 <label class="block cursor-pointer rounded-xl border-2 border-ink bg-paper py-3 text-center font-bold text-ink">
-                    <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" multiple wire:model="picked" x-bind:disabled="converting" data-test="library-input">
+                    <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/heic-sequence,image/heif-sequence,application/pdf" multiple wire:model="picked" x-bind:disabled="converting" data-test="library-input">
                     写真を選ぶ
                 </label>
             </div>

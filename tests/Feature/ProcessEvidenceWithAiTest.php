@@ -44,6 +44,8 @@ test('T09: 偽物の AI で L1→L2→L3 が走り、下書きができ、ai_run
 
     $source = submitReceipt($company, $user);
 
+    expect(app(FakeClaudeClient::class)->requests[0]->attachments[0]['media_type'])->toBe('image/jpeg');
+
     expect($source->ai_status)->toBe(AiStatus::Done)
         ->and($source->status)->toBe(SourceStatus::Drafted)
         ->and($source->vendor)->toBe('〇〇石油 八幡平店')

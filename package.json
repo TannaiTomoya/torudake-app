@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vp build",
-        "dev": "vp dev"
+        "dev": "vp dev",
+        "test:frontend": "node --test tests/Frontend/*.test.js"
     },
     "dependencies": {
         "@laravel/passkeys": "0.2.0",

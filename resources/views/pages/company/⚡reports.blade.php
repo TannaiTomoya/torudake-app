@@ -122,7 +122,7 @@ new class extends Component {
     </header>
 
     <form wire:submit="upload" class="space-y-3 rounded-2xl border border-line bg-panel p-5">
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" wire:model="photo" x-bind:disabled="converting" class="block w-full text-body" data-test="report-photo">
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/heic-sequence,image/heif-sequence" wire:model="photo" x-bind:disabled="converting" class="block w-full text-body" data-test="report-photo">
         <p x-show="converting" x-cloak class="text-note text-ink-sub" role="status">HEIC/HEIFをこの端末でJPEGに変換しています…</p>
         <p x-show="error" x-cloak x-text="error" class="font-bold text-ng" role="alert"></p>
         @error('photo') <p class="font-bold text-ng">{{ $message }}</p> @enderror
