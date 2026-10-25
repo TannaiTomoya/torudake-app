@@ -24,6 +24,8 @@ use Throwable;
  */
 class ReportImportService
 {
+    public function __construct(private readonly EvidenceFileStorage $files) {}
+
     public function upload(Company $company, User $user, UploadedFile $file): ReportImport
     {
         $mime = (string) $file->getMimeType();
@@ -42,12 +44,9 @@ class ReportImportService
             throw ValidationException::withMessages(['photo' => 'この写真はもう送られています。']);
         }
 
-        $directory = "companies/{$company->id}";
         $fileName = Str::uuid7()->toString().'.'.($file->guessExtension() ?? 'bin');
-        $storageKey = "{$directory}/{$fileName}";
+        $storageKey = $this->files->put($company, $file, $fileName);
         $disk = Storage::disk((string) config('torudake.evidence.disk'));
-
-        $disk->putFileAs($directory, $file, $fileName);
 
         try {
             $import = DB::transaction(function () use ($company, $user, $file, $sha256, $mime, $storageKey): ReportImport {

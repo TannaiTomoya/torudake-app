@@ -41,6 +41,13 @@ return [
         'evidence' => [
             'driver' => 'local',
             'root' => storage_path('app/private/evidences'),
+            'visibility' => 'private',
+            'directory_visibility' => 'private',
+            // Web・キューの共有グループだけに読み書きを許可する。
+            'permissions' => [
+                'file' => ['private' => 0660],
+                'dir' => ['private' => 02770],
+            ],
             'serve' => false,
             'throw' => true,
             'report' => false,

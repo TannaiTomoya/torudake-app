@@ -21,6 +21,8 @@ use Throwable;
 
 class SubmitEvidence
 {
+    public function __construct(private readonly EvidenceFileStorage $files) {}
+
     private const EXTENSIONS = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
@@ -47,12 +49,9 @@ class SubmitEvidence
         }
 
         $extension = self::EXTENSIONS[$mime];
-        $directory = "companies/{$company->id}";
         $fileName = Str::uuid7()->toString().'.'.$extension;
-        $storageKey = "{$directory}/{$fileName}";
+        $storageKey = $this->files->put($company, $file, $fileName);
         $disk = Storage::disk((string) config('torudake.evidence.disk'));
-
-        $disk->putFileAs($directory, $file, $fileName);
 
         try {
             $source = DB::transaction(function () use ($company, $user, $file, $note, $batchId, $sha256, $mime, $storageKey): SourceRecord {
