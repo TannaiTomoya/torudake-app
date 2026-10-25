@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ReportImportService;
 use App\Support\ReadingChecks;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -34,7 +35,7 @@ new class extends Component {
 
         $this->company = $company;
         $this->companyId = $company->id;
-        $this->displayedImportId = $company->reportImports()->latest('created_at')->value('id');
+        $this->displayedImportId = $company->reportImports()->latest('created_at')->latest('id')->value('id');
     }
 
     public function upload(ReportImportService $service): void
@@ -58,6 +59,7 @@ new class extends Component {
     {
         $this->authorize('importReports', $this->company);
 
+        $this->notice = null;
         $this->resetErrorBag('save');
         $import = $this->latest;
         if ($import === null) {
@@ -70,6 +72,8 @@ new class extends Component {
         $user = Auth::user();
         try {
             $count = $service->save($this->company, $user, $import->id);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (Throwable $e) {
             report($e);
             $this->addError('save', '保存できませんでした。内容を確認して、もう一度お試しください。');

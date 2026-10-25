@@ -236,6 +236,8 @@ confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必
 4. 三期比較 → `external_monthly_figures`（月ごと）。顧客別 → 金額の大きい順に `external_customer_sales`（A社・B社…）
 5. 監査 `report.import`
 
+現在の月別売上画面では、開いたときに表示した取り込みIDを `#[Locked]` で固定し、その会社から取得して保存する。他の人が新しい取り込みを作っても対象を差し替えない。同時刻の取り込みはIDの降順で最新を決める。`review` だけ保存でき、保存済み・読み取り中・失敗の理由は画面の保存エラー欄に表示する。
+
 ### 4.10 そのほか（版2.0 のまま）
 TrainingDataExporter（JSONL）、PurgeExpiredEvidence（毎日3時）、Artisan コマンド（`torudake:create-company`・`torudake:add-member`・`torudake:seed-demo`）。`torudake:seed-demo` は、**架空の**三期比較（3期分の月ごとの売上。架空の基準額×季節の係数で作り、忙しい月の初期値と同じく**秋（10〜12月）が多く、6・7月もやや多い**形にする。デモの見せ場のため、忙しい月のうち1か月は前年同月より少なくする）・顧客別（上位2社で約8割）・今期の確定した経費・「あと1件」から始まるデータを入れる。人は作らない（§9）。
 
@@ -347,6 +349,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | T39 | 経理がAI待ちの原資料を手で確定した後、遅れて実行されたAIジョブが原資料・仕訳を上書きせず、AIを呼ばない | 済み |
 | T40 | 前月の取引日を持つ下書きが残るとき、ホーム・ライブの「あと n 件」に含め、前月以前の件数も表示する | 済み |
 | T41 | HEIC/HEIF（連続画像のMIMEも含む）は端末内でJPEGに変換してから送る。複数選択の順序を保ち、変換失敗・10MB超過は送らず、JPEGの再選択でエラーを消す。Livewireへ渡す前に変換中の無効状態を解除し、帳票の読み取りボタンが復帰する。未変換ファイルは両サーバー入口で拒否し、AIへの添付はJPEGとなる | 済み（PHPと `tests/Frontend/heic-uploads.test.js`。`composer test` で両方実行） |
+| T42 | 帳票は表示中のIDだけ保存し、新しい取り込みへ切り替えない。同時刻の順序、二重保存・読み取り中・失敗の理由表示、ID改変拒否、他社IDの404、表示後のロール失効による403を確認する | 済み（`ReportImportTest`） |
 
 ## 9. 初期データ
 - 開発：版2.0 のまま。**2段階認証の鍵は16文字以上の固定値に直す**（ブラウザでログインできるように）。社長・経理・送るだけ・他社の4人
