@@ -28,15 +28,7 @@
                     </flux:sidebar.item>
 
                     @if ($businessReady)
-                    @can('viewOwner', $navCompany)
-                        @php($concernCount = \App\Support\OwnerConcerns::count($navCompany))
-                        <flux:sidebar.item icon="chart-bar" :icon-dot="$concernCount > 0" :href="route('company.owner', $navCompany)" :current="request()->routeIs('company.owner')" wire:navigate data-test="sidebar-owner">
-                            社長の画面
-                            <span x-data="{ count: {{ $concernCount }} }" x-on:concerns-changed.window="count = $event.detail.count" x-show="count > 0" x-text="count"
-                                  @if ($concernCount === 0) style="display: none" @endif
-                                  class="ms-2 rounded-full bg-warn-soft px-2 text-note font-bold text-warn" aria-label="まだ見ていない気になる仕訳の数" data-test="sidebar-concern-count">{{ $concernCount }}</span>
-                        </flux:sidebar.item>
-                    @else
+                    @unless ($navMembership->role->prefersOwnerHome())
                         @can('editDraft', $navCompany)
                             @php($remaining = \App\Support\RemainingCount::for($navCompany))
                             <flux:sidebar.item icon="pencil-square" :icon-dot="$remaining > 0" :href="route('company.sources.index', $navCompany)" :current="request()->routeIs('company.sources.*')" wire:navigate data-test="sidebar-sources">
@@ -51,6 +43,15 @@
                                 レシートを送る
                             </flux:sidebar.item>
                         @endcan
+                    @endunless
+                    @can('viewOwner', $navCompany)
+                        @php($concernCount = \App\Support\OwnerConcerns::count($navCompany))
+                        <flux:sidebar.item icon="chart-bar" :icon-dot="$concernCount > 0" :href="route('company.owner', $navCompany)" :current="request()->routeIs('company.owner')" wire:navigate data-test="sidebar-owner">
+                            社長の画面
+                            <span x-data="{ count: {{ $concernCount }} }" x-on:concerns-changed.window="count = $event.detail.count" x-show="count > 0" x-text="count"
+                                  @if ($concernCount === 0) style="display: none" @endif
+                                  class="ms-2 rounded-full bg-warn-soft px-2 text-note font-bold text-warn" aria-label="まだ見ていない気になる仕訳の数" data-test="sidebar-concern-count">{{ $concernCount }}</span>
+                        </flux:sidebar.item>
                     @endcan
 
                     @can('viewSources', $navCompany)

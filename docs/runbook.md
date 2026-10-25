@@ -124,6 +124,9 @@ php artisan tinker --execute='App\Models\Company::where("is_demo", true)->get()-
 php artisan torudake:seed-demo 本番用のID
 ```
 4. 人を入れる。**本番用を先に**入れる（ログインすると、先に入った会社が開く）。PC はライブ画面で直して保存する「経理担当」（admin。ライブ画面・社長の画面も見られる）、スマホは送るだけの「現場」。名前はプロジェクターに映るので、本名にしない。
+
+   admin のホームとメニューは「直して保存」を優先する。社長の画面は補助リンクからも開ける。owner は社長向けホーム、editor は経理向けホームになる。表示名を「経理担当」に変えてもロールは変わらない。
+
 ```bash
 php artisan torudake:add-member 本番用のID PCのメール admin --name=経理担当
 ```

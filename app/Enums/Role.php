@@ -42,6 +42,12 @@ enum Role: string
         return in_array($this, [self::Owner, self::Admin, self::Approver, self::Editor], true);
     }
 
+    /** ホームとナビの表示方針。各画面へのアクセス許可は Policy で判定する。 */
+    public function prefersOwnerHome(): bool
+    {
+        return $this === self::Owner;
+    }
+
     public function canViewLiveAndAi(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);
