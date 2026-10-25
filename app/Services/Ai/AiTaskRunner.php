@@ -36,7 +36,8 @@ class AiTaskRunner
     {
         $recorded = $this->recording($company, $request, $promptVersion);
 
-        if ($recorded !== null && $recorded->output !== null) {
+        // 練習後の分類名・口座名の変更や使用停止も、通常の応答と同じスキーマで確かめる。
+        if ($recorded !== null && $recorded->output !== null && $this->validator->validate($recorded->output, $request->schema) === []) {
             $startedAt = hrtime(true);
             Sleep::for(min($recorded->latency_ms, (int) config('torudake.ai.timeout_seconds') * 1000))->milliseconds();
 
