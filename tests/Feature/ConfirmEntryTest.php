@@ -293,7 +293,7 @@ test('Issue #1: 手で確定した原資料の後からキュー済みAIジョ�
         ->and(count($fakeClient->requests))->toBe($requestCount);
 });
 
-test('T34: AIジョブの最終失敗は手入力対象になり、保存して次へ進める', function (): void {
+test('T34: AIジョブの最終失敗・停滞復旧は手入力対象になり、保存して次へ進める', function (bool $stale): void {
     Queue::fake();
     ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
 
@@ -304,21 +304,37 @@ test('T34: AIジョブの最終失敗は手入力対象になり、保存して�
     $first = $first->fresh() ?? throw new RuntimeException('原資料が見つかりません');
     $next = $next->fresh() ?? throw new RuntimeException('次の原資料が見つかりません');
 
-    (new ProcessEvidenceWithAi($first->id))->failed(new RuntimeException('worker stopped'));
-    (new ProcessEvidenceWithAi($next->id))->failed(new RuntimeException('worker stopped'));
+    if ($stale) {
+        foreach ([$first, $next] as $source) {
+            $source->forceFill(['ai_status' => AiStatus::Reading, 'updated_at' => now()->subMinutes(11)])->save();
+        }
+        $this->artisan('torudake:fail-stale-evidence-ai')->assertSuccessful();
+    } else {
+        (new ProcessEvidenceWithAi($first->id))->failed(new RuntimeException('worker stopped'));
+        (new ProcessEvidenceWithAi($next->id))->failed(new RuntimeException('worker stopped'));
+    }
 
     expect($first->refresh()->ai_status)->toBe(AiStatus::Failed)
-        ->and($first->ai_error)->toBe('AIの処理に失敗しました。');
+        ->and($first->ai_error)->toBe($stale
+            ? 'AIの処理が10分以上止まったため、手入力に切り替えてください。'
+            : 'AIの処理に失敗しました。');
 
     Livewire::actingAs($editor)
         ->test('pages::company.sources.show', ['company' => $company, 'source' => $first->id])
+        ->assertSee('AIが読めませんでした')
+        ->assertDontSee('worker stopped')
         ->set('vendor', '手入力の取引先')
         ->set('categoryId', categoryId($company, '消耗品'))
         ->set('amountYen', '12000')
         ->call('confirm')
         ->assertHasNoErrors()
         ->assertRedirect(route('company.sources.show', [$company, $next]));
-});
+
+    expect($first->refresh()->status)->toBe(SourceStatus::Confirmed)
+        ->and($first->journalEntry?->amountYen())->toBe(12000)
+        ->and($first->journalEntry?->workbook_row)->toBe(2)
+        ->and($next->refresh()->status)->toBe(SourceStatus::New);
+})->with([false, true]);
 
 test('他社の原資料は404、閲覧のみの人は直して確定の画面に入れず、アクションも403', function (): void {
     ['company' => $companyA, 'user' => $editorA] = createCompanyWithMember(Role::Editor);
