@@ -10,6 +10,7 @@ use App\Enums\Side;
 use App\Enums\SourceStatus;
 use App\Jobs\ProcessEvidenceWithAi;
 use App\Models\AiCorrection;
+use App\Models\AiRun;
 use App\Models\AuditLog;
 use App\Models\JournalEntry;
 use App\Services\Ai\FakeClaudeClient;
@@ -240,6 +241,56 @@ test('AI が読めなかった原資料は、経理が手で入れて確定で�
     expect($entry->status)->toBe(EntryStatus::Confirmed)
         ->and($entry->created_by)->toBe($editor->id)
         ->and($entry->amountYen())->toBe(12000);
+});
+
+test('Issue #1: 手で確定した原資料の後からキュー済みAIジョブを実行しても上書きせず、AIを呼ばない', function (): void {
+    Queue::fake();
+    $fakeClient = app(FakeClaudeClient::class);
+    ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
+
+    $result = app(SubmitEvidence::class)->submit(
+        $company,
+        $editor,
+        UploadedFile::fake()->image('manual-before-ai.jpg', 400, 600),
+    );
+    $source = $result->source?->fresh() ?? throw new RuntimeException('原資料ができていません');
+
+    Livewire::actingAs($editor)
+        ->test('pages::company.sources.show', ['company' => $company, 'source' => $source->id])
+        ->set('vendor', '手入力の取引先')
+        ->set('categoryId', categoryId($company, '部品・修理'))
+        ->set('amountYen', '12000')
+        ->call('confirm')
+        ->assertHasNoErrors();
+
+    $entry = $source->refresh()->journalEntry()->firstOrFail();
+    $manualValues = [
+        'vendor' => $source->vendor,
+        'amount_yen' => $source->amount_yen,
+        'occurred_on' => $source->occurred_on?->toDateString(),
+        'entry_date' => $entry->entry_date->toDateString(),
+    ];
+
+    expect($source->status)->toBe(SourceStatus::Confirmed)
+        ->and($entry->status)->toBe(EntryStatus::Confirmed)
+        ->and(AiRun::query()->where('company_id', $company->id)->where('subject_id', $source->id)->count())->toBe(0);
+    $requestCount = count($fakeClient->requests);
+
+    app()->call([new ProcessEvidenceWithAi($source->id), 'handle']);
+
+    $source->refresh();
+    expect([
+        'vendor' => $manualValues['vendor'],
+        'amount_yen' => $manualValues['amount_yen'],
+        'occurred_on' => $source->occurred_on?->toDateString(),
+    ])->toEqual([
+        'vendor' => $manualValues['vendor'],
+        'amount_yen' => $manualValues['amount_yen'],
+        'occurred_on' => $manualValues['occurred_on'],
+    ])
+        ->and($source->journalEntry()->firstOrFail()->entry_date->toDateString())->toBe($manualValues['entry_date'])
+        ->and(AiRun::query()->where('company_id', $company->id)->where('subject_id', $source->id)->count())->toBe(0)
+        ->and(count($fakeClient->requests))->toBe($requestCount);
 });
 
 test('T34: AIジョブの最終失敗は手入力対象になり、保存して次へ進める', function (): void {
