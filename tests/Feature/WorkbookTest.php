@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\CorrectionReason;
+use App\Enums\EntryKind;
 use App\Enums\EntryStatus;
 use App\Enums\Role;
 use App\Models\AiCorrection;
@@ -10,8 +11,10 @@ use App\Models\SourceRecord;
 use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
+use App\Services\JournalLineWriter;
 use App\Services\OwnerReviewService;
 use App\Services\WorkbookService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -70,6 +73,128 @@ function numbersInSheet(Worksheet $sheet): array
 
     return $numbers;
 }
+
+function workbookEntryWithId(Company $company, string $id, int $amount): JournalEntry
+{
+    $category = $company->categories()->where('name', '消耗品')->firstOrFail();
+    $bankAccount = $company->bankAccounts()->where('name', '現金')->firstOrFail();
+    $entry = new JournalEntry;
+    $entry->forceFill([
+        'id' => $id,
+        'company_id' => $company->id,
+        'entry_date' => '2026-10-25',
+        'kind' => EntryKind::Normal,
+        'status' => EntryStatus::Confirmed,
+        'category_id' => $category->id,
+        'bank_account_id' => $bankAccount->id,
+        'confirmed_at' => now(),
+    ])->save();
+    app(JournalLineWriter::class)->rewrite($entry, $category, $bankAccount, $amount);
+
+    return $entry;
+}
+
+function replaceWorkbookNumber(Company $company, int $row, string $number): void
+{
+    $sheet = journalSheet($company);
+    $sheet->setCellValue([1, $row], $number);
+    $path = tempnam(sys_get_temp_dir(), 'wbt');
+
+    try {
+        (new Xlsx($sheet->getParentOrThrow()))->save($path);
+        Storage::disk('local')->put($company->workbook()->firstOrFail()->storage_key, (string) file_get_contents($path));
+    } finally {
+        unlink($path);
+    }
+}
+
+test('T43: 末尾8桁が同じ仕訳も別行に入り、行番号を失って再同期しても互いの行を上書きしない', function (bool $wrongRow): void {
+    ['company' => $company] = createCompanyWithMember(Role::Editor);
+    $first = workbookEntryWithId($company, '0199aaaa-0000-7000-8000-0000deadbeef', 1200);
+    $second = workbookEntryWithId($company, '0199bbbb-0000-7000-8000-0000deadbeef', 9800);
+    $workbooks = app(WorkbookService::class);
+
+    $workbooks->upsertRow($company, $first->id);
+    $second->forceFill(['workbook_row' => $wrongRow ? 2 : null])->save();
+    $workbooks->upsertRow($company, $second->id);
+    $first->forceFill(['workbook_row' => null])->save();
+    $second->refresh()->forceFill(['workbook_row' => null])->save();
+    $workbooks->syncMissing($company);
+    $workbooks->upsertRow($company, $second->id);
+
+    $sheet = journalSheet($company);
+    expect(numbersInSheet($sheet))->toBe([strtoupper($first->id), strtoupper($second->id)])
+        ->and($sheet->getCell([6, 2])->getValue())->toBe(1200)
+        ->and($sheet->getCell([6, 3])->getValue())->toBe(9800)
+        ->and($first->refresh()->workbook_row)->toBe(2)
+        ->and($second->refresh()->workbook_row)->toBe(3)
+        ->and($company->workbook()->firstOrFail()->next_row)->toBe(4);
+})->with([false, true]);
+
+test('T43: 旧8桁番号が会社内で一意なら同じ行をUUID全体に移行し、他社の同番号は影響しない', function (bool $rowKnown): void {
+    ['company' => $company] = createCompanyWithMember();
+    ['company' => $other] = createCompanyWithMember();
+    $entry = workbookEntryWithId($company, '0199aaaa-0000-7000-8000-0000deadbeef', 1200);
+    $foreign = workbookEntryWithId($other, '0199bbbb-0000-7000-8000-0000deadbeef', 9800);
+    $workbooks = app(WorkbookService::class);
+    $workbooks->upsertRow($company, $entry->id);
+    $workbooks->upsertRow($other, $foreign->id);
+    $foreignBytes = $workbooks->contents($other);
+    replaceWorkbookNumber($company, 2, 'DEADBEEF');
+    $entry->refresh()->forceFill(['workbook_row' => $rowKnown ? 2 : null])->save();
+
+    $workbooks->upsertRow($company, $entry->id);
+
+    expect(numbersInSheet(journalSheet($company)))->toBe([strtoupper($entry->id)])
+        ->and($entry->refresh()->workbook_row)->toBe(2)
+        ->and($company->workbook()->firstOrFail()->next_row)->toBe(3)
+        ->and($workbooks->contents($other))->toBe($foreignBytes);
+})->with([false, true]);
+
+test('T43: 衝突する旧8桁番号は行番号が残っていても上書きせず、別行へ保存する', function (): void {
+    ['company' => $company] = createCompanyWithMember();
+    $first = workbookEntryWithId($company, '0199aaaa-0000-7000-8000-0000deadbeef', 1200);
+    $workbooks = app(WorkbookService::class);
+    $workbooks->upsertRow($company, $first->id);
+    replaceWorkbookNumber($company, 2, 'DEADBEEF');
+    $second = workbookEntryWithId($company, '0199bbbb-0000-7000-8000-0000deadbeef', 9800);
+
+    $workbooks->upsertRow($company, $second->id);
+    $workbooks->upsertRow($company, $first->id);
+    $workbooks->upsertRow($company, $first->id);
+
+    $sheet = journalSheet($company);
+    expect(numbersInSheet($sheet))->toBe(['DEADBEEF', strtoupper($second->id), strtoupper($first->id)])
+        ->and($sheet->getCell([6, 2])->getValue())->toBe(1200)
+        ->and($sheet->getCell([6, 3])->getValue())->toBe(9800)
+        ->and($sheet->getCell([6, 4])->getValue())->toBe(1200)
+        ->and($first->refresh()->workbook_row)->toBe(4)
+        ->and($second->refresh()->workbook_row)->toBe(3)
+        ->and($company->workbook()->firstOrFail()->next_row)->toBe(5);
+});
+
+test('T43: 別会社の仕訳IDではExcelを更新できず、両社のファイルと行番号が変わらない', function (): void {
+    ['company' => $company] = createCompanyWithMember();
+    ['company' => $other] = createCompanyWithMember();
+    $entry = workbookEntryWithId($company, '0199aaaa-0000-7000-8000-0000deadbeef', 1200);
+    $foreign = workbookEntryWithId($other, '0199bbbb-0000-7000-8000-0000deadbeef', 9800);
+    $workbooks = app(WorkbookService::class);
+    $workbooks->upsertRow($company, $entry->id);
+    $workbooks->upsertRow($other, $foreign->id);
+    $bytes = $workbooks->contents($company);
+    $foreignBytes = $workbooks->contents($other);
+    $version = $company->workbook()->firstOrFail()->version;
+    $foreignVersion = $other->workbook()->firstOrFail()->version;
+
+    expect(fn () => $workbooks->upsertRow($company, $foreign->id))->toThrow(ModelNotFoundException::class);
+
+    expect($workbooks->contents($company))->toBe($bytes)
+        ->and($workbooks->contents($other))->toBe($foreignBytes)
+        ->and($entry->refresh()->workbook_row)->toBe(2)
+        ->and($foreign->refresh()->workbook_row)->toBe(2)
+        ->and($company->workbook()->firstOrFail()->version)->toBe($version)
+        ->and($other->workbook()->firstOrFail()->version)->toBe($foreignVersion);
+});
 
 test('T14: 確定すると Excel の仕訳帳に1行入り、2回保存しても行は増えない。次の確定は次の行', function (): void {
     ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
