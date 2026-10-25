@@ -96,7 +96,12 @@ class ReportImportService
             $import = $company->reportImports()->lockForUpdate()->findOrFail($importId);
 
             if ($import->status !== ReportStatus::Review) {
-                throw ValidationException::withMessages(['save' => '保存できる状態ではありません。']);
+                $message = match ($import->status) {
+                    ReportStatus::Saved => 'この取り込みはすでに保存されています。画面を読み直してください。',
+                    ReportStatus::Reading => 'AIが読み取り中です。完了してから保存してください。',
+                    default => '読み取りに失敗した取り込みは保存できません。写真を選び直してください。',
+                };
+                throw ValidationException::withMessages(['save' => $message]);
             }
 
             $before = [];
