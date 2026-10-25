@@ -51,7 +51,7 @@ GitHub の Settings → Environments に `production` ができる。デプロ�
 ## 2. いつもの更新
 1. 手元で `/check` が通る
 2. main に push（またはPRをマージ）
-3. GitHub Actions：`tests` が通る → `deploy` が VPS で `deploy.sh` を実行（DB のバックアップ → 取得 → 依存 → 組み立て → migrate）
+3. GitHub Actions：`tests` が通る → `deploy` が VPS で `deploy.sh` を実行（DB のバックアップ → 取得 → 依存 → 組み立て → migrate）。最後に写真保存先の共有グループ・非公開権限を検査する
 4. 反映後の確認（下のチェックリスト）
 
 手で更新するとき（VPS で）：
@@ -86,6 +86,26 @@ crontab -l
 sudo systemctl status 'torudake-queue@*'
 php artisan torudake:fail-stale-evidence-ai
 ```
+
+### 写真保存先の権限復旧
+
+`Unable to read file from location` が出て、Web で写真が見えるのにAIが失敗する場合は、Web（`www-data`）とキュー（`User=ubuntu`、`Group=www-data`）の実行ユーザー差を確認する。保存フォルダが `0700` だとキューが読めない。
+
+レシート・帳票は共通の `EvidenceFileStorage` を通し、非公開ファイル `0660`・ディレクトリ `2770` で保存する。保存中だけ `umask=0007` にし、例外時も元へ戻す。最上位の保存先は **初期セットアップで `www-data` グループ・`2770` にする必要がある**。setgid によって新しい子ディレクトリ・ファイルへ共有グループを継承する。設定値だけで最上位への setgid 付与や既存ファイルの復旧は行わない。
+
+既存環境の復旧は本人がVPSで一度実行する（10/25 の環境では実施済み）。写真保存先の外には適用しない。
+
+```bash
+cd /var/www/torudake
+sudo chgrp -R www-data storage/app/private/evidences
+sudo find storage/app/private/evidences -type d -exec chmod 2770 {} +
+sudo find storage/app/private/evidences -type f -exec chmod 660 {} +
+bash docs/server/check-evidence-permissions.sh
+```
+
+デプロイの `Verify private evidence storage permissions` は、最上位が通常のディレクトリ・`2770`・`www-data` であることを読み取り専用で検査する。異常なら Actions を失敗させる。既存の子ファイルすべての検査や権限変更、`sudo` は行わない。アプリの画像取得は引き続き認証・会社スコープ・`EvidencePolicy` を通す。公開ディスクへ移したり、その他のOSユーザーに権限を付けたりしない。
+
+修正後はキューを再起動する（通常のデプロイに含む）。失敗済みの原資料は自動再実行しないため、手入力して保存するか、新しく撮った写真で読み取りを確認する。同じ画像は重複として扱う。
 
 ### キューの常駐を2つにする（10/24、1回だけ）
 1枚に十数秒かかるので、まとめて送った写真を並べて読むために常駐を2つにする。今の `torudake-queue` を止めて、`torudake-queue@1`・`@2` に置き換える。まず今の常駐の `User=` を確かめる（下の `User=ubuntu` と違えば、そこを書き換える）。

@@ -132,6 +132,10 @@ chown -R "$DEPLOY_USER":www-data "$APP_DIR"
 chmod -R go+rX "$APP_DIR"                       # Web サーバー（www-data）が読めるように
 chmod 640 "$APP_DIR/.env"                        # パスワード入りの .env は持ち主と www-data だけ
 chmod -R ug+rwX storage bootstrap/cache          # ログや一時ファイルは www-data が書ける
+mkdir -p "$APP_DIR/storage/app/private/evidences"
+find "$APP_DIR/storage/app/private/evidences" -type d -exec chgrp www-data {} + -exec chmod 2770 {} +
+find "$APP_DIR/storage/app/private/evidences" -type f -exec chgrp www-data {} + -exec chmod 660 {} +
+bash "$APP_DIR/docs/server/check-evidence-permissions.sh"
 sudo -u www-data test -r "$APP_DIR/public/index.php" || { echo "www-data が index.php を読めない"; exit 1; }
 
 step "8/10 nginx（サイト1つ。2回目からは certbot が足した HTTPS の設定を残すため書き換えない）"
