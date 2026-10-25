@@ -25,7 +25,8 @@ function sendForCount(Company $company, User $user, int $width): SourceRecord
 }
 
 test('T15: 「あと n 件」＝未処理＋下書き＋社長から戻し。台本どおり 1 → 3 → 0', function (): void {
-    ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
+    ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Admin);
+    ['company' => $other, 'user' => $otherEditor] = createCompanyWithMember(Role::Editor);
 
     // AI がまだ動いていない（未処理）1枚
     Queue::fake();
@@ -34,6 +35,7 @@ test('T15: 「あと n 件」＝未処理＋下書き＋社長から戻し。台
 
     // AI が下書きを作った2枚。未処理の1枚と合わせて3件
     $drafted = [sendForCount($company, $editor, 410), sendForCount($company, $editor, 420)];
+    sendForCount($other, $otherEditor, 430);
     foreach ($drafted as $source) {
         app()->call([new ProcessEvidenceWithAi($source->id), 'handle']);
     }
@@ -42,7 +44,15 @@ test('T15: 「あと n 件」＝未処理＋下書き＋社長から戻し。台
     expect(RemainingCount::for($company))->toBe(3);
     expect(RemainingCount::fromPreviousMonths($company))->toBe(1);
 
-    $this->actingAs($editor)->get(route('company.home', $company))->assertSee('3');
+    $this->actingAs($editor)->get(route('company.home', $company))
+        ->assertOk()
+        ->assertSeeHtml('data-test="remaining"')
+        ->assertSeeHtml('3<span class="text-3xl">件</span>')
+        ->assertSee('前月以前の未処理 1件を含みます');
+    $this->actingAs($editor)->get(route('company.live', $company))
+        ->assertOk()
+        ->assertSeeHtml('data-test="live-remaining">あと 3件')
+        ->assertSeeHtml('data-test="live-previous-months">前月以前 1件');
 
     // 3件とも確定（未処理の1枚は手で入れる）
     $pending = $company->sourceRecords()->whereNull('journal_entry_id')->firstOrFail();
