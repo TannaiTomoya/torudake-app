@@ -73,6 +73,20 @@ cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
 ```
 手元（Sail）では `vendor/bin/sail artisan queue:restart` のあと、止まった `queue:work` を起動し直す（2つ動かすときは、ターミナル2つで `vendor/bin/sail artisan queue:work`）。
 
+### レシートのAI処理が止まったとき
+
+- ジョブの最終失敗時は原資料を「AIが読めませんでした」に戻し、経理が写真を見て手入力・保存できる。保存後は次の未処理資料へ進む。確定した仕訳やAI完了済みの資料は変更しない。
+- ワーカー停止で失敗通知が届かなくても、`waiting`・`reading` のまま10分以上更新されない原資料を、5分ごとの `torudake:fail-stale-evidence-ai` が復旧する。停滞開始からおおむね10〜15分が目安。原資料・写真・下書きは削除せず、失敗への変更を `evidence.ai_failed` に記録する。
+- 復旧が動かない場合は、本人がVPSで次を確認する（AIはSSHしない）。定期復旧には毎分の `schedule:run` が必要で、キューの常駐が停止中でも動く。通常のAI読み取りには常駐2つを使う。手動の復旧コマンドも同じ条件で判定し、AIは呼ばない。
+
+```bash
+cd /var/www/torudake
+php artisan schedule:list
+crontab -l
+sudo systemctl status 'torudake-queue@*'
+php artisan torudake:fail-stale-evidence-ai
+```
+
 ### キューの常駐を2つにする（10/24、1回だけ）
 1枚に十数秒かかるので、まとめて送った写真を並べて読むために常駐を2つにする。今の `torudake-queue` を止めて、`torudake-queue@1`・`@2` に置き換える。まず今の常駐の `User=` を確かめる（下の `User=ubuntu` と違えば、そこを書き換える）。
 ```bash
