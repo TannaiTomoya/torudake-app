@@ -58,7 +58,8 @@ new #[Title('ホーム')] class extends Component {
     @else
     <p class="text-note font-bold text-ink-sub">次にやること</p>
 
-    @can('viewOwner', $company)
+    @php($homeMembership = auth()->user()?->activeMembershipFor($company))
+    @if ($homeMembership?->role->prefersOwnerHome() === true && auth()->user()->can('viewOwner', $company))
         @php($concerns = $this->concerns)
         <a href="{{ route('company.owner', $company) }}" wire:navigate data-test="owner-link"
            @class(['block space-y-4 rounded-2xl border-2 p-8 hover:border-brand', 'border-warn bg-warn-soft' => $concerns > 0, 'border-ink bg-panel' => $concerns === 0])>
@@ -104,6 +105,14 @@ new #[Title('ホーム')] class extends Component {
                     <span class="inline-block rounded-xl bg-ink px-6 py-3 text-lg font-bold text-paper">レシートを送る</span>
                 </a>
             @endif
+            @can('viewOwner', $company)
+                <nav aria-label="ほかの作業" class="flex flex-wrap gap-4 text-body font-bold text-brand-ink underline">
+                    <a href="{{ route('company.owner', $company) }}" wire:navigate data-test="owner-shortcut">社長の画面</a>
+                    @can('viewAi', $company)
+                        <a href="{{ route('company.ai', $company) }}" wire:navigate>AIの記録</a>
+                    @endcan
+                </nav>
+            @endcan
         @else
             <a href="{{ route('company.entries.index', $company) }}" wire:navigate data-test="entries-link"
                class="block space-y-4 rounded-2xl border-2 border-ink bg-panel p-8 hover:border-brand">
@@ -112,6 +121,6 @@ new #[Title('ホーム')] class extends Component {
                 <span class="inline-block rounded-xl bg-ink px-6 py-3 text-lg font-bold text-paper">仕訳の一覧を開く</span>
             </a>
         @endcan
-    @endcan
+    @endif
     @endif
 </section>
