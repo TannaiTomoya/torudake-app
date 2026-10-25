@@ -429,7 +429,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                                     <p class="self-start rounded-lg bg-ok-soft px-3 py-1 font-bold text-ok">{{ $entry?->status->label() ?? $current->status->label() }}</p>
                                 @endif
                         @else
-                                    @if ($entry?->ai_run_id !== null)
+                                    @if ($entry?->ai_run_id !== null && $entry->confirmed_at === null && $entry->status !== EntryStatus::Returned)
                                         <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="直した理由">
                                             @foreach (CorrectionReason::cases() as $case)
                                                 <button type="button" wire:click="$set('reason', '{{ $case->value }}')"
