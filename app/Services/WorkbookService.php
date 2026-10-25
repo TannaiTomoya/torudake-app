@@ -6,6 +6,7 @@ use App\Enums\ConcernFlag;
 use App\Enums\EntryStatus;
 use App\Enums\Side;
 use App\Models\AiCorrection;
+use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\JournalLine;
@@ -280,7 +281,8 @@ class WorkbookService
             'ai' => match (true) {
                 $entry->ai_run_id === null => '手入力',
                 in_array(ConcernFlag::Corrected->value, $entry->concern_flags ?? [], true)
-                    || AiCorrection::query()->where('journal_entry_id', $entry->id)->exists() => '直した',
+                    || AiCorrection::query()->where('journal_entry_id', $entry->id)->exists()
+                    || $this->hasBookkeeperChanges($entry) => '直した',
                 default => 'AIのまま',
             },
         ];
@@ -304,5 +306,16 @@ class WorkbookService
                 $sheet->getStyle([$column, $row])->getNumberFormat()->setFormatCode($format);
             }
         }
+    }
+
+    private function hasBookkeeperChanges(JournalEntry $entry): bool
+    {
+        return AuditLog::query()
+            ->where('company_id', $entry->company_id)
+            ->where('subject_type', JournalEntry::class)
+            ->where('subject_id', $entry->id)
+            ->where('action', 'entry.confirm')
+            ->whereJsonLength('after->corrected', '>', 0)
+            ->exists();
     }
 }

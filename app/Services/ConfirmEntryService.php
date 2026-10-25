@@ -109,7 +109,7 @@ class ConfirmEntryService
             $amountMissing = ($tracksAiCorrections && $before['amount'] === null)
                 || in_array(ConcernFlag::AmountMissing->value, $entry->concern_flags ?? [], true);
             $corrected = in_array(ConcernFlag::Corrected->value, $entry->concern_flags ?? [], true)
-                || array_intersect($changed, ['category', 'amount']) !== [];
+                || ($tracksAiCorrections && array_intersect($changed, ['category', 'amount']) !== []);
 
             $entry->forceFill([
                 'entry_date' => $date,
