@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CompanySettingsService
 {
@@ -58,8 +59,25 @@ class CompanySettingsService
     public function renameCategory(Company $company, User $user, string $categoryId, string $name): Category
     {
         return DB::transaction(function () use ($company, $user, $categoryId, $name): Category {
+            // 別々の分類を同時に同名へ変える処理も、会社単位で直列にする。
+            $lockedCompany = Company::query()->lockForUpdate()->findOrFail($company->id);
             /** @var Category $category */
-            $category = $company->categories()->lockForUpdate()->findOrFail($categoryId);
+            $category = $lockedCompany->categories()->lockForUpdate()->findOrFail($categoryId);
+
+            $name = trim($name);
+            if ($name === '' || mb_strlen($name) > 100) {
+                throw ValidationException::withMessages(['categoryName' => '分類名は1〜100文字で入れてください。']);
+            }
+
+            if ($category->archived_at === null && $lockedCompany->categories()
+                ->whereNull('archived_at')->whereKeyNot($category->id)->where('name', $name)
+                ->lockForUpdate()->first() !== null) {
+                throw ValidationException::withMessages(['categoryName' => '同じ名前の分類が既にあります。別の名前にしてください。']);
+            }
+
+            if ($category->name === $name) {
+                return $category;
+            }
 
             $before = ['name' => $category->name];
 
