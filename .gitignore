@@ -40,3 +40,10 @@ yarn-error.log
 /boost.json
 /opencode.json
 /opencode.jsonc
+
+# 分析用の書き出し（実データ。仮名化しただけの機密データ。docs/12-analysis-export-spec.md）
+*.jsonl
+torudake-training-*.zip
+*_学習データ_*.zip
+/analysis/
+/storage/exports/

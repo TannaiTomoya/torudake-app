@@ -8,6 +8,7 @@ use App\Enums\Role;
 use App\Models\AiRun;
 use App\Models\AuditLog;
 use App\Services\AiRecordSummary;
+use App\Services\AnalysisExportSanitizer;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
 use App\Services\OwnerReviewService;
@@ -96,7 +97,8 @@ test('T12/T17: 再確定の変更はAI修正に混ぜず、初回の記録・印
         expect($zip->open($path))->toBeTrue();
         $jsonl = (string) $zip->getFromName('ai_corrections.jsonl');
         $exported = array_map(fn (string $line) => json_decode($line, true, flags: JSON_THROW_ON_ERROR), array_filter(explode("\n", $jsonl)));
-        expect(array_column($exported, 'id'))->toEqualCanonicalizing(array_column($corrections, 'id'));
+        $sanitizer = new AnalysisExportSanitizer($company);
+        expect(array_column($exported, 'id'))->toEqualCanonicalizing(array_map(fn (array $row): ?string => $sanitizer->key('x', $row['id']), $corrections));
     } finally {
         $zip->close();
         unlink($path);

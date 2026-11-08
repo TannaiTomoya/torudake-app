@@ -37,6 +37,12 @@ Laravel は「間違った数字を確定させない」ために使います。
 
 - 初期データ（`vendor/bin/sail artisan migrate:fresh --seed`）のログイン：owner@ / editor@ / submitter@ / other@example.com、パスワード `password`、2段階認証の鍵 `TORUDAKEDEVLOCAL`（認証アプリに手入力）、復旧コード `recovery-code-1`（1回使うと消えるので、流し直すと戻る）。手元の開発専用の架空の値で、本番では使えません（本番の人は `torudake:add-member` で作り、パスワードと2段階認証は本人が設定します）。
 
+## 実データを扱うときの決まり
+
+- 「AIの記録」から書き出す分析用の zip（JSONL）は、**仮名化しただけの機密データ**です。匿名化ではありません。
+- 公開リポジトリ・Issue・PR・GitHub Actions のログや成果物に**上げません**。`.gitignore` で `*.jsonl` と分析用 zip を除外しています。実データを使う分析は、手元の非公開の場所だけで行います。
+- テスト・fixture・Issue に入れるのは架空のデータだけです。項目の決まりは [docs/12-analysis-export-spec.md](docs/12-analysis-export-spec.md)。
+
 ## ドキュメント
 
 | ファイル | 内容 |
@@ -45,6 +51,7 @@ Laravel は「間違った数字を確定させない」ために使います。
 | [docs/02-technical-spec.md](docs/02-technical-spec.md) | **技術仕様書**：技術の構成・リポジトリ・コードの決まり・認証・APIの規約・写真とAIの安全・環境とリリース |
 | [docs/03-detailed-design.md](docs/03-detailed-design.md) | **詳細設計書**：テーブル・状態・処理・権限・API・画面・テスト・初期データ・作る順番 |
 | [docs/04-demo-llm-edition.md](docs/04-demo-llm-edition.md) | **デモ版（LLM編）**：計算・判断をすべて Claude に任せ、Excel に出力し、学習データを Python編へ渡す。10/25午前までの時間割 |
+| [docs/12-analysis-export-spec.md](docs/12-analysis-export-spec.md) | **分析用の書き出し仕様書**：許可した項目だけを出す決まり・仮名のキー・manifest |
 | [docs/10-first-journal-and-learning.md](docs/10-first-journal-and-learning.md) | 経緯の記録：一次仕訳の蓄積・AIの学習・写真の30日削除・Anthropicの規約の確認結果 |
 | [docs/presentation-script-7min.pdf](docs/presentation-script-7min.pdf) | 発表台本（7分）。Laravelを使うポイントと台本本文 |
 

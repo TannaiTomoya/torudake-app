@@ -27,6 +27,7 @@ class TrainingDataExportController extends Controller
 
         AuditLog::record($request->user(), 'training.export', $company, null, [
             'month' => $month->format('Y-m'),
+            'schema_version' => $export['schema_version'],
             ...$export['counts'],
         ]);
 

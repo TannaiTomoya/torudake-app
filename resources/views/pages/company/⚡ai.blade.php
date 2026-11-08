@@ -191,7 +191,8 @@ new #[Title('AIの記録')] class extends Component {
     {{-- 学習データ --}}
     <section class="space-y-2 rounded-2xl border border-line bg-panel p-5" data-test="ai-export">
         <h2 class="text-xl font-bold">学習データ</h2>
-        <p class="text-ink-sub">この月の AIの実行・直した記録・確定した仕訳を、1行1件の JSONL で書き出します。写真・名前・メールアドレスは入れず、人は伏せた記号で出します。</p>
+        <p class="text-ink-sub">この月の AIの実行・直した記録・確定した仕訳を、1行1件の JSONL（と manifest.json）で書き出します。決めた項目の数字・日付・種類だけを出し、写真・OCRの全文・摘要・理由・名前・メールアドレスは入れません。店・分類・人は会社ごとの伏せた記号です。</p>
+        <p class="text-ink-sub">伏せただけで、匿名ではありません。受け取ったファイルは社外に出さず、公開の場所（GitHub など）に上げないでください。</p>
         @can('exportTrainingData', $company)
             <a href="{{ route('company.exports.training', ['company' => $company, 'month' => $start->format('Y-m')]) }}" class="inline-block rounded-lg bg-ink px-4 py-2 font-bold text-paper" data-test="ai-export-link">学習データを書き出す（JSONL）</a>
         @endcan
