@@ -15,4 +15,9 @@ return [
         'corrections_in_prompt' => 20,
     ],
 
+    // 稼働確認（/health）。「生きている印」がこの秒数より古いと、200 ではなく 503 を返す（docs/runbook.md）
+    'health' => [
+        'scheduler_max_age_seconds' => 300,
+        'queue_max_age_seconds' => 600,
+    ],
 ];

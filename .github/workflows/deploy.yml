@@ -41,3 +41,15 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: bash /var/www/torudake/docs/server/check-evidence-permissions.sh
+
+      # 反映が終わっても、公開サイトが外から見えて動いているかは別。見えなければここで失敗にする
+      # （GitHub の失敗通知が届く）。反映の直後は定期処理・キューの印がまだ書かれていないので、再試行する。
+      - name: Checkout (for the public-site check script)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify the public site from outside
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          RETRIES: '8'
+          WAIT: '15'
+        run: bash docs/server/check-public-site.sh

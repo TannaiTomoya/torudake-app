@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('torudake:purge-evidence')->dailyAt('03:00')->withoutOverlapping();
 Schedule::command('torudake:fail-stale-evidence-ai')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('torudake:heartbeat')->everyMinute();

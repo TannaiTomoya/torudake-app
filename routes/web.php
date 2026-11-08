@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\EvidenceImageController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\TrainingDataExportController;
 use App\Http\Controllers\WorkbookDownloadController;
 use App\Models\User;
@@ -16,6 +17,8 @@ $dispatchAuthenticatedUser = function (User $user): RedirectResponse|View {
 
     return redirect()->to($user->homeUrl());
 };
+
+Route::get('health', HealthController::class)->middleware('throttle:60,1')->name('health');
 
 Route::get('/', function (Request $request) use ($dispatchAuthenticatedUser): RedirectResponse|View {
     $user = $request->user();

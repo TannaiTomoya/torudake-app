@@ -63,8 +63,31 @@ bash /var/www/torudake/deploy.sh
 - [ ] https://torudake-app.com/login が開き、鍵マークが付いている
 - [ ] ログインできる（2段階認証のコードを含めて）
 - [ ] 送る → 原資料の一覧に出る（工程3以降）
-- [ ] 下書き → 承認 → 締めナビの件数が減る（工程4以降）
+- [ ] 経理が下書きを直して保存すると「あと n 件」が減り、Excel の仕訳帳に入る
 - [ ] `sudo systemctl status 'torudake-queue@*'` で2つとも active
+- [ ] https://torudake-app.com/health が `{"app":"torudake","ok":true}`（反映の直後は1〜2分かかることがある）
+
+### 稼働確認（公開サイトが見えているか）
+- **反映のあと（deploy.yml の最後の手順）**：`docs/server/check-public-site.sh` が外から `/login` と `/health` を確認する。見えなければ反映を失敗にし、GitHub の失敗通知が届く
+- **15分おき（monitor.yml）**：同じ確認を回す。異常なら実行が失敗し、Issue `[稼働監視]`（ラベル `monitor-down`）を1件だけ立てる。直ると自動で「復旧」と書いて閉じる
+- 手で確認：`bash docs/server/check-public-site.sh`（別の URL は引数、または `SITE_URL`）。終了コード 0 が正常
+- 結果の読み方：
+  - 「接続できません」「時間切れ」「証明書」→ VPS・DNS・nginx・証明書（サーバー側の問題）
+  - 「サーバーエラー」→ アプリの `storage/logs` を見る
+  - 「別のサイトへ移動」「ログイン画面ではありません」「アプリの印がない」→ DNS や nginx の向き先が違う
+  - 「DB・定期処理・キューのどれかが止まっています」（`/health` が 503）→ `storage/logs` の「稼働確認：問題あり」の行に `database` / `scheduler` / `queue` のどれかが出る。`schedule:run` の cron、`torudake-queue@*`、MySQL を順に確認
+- `/health` の判定：DB につながる・定期処理の印が5分以内・キューの印が10分以内（`config/torudake.php` の `health`）。印は毎分の `torudake:heartbeat` が書く（キューは空でも、この仕事を流して生きているか見る）。印の置き場はキャッシュなので、`.env` の `CACHE_STORE` は `database`（cron・PHP-FPM・キューで共有できる値）にしておく。`file` や `array` だと常に 503 になる
+- 通知まで含めた擬似障害の試験（本番は止めない）：Actions の `monitor` を手動実行し、確認先に `http://127.0.0.1:9` のようなつながらない URL を入れる → 実行が失敗し、Issue `[稼働監視]` が1件立つ（もう一度失敗させても増えない）→ 確認先を空にして手動実行 → 「復旧」と書いて閉じる。試験したら、実行の URL を #38 に貼って証拠にする。失敗の通知メールは GitHub の通知設定（Watching・Actions）が有効なときだけ届く。無効なら Issue と Actions の赤い印だけが残る
+- 擬似障害（判定だけ）の確かめ方：`vendor/bin/sail artisan test tests/Feature/PublicSiteCheckTest.php`（偽のサイトで 500・別サイトへの移動・時間切れ・接続不可などを検出できるか）。本番で止めて試さない
+- できないこと：これは「見張り」であって稼働の保証ではない。GitHub の定期実行は数分〜十数分遅れることがあり、60日間リポジトリに動きがないと止まる（Actions の画面で有効にし直す）。メールや電話では知らせない（GitHub の通知だけ）。`SITE_URL`（リポジトリの変数）で確認先を変えられる
+
+### 本番の最小確認（本人が、反映のたびに）
+本番に架空の帳簿は作らない。自分の会社の画面で次だけ見る。
+- [ ] ログイン（2段階認証まで）でき、役割ごとの最初の画面に入る
+- [ ] レシートを1枚送ると、経理の一覧に出る
+- [ ] 経理が保存すると「あと n 件」が減る
+- [ ] Excel をダウンロードして、保存した1件が入っている
+- 役割ごとの出入り（送るだけ・社長・他社404）は `tests/Feature/AcceptanceTest.php` で毎回確かめている
 
 ### `.env` を変えたとき
 キューの常駐は起動したときの設定のまま動くので、`.env` を変えたら設定を読み直して常駐を立ち上げ直す（`AI_DRIVER`・`ANTHROPIC_API_KEY` など）。

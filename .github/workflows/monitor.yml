@@ -1,0 +1,78 @@
+name: monitor
+
+# 公開サイトを15分おきに外から確認する（docs/runbook.md「稼働確認」）。
+# 異常なら、この実行を失敗にし（GitHub の失敗通知）、Issue「monitor-down」を1件だけ立てる。
+# 直ったら Issue に「復旧」と書いて閉じる。リポジトリは公開なので、Issue に載るのは判定の結果だけ。
+# 注意：GitHub の定期実行は数分〜十数分遅れることがあり、60日間リポジトリに動きがないと止まる。
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: '確認先の URL（空なら本番。擬似障害の試験用に、つながらない URL を入れる）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the public site
+        id: check
+        env:
+          SITE_URL: ${{ inputs.site_url || vars.SITE_URL }}
+          RETRIES: '3'
+          WAIT: '20'
+        run: |
+          set +e
+          bash docs/server/check-public-site.sh 2>&1 | tee "$RUNNER_TEMP/result.txt"
+          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Open or close the outage issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.check.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          existing="$(gh issue list --state open --label monitor-down --json number --jq '.[0].number // empty')"
+
+          if [ "$STATUS" = "0" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "復旧を確認しました。確認：$RUN_URL"
+              gh issue close "$existing"
+            fi
+            exit 0
+          fi
+
+          if [ -z "$existing" ]; then
+            gh label create monitor-down --color B42318 --description "稼働監視が自動で立てる" 2>/dev/null || true
+            {
+              echo "公開サイトの外形確認が失敗しました。確認：$RUN_URL"
+              echo
+              echo '```'
+              head -c 3000 "$RUNNER_TEMP/result.txt"
+              echo '```'
+              echo
+              echo '本人が見る順番は docs/runbook.md の「稼働確認」。AI は本番に SSH しない。'
+              echo '直ると、この Issue は自動で閉じる。'
+            } > "$RUNNER_TEMP/body.md"
+            gh issue create --title "[稼働監視] 公開サイトに異常があります" --label monitor-down --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+      - name: Fail the run if the site is unhealthy
+        if: steps.check.outputs.status != '0'
+        run: exit 1
