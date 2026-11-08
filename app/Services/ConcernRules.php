@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ConcernFlag;
 use App\Models\Company;
+use App\Support\BalanceResult;
 use App\Support\ReadingChecks;
 
 /**
@@ -13,9 +14,10 @@ class ConcernRules
 {
     /**
      * @param  array<string, mixed>|null  $aiCheck  L3 の検算結果
+     * @param  BalanceResult|null  $balance  規則の貸借検算（保存されている最新の行から）。行がない下書きは null
      * @return list<string>
      */
-    public function for(Company $company, ?int $amountYen, ?array $aiCheck, bool $corrected, bool $amountMissing): array
+    public function for(Company $company, ?int $amountYen, ?array $aiCheck, bool $corrected, bool $amountMissing, ?BalanceResult $balance = null): array
     {
         $flags = [];
 
@@ -35,7 +37,8 @@ class ConcernRules
             $flags[] = ConcernFlag::AiPrivate;
         }
 
-        if (($aiCheck['balanced'] ?? true) === false) {
+        // 貸借の判定は規則の検算だけを使う。AI の balanced（過去の回答）では決めない。
+        if ($balance !== null && ! $balance->balanced()) {
             $flags[] = ConcernFlag::AiUnbalanced;
         }
 

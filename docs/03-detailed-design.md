@@ -185,8 +185,10 @@ DB::transaction(function () use ($company, $user, $entryId, $input) {
 });
 // トランザクションのあとで：WorkbookService::upsertRow($entry)（§4.6）、気になる印があれば社長へ通知（§4.8）
 ```
-- 保存の前に、AIの検算（借方合計・貸方合計・気になる点）を必ず画面に出す（守り §01-6.2）。
-- 貸借の一致は、デモ版ではコードで止めず、赤で表示する。
+- 保存の前に、規則の検算（借方合計・貸方合計。コードが保存されている最新の行から円の整数で計算）とAIの気になる点を、別の欄で必ず画面に出す（守り §01-6.2）。AIが答えた貸借（`ai_check.balanced`）は過去の回答として残すだけで、表示・印・保存の可否には使わない。
+- **貸借が一致しない・行が不正な仕訳は確定させない（版3.1・実務用の仕様。デモの「止めない」から変更）**。保存のトランザクション内で行を書き直したあと、最新の行を `JournalBalanceChecker` で検算し、問題があれば例外でトランザクションごと戻す（仕訳・原資料・直した記録・Excel・監査に何も残さない）。社長から戻された仕訳の再確定でも同じ。問題の種類：行なし／借方か貸方のみ／借貸が不正／1円未満・整数でない／範囲外（1行 1,000億円・合計 1兆円まで）／合計不一致。
+- 金額の記載がない下書き（行なし）は「検算していない」と表示し、不一致とは言わない。保存には金額が必要（行を書いたあとの検算で確かめる）。
+- 貸借が合っていても、科目・税率・取引内容が正しいとは限らない。画面にもそう書く。
 - AI修正の記録・理由は初回のAI下書きの確定だけ。再確定では `ai_corrections` を追加せず、「経理がAIを直した」の印も新しく付けない。初回に付いた印は保持し、再確定の変更前後は `entry.confirm` の監査記録に残す。
 
 ### 4.4 ReturnToBookkeeper（F13、社長から戻す）
@@ -196,7 +198,8 @@ confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必
 | 印 | 条件 |
 |---|---|
 | amount | 金額 ≥ `companies.concern_amount_yen`（仮に30,000円） |
-| ai_duplicate / ai_private / ai_unbalanced | AIの検算の結果 |
+| ai_duplicate / ai_private | AIの検算の結果 |
+| ai_unbalanced | 規則の検算（保存されている最新の行の貸借が合わない）。値の名前は互換のため残す。AIの `balanced` では決めない |
 | corrected | 経理がAIの分類・金額を直した |
 | addressee_other_company / addressee_person | 宛名が別の会社（他社の領収証かも）／個人名（私的な支出かも）。`read_receipt.v3` が会社名と比べて own・other_company・person・none で答え、`app/Support/ReadingChecks` が「(株)」「株式会社」・敬称・空白の違いと上様・空欄を確かめ直す。own・none は印なしで宛名だけ出す |
 | low_confidence | 読み取りの自信が低い（合計 0.8 未満、日付・店名 0.7 未満。金額の記載がない書類の合計は除く）。直して確定・ライブ画面では欄に「確かめて」と黄色の枠（%は出さない）。境目は `ReadingChecks::THRESHOLDS` だけ |

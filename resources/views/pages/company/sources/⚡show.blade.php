@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AiStatus;
+use App\Enums\BalanceProblem;
 use App\Enums\ConcernFlag;
 use App\Enums\CorrectionReason;
 use App\Enums\EntryStatus;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
 use App\Services\IgnoreSourceService;
+use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -169,6 +171,8 @@ new #[Title('直して確定')] class extends Component {
     $source = $this->source;
     $entry = $this->entry;
     $check = $entry?->ai_check ?? [];
+    $balance = $entry !== null ? app(JournalBalanceChecker::class)->forEntry($entry) : null;
+    $balanceUnchecked = $balance?->problem === BalanceProblem::Empty;
     $lowFields = ReadingChecks::lowConfidenceFields($check);
     $low = fn (string $key): bool => in_array($key, $lowFields, true);
     $addresseeFlag = match ($check['addressee_kind'] ?? null) {
@@ -214,16 +218,31 @@ new #[Title('直して確定')] class extends Component {
         </div>
 
         <div class="space-y-4">
+            @if ($entry && $balance)
+                <div class="space-y-2 rounded-xl border border-line bg-panel p-4" data-test="rule-check">
+                    <h2 class="font-bold text-ink">規則の検算（保存されている仕訳の行）</h2>
+                    @if ($balanceUnchecked)
+                        <p class="text-warn" data-test="rule-unchecked">まだ検算していません。金額を入れて保存すると、借方と貸方の合計を確かめます。</p>
+                    @else
+                        <p @class(['font-bold', 'text-ok' => $balance->balanced(), 'text-ng' => ! $balance->balanced()]) data-test="rule-result">
+                            借方 {{ number_format($balance->debitTotal) }}円 ／ 貸方 {{ number_format($balance->creditTotal) }}円
+                            {{ $balance->balanced() ? '（一致）' : '（'.$balance->message().'）' }}
+                        </p>
+                        @if (! $balance->balanced())
+                            <p class="text-note text-ink-sub">このままでは確定できません。</p>
+                        @endif
+                    @endif
+                    <p class="text-note text-ink-sub">貸借が合っていても、科目や金額が正しいとは限りません。</p>
+                    @if (! $balanceUnchecked && is_bool($check['balanced'] ?? null) && $check['balanced'] !== $balance->balanced())
+                        <p class="text-warn" data-test="ai-balance-differs">AIの回答（貸借は{{ $check['balanced'] ? '一致' : '不一致' }}）は、保存されている行の検算と食い違っています。検算の結果を正とします。</p>
+                    @endif
+                </div>
+            @endif
             @if ($entry && ($check !== []))
                 <div class="space-y-2 rounded-xl border border-line bg-panel p-4" data-test="ai-check">
-                    <h2 class="font-bold text-ink">AIの検算</h2>
+                    <h2 class="font-bold text-ink">AIの気になる点</h2>
                     @if (($check['amount_missing'] ?? false) === true)
                         <p class="text-warn">金額の記載がない書類です（後日の請求書で決まる金額）。検算は金額を入れてから行います。</p>
-                    @else
-                        <p @class(['font-bold', 'text-ok' => ($check['balanced'] ?? false) === true, 'text-ng' => ($check['balanced'] ?? false) !== true])>
-                            借方 {{ number_format((int) ($check['debit_total'] ?? 0)) }}円 ／ 貸方 {{ number_format((int) ($check['credit_total'] ?? 0)) }}円
-                            {{ ($check['balanced'] ?? false) === true ? '（一致）' : '（合っていません）' }}
-                        </p>
                     @endif
                     @foreach (($check['concerns'] ?? []) as $concern)
                         <p class="text-warn">・{{ $concern }}</p>

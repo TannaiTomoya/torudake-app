@@ -14,6 +14,7 @@ use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\SourceRecord;
 use App\Models\User;
+use App\Support\JournalBalanceChecker;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +29,7 @@ class ConfirmEntryService
     public function __construct(
         private readonly JournalLineWriter $lineWriter,
         private readonly ConcernRules $concernRules,
+        private readonly JournalBalanceChecker $balanceChecker,
         private readonly WorkbookService $workbook,
     ) {}
 
@@ -106,6 +108,12 @@ class ConfirmEntryService
 
             $this->lineWriter->rewrite($entry, $category, $bankAccount, $amountYen);
 
+            // 書き直した最新の行で検算する。合わなければ例外でこのトランザクションごと戻り、何も確定しない。
+            $balance = $this->balanceChecker->forEntry($entry);
+            if (! $balance->balanced()) {
+                throw ValidationException::withMessages(['amountYen' => '貸借が合わないため確定できません（'.$balance->message().'）。']);
+            }
+
             $amountMissing = ($tracksAiCorrections && $before['amount'] === null)
                 || in_array(ConcernFlag::AmountMissing->value, $entry->concern_flags ?? [], true);
             $corrected = in_array(ConcernFlag::Corrected->value, $entry->concern_flags ?? [], true)
@@ -122,7 +130,7 @@ class ConfirmEntryService
                 'confirmed_by' => $user->id,
                 'confirmed_at' => now(),
                 'returned_reason' => null,
-                'concern_flags' => $this->concernRules->for($company, $amountYen, $entry->ai_check, $corrected, $amountMissing),
+                'concern_flags' => $this->concernRules->for($company, $amountYen, $entry->ai_check, $corrected, $amountMissing, $balance),
             ])->save();
 
             $entry->sources()->lockForUpdate()->get()->each(function (SourceRecord $linked) use ($date, $amountYen, $input): void {

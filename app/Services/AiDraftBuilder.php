@@ -13,6 +13,7 @@ use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\SourceRecord;
 use App\Services\Ai\AiException;
+use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class AiDraftBuilder
         private readonly JournalLineWriter $lineWriter,
         private readonly ConcernRules $concernRules,
         private readonly PaymentMemory $paymentMemory,
+        private readonly JournalBalanceChecker $balanceChecker,
     ) {}
 
     /**
@@ -87,6 +89,11 @@ class AiDraftBuilder
 
             if ($amountYen !== null) {
                 $this->lineWriter->rewrite($entry, $category, $bankAccount, $amountYen);
+
+                // 行を書いたあとの最新の行で、規則の検算を印に反映する。
+                $entry->forceFill([
+                    'concern_flags' => $this->concernRules->for($company, $amountYen, null, false, false, $this->balanceChecker->forEntry($entry)),
+                ])->save();
             }
 
             $source->forceFill([

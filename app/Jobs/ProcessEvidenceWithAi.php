@@ -15,6 +15,7 @@ use App\Services\Ai\Tasks\ReadReceipt;
 use App\Services\AiDraftBuilder;
 use App\Services\ConcernRules;
 use App\Services\FailEvidenceAi;
+use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -42,6 +43,7 @@ class ProcessEvidenceWithAi implements ShouldQueue
         CheckEntry $checkEntry,
         AiDraftBuilder $draftBuilder,
         ConcernRules $concernRules,
+        JournalBalanceChecker $balanceChecker,
         FailEvidenceAi $failEvidenceAi,
     ): void {
         $source = SourceRecord::query()->with(['company', 'evidence'])->find($this->sourceRecordId);
@@ -135,7 +137,7 @@ class ProcessEvidenceWithAi implements ShouldQueue
                 ),
             ];
 
-            if (! $this->whileUnconfirmed($source->id, function (SourceRecord $lockedSource) use ($entry, $aiCheck, $concernRules, $company, $amountYen): void {
+            if (! $this->whileUnconfirmed($source->id, function (SourceRecord $lockedSource) use ($entry, $aiCheck, $concernRules, $balanceChecker, $company, $amountYen): void {
                 $lockedEntry = $lockedSource->journalEntry;
                 if ($lockedEntry === null || $lockedEntry->id !== $entry->id) {
                     return;
@@ -143,7 +145,14 @@ class ProcessEvidenceWithAi implements ShouldQueue
 
                 $lockedEntry->forceFill([
                     'ai_check' => $aiCheck,
-                    'concern_flags' => $concernRules->for($company, $amountYen, $aiCheck, false, $amountYen === null),
+                    'concern_flags' => $concernRules->for(
+                        $company,
+                        $amountYen,
+                        $aiCheck,
+                        false,
+                        $amountYen === null,
+                        $amountYen === null ? null : $balanceChecker->forEntry($lockedEntry),
+                    ),
                 ])->save();
             })) {
                 return;
