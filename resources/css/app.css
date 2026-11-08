@@ -51,12 +51,9 @@
     --color-accent-foreground: var(--color-white);
 }
 
-@layer theme {
-    .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
-    }
+/* 常にライト表示（#10）。ダーク用のトークンは持たない。フォームやスクロールバーもライトにそろえる */
+:root {
+    color-scheme: light;
 }
 
 @layer base {

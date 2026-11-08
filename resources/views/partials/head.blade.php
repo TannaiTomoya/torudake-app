@@ -11,5 +11,11 @@
 
 @fonts
 
+{{-- 常にライト表示（#10）。配色のトークンはライト前提。以前の設定が残っていても dark を付けない --}}
+<meta name="color-scheme" content="light">
+<script>
+    document.documentElement.classList.remove('dark');
+    try { window.localStorage.removeItem('flux.appearance'); } catch (e) {}
+</script>
+
 @vite(['resources/css/app.css', 'resources/js/app.js'])
-@fluxAppearance

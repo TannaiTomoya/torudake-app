@@ -396,6 +396,7 @@
     "Update :name": ":nameを更新",
     "Update password": "パスワードを更新",
     "Update the appearance settings for your account": "アカウントのテーマ設定を更新",
+    "This app is always shown in light mode. It does not follow the dark mode of your device.": "この画面は、お使いの端末がダークモードでも、いつも明るい配色（ライト）で表示します。",
     "Update your name and email address": "名前とメールアドレスを更新",
     "Upgrade Required": "アップグレードが必要",
     "URI Too Long": "URLが長すぎます",
