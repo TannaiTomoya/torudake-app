@@ -45,7 +45,7 @@ class SubmitEvidence
         }
 
         if ($company->evidences()->where('sha256', $sha256)->exists()) {
-            return $this->duplicate($company, $sha256);
+            return $this->duplicate($company, $user, $sha256);
         }
 
         $extension = self::EXTENSIONS[$mime];
@@ -92,7 +92,7 @@ class SubmitEvidence
         } catch (UniqueConstraintViolationException) {
             $disk->delete($storageKey);
 
-            return $this->duplicate($company, $sha256);
+            return $this->duplicate($company, $user, $sha256);
         } catch (Throwable $e) {
             $disk->delete($storageKey);
 
@@ -104,13 +104,19 @@ class SubmitEvidence
         return new SubmitResult(duplicate: false, source: $source, monthCount: $this->monthCount($company));
     }
 
-    private function duplicate(Company $company, string $sha256): SubmitResult
+    /**
+     * 同じ写真がもう会社にあるときの結果。元の原資料は、この人が読めるときだけ返す（hash の一致だけで閲覧権限は増えない）。
+     * 送るだけの人は自分が送ったものだけ。読めないときは source を null にし、日付・店名・ID を渡さない。
+     */
+    private function duplicate(Company $company, User $user, string $sha256): SubmitResult
     {
         $existing = $company->sourceRecords()
             ->whereHas('evidence', fn ($query) => $query->where('sha256', $sha256))
             ->first();
 
-        return new SubmitResult(duplicate: true, source: $existing, monthCount: $this->monthCount($company));
+        $readable = $existing !== null && $user->can('viewSource', [$company, $existing->submitted_by]) ? $existing : null;
+
+        return new SubmitResult(duplicate: true, source: $readable, monthCount: $this->monthCount($company));
     }
 
     private function monthCount(Company $company): int

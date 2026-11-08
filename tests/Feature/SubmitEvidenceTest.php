@@ -5,8 +5,11 @@ use App\Enums\Role;
 use App\Enums\SourceStatus;
 use App\Jobs\ProcessEvidenceWithAi;
 use App\Models\AuditLog;
+use App\Models\Company;
 use App\Models\Evidence;
 use App\Models\SourceRecord;
+use App\Models\User;
+use App\Services\SubmitEvidence;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -182,4 +185,85 @@ test('原資料の一覧はその会社のものだけを出す', function (): v
         ->assertOk()
         ->assertSee($sourceA->evidence_id)
         ->assertDontSee($sourceB->evidence_id);
+});
+
+/**
+ * 送るだけの人 A が先に送った写真と、同じ中身のファイルを返す。
+ *
+ * @return array{company: Company, a: User, bytes: string, source: SourceRecord}
+ */
+function companyWithWorkerPhoto(): array
+{
+    ['company' => $company, 'user' => $a] = createCompanyWithMember(Role::Editor, submitOnly: true);
+
+    $file = UploadedFile::fake()->image('a.jpg', 321, 456);
+    $bytes = (string) file_get_contents((string) $file->getRealPath());
+    $source = app(SubmitEvidence::class)->submit($company, $a, $file)->source?->fresh() ?? throw new RuntimeException('原資料ができていません');
+
+    expect($source->vendor)->not->toBeNull();
+
+    return ['company' => $company, 'a' => $a, 'bytes' => $bytes, 'source' => $source];
+}
+
+test('重複通知：別の送るだけの人 B には、A の日付・店名・ID・画像の道を返さない（Livewire の状態にも入らない）', function (): void {
+    ['company' => $company, 'bytes' => $bytes, 'source' => $source] = companyWithWorkerPhoto();
+    ['user' => $b] = createCompanyWithMember(Role::Editor, submitOnly: true, company: $company);
+
+    $result = app(SubmitEvidence::class)->submit($company, $b, UploadedFile::fake()->createWithContent('same.jpg', $bytes));
+
+    expect($result->duplicate)->toBeTrue()->and($result->source)->toBeNull();
+
+    $component = Livewire::actingAs($b)
+        ->test('pages::company.submit', ['company' => $company])
+        ->set('photo', UploadedFile::fake()->createWithContent('same2.jpg', $bytes))
+        ->call('send')
+        ->assertSet('state', 'duplicate')
+        ->assertSet('duplicateOf', 'すでに受け付けた写真です')
+        ->assertSee('すでに受け付けた写真です')
+        ->assertDontSee((string) $source->vendor)
+        ->assertDontSee($source->id)
+        ->assertDontSee((string) $source->evidence_id);
+
+    expect(json_encode($component->instance()->all()))->not->toContain($source->id)
+        ->and(SourceRecord::count())->toBe(1)
+        ->and(Evidence::count())->toBe(1);
+});
+
+test('重複通知：同じ送るだけの人 A には、自分が送った日付と店名を出す', function (): void {
+    ['company' => $company, 'a' => $a, 'bytes' => $bytes, 'source' => $source] = companyWithWorkerPhoto();
+
+    Livewire::actingAs($a)
+        ->test('pages::company.submit', ['company' => $company])
+        ->set('photo', UploadedFile::fake()->createWithContent('same.jpg', $bytes))
+        ->call('send')
+        ->assertSet('state', 'duplicate')
+        ->assertSee((string) $source->vendor)
+        ->assertSee('に送った');
+
+    expect(SourceRecord::count())->toBe(1);
+});
+
+test('重複通知：資料を読める経理には、送るだけの人が送った日付と店名も出す', function (): void {
+    ['company' => $company, 'bytes' => $bytes, 'source' => $source] = companyWithWorkerPhoto();
+    ['user' => $editor] = createCompanyWithMember(Role::Editor, company: $company);
+
+    Livewire::actingAs($editor)
+        ->test('pages::company.submit', ['company' => $company])
+        ->set('photo', UploadedFile::fake()->createWithContent('same.jpg', $bytes))
+        ->call('send')
+        ->assertSet('state', 'duplicate')
+        ->assertSee((string) $source->vendor);
+
+    expect(SourceRecord::count())->toBe(1);
+});
+
+test('重複通知：別の会社の人には、同じ写真でも他社の存在や情報を出さず、独立して受け付ける', function (): void {
+    ['bytes' => $bytes, 'source' => $source] = companyWithWorkerPhoto();
+    ['company' => $other, 'user' => $c] = createCompanyWithMember(Role::Editor, submitOnly: true);
+
+    $result = app(SubmitEvidence::class)->submit($other, $c, UploadedFile::fake()->createWithContent('same.jpg', $bytes));
+
+    expect($result->duplicate)->toBeFalse()
+        ->and($result->source?->company_id)->toBe($other->id)
+        ->and($result->source?->id)->not->toBe($source->id);
 });

@@ -178,7 +178,7 @@ new #[Title('レシートを送る')] class extends Component {
                 $existing = $result->source;
                 $this->duplicateOf = $existing !== null
                     ? $existing->created_at?->isoFormat('M月D日(ddd)').'に送った'.($existing->vendor !== null ? $existing->vendor.'の' : '').'レシートと同じです'
-                    : '前に送ったレシートと同じです';
+                    : 'すでに受け付けた写真です';
             } else {
                 $this->sentCount++;
             }
