@@ -3,6 +3,7 @@
 use App\Enums\EntryStatus;
 use App\Enums\Role;
 use App\Services\OwnerDashboard;
+use App\Services\OwnerInsights;
 use Livewire\Livewire;
 
 beforeEach(fn () => $this->travelTo(now()->setDate(2026, 10, 24)->setTime(9, 0)));
@@ -26,7 +27,7 @@ test('T20 社長の画面の三期比較・前年同月の差・3期の平均・
             'yoy_diff' => 600_000, 'yoy_pct' => 20, 'average' => 3_133_333, 'latest_year_month' => '2026-08',
         ])
         ->and($dashboard['months'][1]['yoy_diff'])->toBe(-500_000)
-        ->and($dashboard['totals'])->toMatchArray(['current' => 5_600_000, 'previous_same_months' => 5_500_000, 'diff' => 100_000, 'pct' => 2, 'months_with_sales' => 2])
+        ->and($dashboard['totals'])->toMatchArray(['current' => 5_600_000, 'months_with_sales' => 2, 'comparable_months' => 2, 'comparable_month_numbers' => [8, 9], 'comparable_current' => 5_600_000, 'comparable_previous' => 5_500_000, 'diff' => 100_000, 'pct' => 2, 'previous_missing_months' => 0])
         ->and($dashboard['customers']['top'] ?? null)->toBe([
             ['label' => 'A社', 'amount_yen' => 8_000_000, 'share_pct' => 80],
             ['label' => 'B社', 'amount_yen' => 2_000_000, 'share_pct' => 20],
@@ -38,7 +39,7 @@ test('T20 社長の画面の三期比較・前年同月の差・3期の平均・
         ->assertSee('360万円')
         ->assertSee('+60万円<span class="block text-note md:ml-1 md:inline">（+20%）</span>', false)
         ->assertSee('−50万円<span class="block text-note md:ml-1 md:inline">（−20%）</span>', false)
-        ->assertSeeInOrder(['今期の売上（2か月）', '560万円', '前期の同じ月より +10万円（+2%）'])
+        ->assertSeeInOrder(['今期の売上（2か月）', '560万円', '前期の同じ月（比べられる2か月）より +10万円（+2%）'])
         ->assertDontSee('data-test="owner-total"', false)
         ->assertSeeInOrder(['A社', '80%', 'B社', '20%']);
 });
@@ -74,7 +75,7 @@ test('社長の画面は上から ひとこと・数字3つ・三期比較。表
         ->not->toContain('bg-brand-soft')
         ->and($html)->toContain('＊今期の数字がまだない月の差は、前期と前々期の差です。')
         ->and(substr_count($html, '前期と前々期'))->toBe(1)
-        ->and($details[1] ?? '')->toContain('今期の経費と残ったお金')
+        ->and($details[1] ?? '')->toContain('今期の登録済みの支出と、売上との参考差額')
         ->toContain('150,000円')
         ->toContain('燃料')
         ->toContain('売上の柱')
@@ -135,7 +136,7 @@ test('T26 忙しい月はグラフの薄い帯と表の「忙」の字で示し�
         ->not->toContain('data-test="busy-but-lower"');
 });
 
-test('今期の経費は確定した支出だけ。経費のない月は「—」、売上 − 経費を出す', function (): void {
+test('今期の経費は確定した支出だけ。経費のない月は「—」、参考差額（売上 − 支出）を出す', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
     putSales($company, '2026-09', 2_000_000);
     putSales($company, '2026-08', 1_000_000);
@@ -147,8 +148,8 @@ test('今期の経費は確定した支出だけ。経費のない月は「—�
 
     $dashboard = app(OwnerDashboard::class)->build($company);
 
-    expect($dashboard['months'][1])->toMatchArray(['month' => 9, 'expense' => 200_000, 'left' => 1_800_000])
-        ->and($dashboard['months'][0])->toMatchArray(['month' => 8, 'expense' => null, 'left' => null])
+    expect($dashboard['months'][1])->toMatchArray(['month' => 9, 'expense' => 200_000, 'reference_diff' => 1_800_000])
+        ->and($dashboard['months'][0])->toMatchArray(['month' => 8, 'expense' => null, 'reference_diff' => null])
         ->and($dashboard['expense_by_category'])->toBe([
             ['name' => '燃料', 'amount_yen' => 150_000],
             ['name' => '消耗品', 'amount_yen' => 50_000],
@@ -255,4 +256,103 @@ test('torudake:seed-demo はデモ用の会社にだけ、秋が多く前期の7
         ->and($dashboard['months'][1]['expense'])->toBeGreaterThan(0);
 
     $this->actingAs($owner)->get(route('company.owner', $company))->assertOk()->assertSee('忙しい月なのに前年より少ない');
+});
+
+test('#34 前期の比較は両年に数字がある月だけ。前期が欠けた月を0円として足さない', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    putSales($company, '2026-08', 3_600_000);
+    putSales($company, '2025-08', 3_000_000);
+    putSales($company, '2026-09', 2_000_000); // 前期の9月は未登録
+
+    $totals = app(OwnerDashboard::class)->build($company)['totals'];
+
+    expect($totals)->toMatchArray([
+        'current' => 5_600_000, 'months_with_sales' => 2,
+        'comparable_months' => 1, 'comparable_month_numbers' => [8], 'comparable_current' => 3_600_000, 'comparable_previous' => 3_000_000,
+        'diff' => 600_000, 'pct' => 20, 'previous_missing_months' => 1,
+    ]);
+
+    $this->actingAs($owner)->get(route('company.owner', $company))->assertOk()
+        ->assertSeeInOrder(['今期の売上（2か月）', '560万円', '前期の同じ月（比べられる1か月）より +60万円（+20%）', '前期の数字がない1か月は、比べていません']);
+});
+
+test('#34 今期だけ数字がある・前期が全部ない・今期もない場合は、比較せず「比べられる月がない」と出す', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+
+    $empty = app(OwnerDashboard::class)->build($company)['totals'];
+    expect($empty)->toMatchArray(['current' => 0, 'months_with_sales' => 0, 'comparable_months' => 0, 'diff' => null, 'pct' => null, 'previous_missing_months' => 0]);
+
+    putSales($company, '2026-08', 3_600_000);
+
+    $totals = app(OwnerDashboard::class)->build($company)['totals'];
+    expect($totals)->toMatchArray(['current' => 3_600_000, 'comparable_months' => 0, 'comparable_month_numbers' => [], 'comparable_current' => 0, 'comparable_previous' => 0, 'diff' => null, 'pct' => null, 'previous_missing_months' => 1]);
+
+    $this->actingAs($owner)->get(route('company.owner', $company))->assertOk()
+        ->assertSeeInOrder(['今期の売上（1か月）', '360万円', '前期と比べられる月はまだありません'])
+        ->assertDontSee('前期の同じ月（比べられる')
+        ->assertDontSee('比べていません');
+});
+
+test('#34 前期の実際の0円は欠けている月と区別し、比べる。%は前期が0のとき出さない', function (): void {
+    ['company' => $company] = createCompanyWithMember(Role::Owner);
+    putSales($company, '2026-08', 1_000_000);
+    putSales($company, '2025-08', 0);
+
+    $totals = app(OwnerDashboard::class)->build($company)['totals'];
+
+    expect($totals)->toMatchArray(['comparable_months' => 1, 'comparable_previous' => 0, 'diff' => 1_000_000, 'pct' => null, 'previous_missing_months' => 0]);
+});
+
+test('#34 AIの入力の比較月・合計は、画面の数字と同じ定義（欠けた月を0円にしない）', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    putSales($company, '2026-08', 3_600_000);
+    putSales($company, '2025-08', 3_000_000);
+    putSales($company, '2026-09', 2_000_000);
+
+    $dashboard = app(OwnerDashboard::class)->build($company);
+    $insights = app(OwnerInsights::class);
+
+    expect($insights->briefInput($dashboard)['totals'])->toEqual($dashboard['totals'])
+        ->and($insights->briefInput($dashboard)['totals'])->toMatchArray(['comparable_month_numbers' => [8], 'comparable_current' => 3_600_000, 'comparable_previous' => 3_000_000, 'previous_missing_months' => 1])
+        ->and($insights->forecastInput($dashboard)['growth_pct'])->toBe(20);
+
+    $this->actingAs($owner)->get(route('company.owner', $company))->assertOk()
+        ->assertSee('前期の同じ月（比べられる1か月）より +60万円（+20%）');
+});
+
+test('#34 参考差額は「現預金・利益ではない」と書き、集計期間・含めたもの・含めていないもの・集計時点を出す', function (): void {
+    ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
+    putSales($company, '2026-09', 2_000_000);
+    putEntry($company, '2026-09-05', '燃料', 150_000);
+    putEntry($company, '2026-09-21', '燃料', 70_000, EntryStatus::Draft);
+    putEntry($company, '2026-09-22', '消耗品', 30_000, EntryStatus::Returned);
+    putEntry($company, '2026-10-01', '消耗品', 20_000, EntryStatus::Draft);
+    putEntry($company, '2026-06-30', '燃料', 99_000, EntryStatus::Draft); // 前期の日付
+
+    $info = app(OwnerDashboard::class)->build($company)['expense_info'];
+
+    expect($info)->toMatchArray(['period_from' => '2026-08-01', 'period_to' => '2027-07-31', 'confirmed_count' => 1, 'draft_count' => 2, 'returned_count' => 1])
+        ->and($info['last_confirmed_at'])->not->toBeNull();
+
+    $html = $this->actingAs($owner)->get(route('company.owner', $company))->assertOk()->getContent();
+    preg_match('/data-test="owner-details">(.*)<footer/s', $html, $details);
+
+    expect($details[1] ?? '')->toContain('この差額は参考です。現預金の残高や利益ではありません。')
+        ->toContain('参考差額（売上 − 支出）')
+        ->toContain('集計期間：2026年8月1日〜2027年7月31日（今期）')
+        ->toContain('含めたもの：確定した支出 1件')
+        ->toContain('含めていないもの：未確定の下書き 2件・社長から戻した仕訳 1件')
+        ->toContain('集計時点：10月24日(土) 9:00')
+        ->not->toContain('残ったお金');
+});
+
+test('#34 売上だけ・支出だけの月は参考差額を出さない（欠けた方を0円にしない）', function (): void {
+    ['company' => $company] = createCompanyWithMember(Role::Owner);
+    putSales($company, '2026-08', 1_000_000);
+    putEntry($company, '2026-09-05', '燃料', 150_000);
+
+    $months = collect(app(OwnerDashboard::class)->build($company)['months'])->keyBy('month');
+
+    expect($months[8])->toMatchArray(['current' => 1_000_000, 'expense' => null, 'reference_diff' => null])
+        ->and($months[9])->toMatchArray(['current' => null, 'expense' => 150_000, 'reference_diff' => null]);
 });

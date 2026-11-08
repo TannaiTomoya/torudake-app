@@ -3,8 +3,8 @@
 入力の見方：
 - target_month：見込みを出す月（1〜12）。target_busy：その月が社長の決めた「忙しい月」なら true。
 - monthly_sales：過去の月ごとの売上（year_month → 円）。target_average：3期の同じ月の平均。target_history：過去の同じ月の売上。
-- growth_pct：今期の数字がある月の、前期の同じ月に対する伸び（%）。null は分からない。
-- monthly_expenses：アプリで確定した今期の月ごとの経費（使い始めた月から）。
+- growth_pct：今期と前期の**両方に数字がある月だけ**で比べた伸び（%）。前期の数字がない月は含めない。null は分からない。
+- monthly_expenses：アプリで確定した今期の月ごとの支出（使い始めた月から）。未登録の支出や下書きは入っていないので、実際の費用より少ないかもしれない。損益上の費用や利益、現預金の見込みとは言わない。
 
 答え方：
 - month：target_month をそのまま。

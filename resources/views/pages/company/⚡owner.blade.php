@@ -224,7 +224,14 @@ new class extends Component {
             <p class="text-note text-ink-sub">今期の売上{{ $totals['months_with_sales'] > 0 ? '（'.$totals['months_with_sales'].'か月）' : '' }}</p>
             @if ($totals['months_with_sales'] > 0)
                 <p class="whitespace-nowrap text-2xl font-bold tabular-nums">{{ $this->man($totals['current']) }}</p>
-                <p class="tabular-nums text-ink-sub">前期の同じ月より {{ $this->signedMan($totals['diff'], $totals['pct']) }}</p>
+                @if ($totals['comparable_months'] > 0)
+                    <p class="tabular-nums text-ink-sub" data-test="owner-number-sales-diff">前期の同じ月（比べられる{{ $totals['comparable_months'] }}か月）より {{ $this->signedMan($totals['diff'], $totals['pct']) }}</p>
+                @else
+                    <p class="text-ink-sub" data-test="owner-number-sales-diff">前期と比べられる月はまだありません</p>
+                @endif
+                @if ($totals['comparable_months'] > 0 && $totals['previous_missing_months'] > 0)
+                    <p class="text-note text-ink-sub" data-test="owner-number-sales-missing">前期の数字がない{{ $totals['previous_missing_months'] }}か月は、比べていません</p>
+                @endif
             @else
                 <p class="text-ink-sub">数字がまだありません</p>
             @endif
@@ -373,7 +380,7 @@ new class extends Component {
         @endif
     </section>
 
-    {{-- くわしく見る（経費と残ったお金・分類ごとの経費・来月の経費の見込み・売上の柱） --}}
+    {{-- くわしく見る（登録済みの支出と参考差額・分類ごとの経費・来月の経費の見込み・売上の柱） --}}
     <section x-data="{ open: $persist(false).as('torudake-owner-details') }" class="space-y-6 border-t border-line pt-4" data-test="owner-details">
         <button type="button" x-on:click="open = ! open" class="text-lg font-bold text-ink underline" x-bind:aria-expanded="open" data-test="owner-details-toggle">
             <span x-text="open ? 'くわしく見るをたたむ' : 'くわしく見る'">くわしく見る</span>
@@ -381,7 +388,7 @@ new class extends Component {
 
         <div x-cloak x-show="open" class="space-y-8">
             <section class="space-y-4" data-test="owner-expenses">
-                <h2 class="text-xl font-bold">今期の経費と残ったお金</h2>
+                <h2 class="text-xl font-bold">今期の登録済みの支出と、売上との参考差額</h2>
                 <div class="grid gap-4 md:grid-cols-3">
                     <div class="overflow-x-auto rounded-xl border border-line md:col-span-2">
                         <table class="w-full whitespace-nowrap text-right tabular-nums">
@@ -389,8 +396,8 @@ new class extends Component {
                                 <tr>
                                     <th class="px-1.5 py-2 md:px-3 text-left">月</th>
                                     <th class="px-1.5 py-2 md:px-3">売上</th>
-                                    <th class="px-1.5 py-2 md:px-3">経費（確定）</th>
-                                    <th class="px-1.5 py-2 md:px-3">売上 − 経費</th>
+                                    <th class="px-1.5 py-2 md:px-3">登録済みの支出（確定）</th>
+                                    <th class="px-1.5 py-2 md:px-3">参考差額（売上 − 支出）</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-line">
@@ -403,7 +410,7 @@ new class extends Component {
                                         <td class="px-1.5 py-2 text-left font-bold md:px-3">{{ $row['month'] }}月</td>
                                         <td class="px-1.5 py-2 md:px-3">{{ $this->yen($row['current']) }}</td>
                                         <td class="px-1.5 py-2 md:px-3">{{ $this->yen($row['expense']) }}</td>
-                                        <td class="px-1.5 py-2 md:px-3 font-bold">{{ $this->yen($row['left']) }}</td>
+                                        <td class="px-1.5 py-2 md:px-3 font-bold">{{ $this->yen($row['reference_diff']) }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -418,7 +425,15 @@ new class extends Component {
                         @endforelse
                     </div>
                 </div>
-                <p class="text-note text-ink-sub">経費はアプリを使い始めた月から。経費のない月は「—」。</p>
+                @php($info = $dashboard['expense_info'])
+                <div class="space-y-1 rounded-xl border border-line bg-panel p-4 text-note text-ink-sub" data-test="owner-reference-note">
+                    <p class="font-bold text-ink" data-test="owner-reference-caution">この差額は参考です。現預金の残高や利益ではありません。</p>
+                    <p>登録した売上から、アプリで確定した支出を引いた数字です。未登録の支出・入金や、借入の返済・設備の購入などは入っていません。売上か支出のどちらかがない月は「—」です。</p>
+                    <p data-test="owner-reference-period">集計期間：{{ \Carbon\CarbonImmutable::parse($info['period_from'])->isoFormat('YYYY年M月D日') }}〜{{ \Carbon\CarbonImmutable::parse($info['period_to'])->isoFormat('YYYY年M月D日') }}（今期）。アプリを使い始めた月から</p>
+                    <p data-test="owner-reference-included">含めたもの：確定した支出 {{ $info['confirmed_count'] }}件{{ $info['last_confirmed_at'] !== null ? '（最後の確定は'.\Carbon\CarbonImmutable::parse($info['last_confirmed_at'])->isoFormat('M月D日(ddd) H:mm').'）' : '' }}</p>
+                    <p data-test="owner-reference-excluded">含めていないもの：未確定の下書き {{ $info['draft_count'] }}件・社長から戻した仕訳 {{ $info['returned_count'] }}件</p>
+                    <p data-test="owner-reference-as-of">集計時点：{{ \Carbon\CarbonImmutable::parse($info['as_of'])->isoFormat('M月D日(ddd) H:mm') }}</p>
+                </div>
             </section>
 
             @if (is_array($f))

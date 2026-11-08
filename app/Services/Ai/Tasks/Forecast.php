@@ -13,7 +13,7 @@ use App\Services\Ai\AiTaskRunner;
  */
 class Forecast
 {
-    public const PROMPT_VERSION = 'forecast.v1';
+    public const PROMPT_VERSION = 'forecast.v2';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 

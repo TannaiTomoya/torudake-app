@@ -102,7 +102,7 @@ test('作り直しを頼んだ間は前回のひとことに「更新中」と�
 
     $this->actingAs($owner)->get(route('company.owner', $company))
         ->assertSee('data-test="owner-brief-updating"', false)
-        ->assertSee('今期1か月の売上は、前期の同じ月より60万円（20%）多い')
+        ->assertSee('両年そろった1か月の売上は、前期の同じ月より60万円（20%）多い')
         ->assertSee('wire:poll.2s', false);
     $this->actingAs($owner)->get(route('company.owner', $company));
 
@@ -124,7 +124,7 @@ test('AIが失敗したら前回のものを残し、5分は開くたびに呼�
 
     $this->actingAs($owner)->get(route('company.owner', $company))
         ->assertSee('最新の数字では作り直せませんでした（前回のひとことです）')
-        ->assertSee('今期1か月の売上は、前期の同じ月より60万円（20%）多い');
+        ->assertSee('両年そろった1か月の売上は、前期の同じ月より60万円（20%）多い');
     $this->actingAs($owner)->get(route('company.owner', $company));
 
     expect(insightRequests(AiTask::OwnerBrief))->toHaveCount(2);

@@ -204,12 +204,15 @@ class FakeClaudeClient implements AiClient
         $man = fn (int $yen): string => number_format((int) round(abs($yen) / 10000)).'万円';
         $totals = is_array($input['totals'] ?? null) ? $input['totals'] : [];
         $count = is_int($totals['months_with_sales'] ?? null) ? $totals['months_with_sales'] : 0;
-        $diff = is_int($totals['diff'] ?? null) ? $totals['diff'] : 0;
+        $comparable = is_int($totals['comparable_months'] ?? null) ? $totals['comparable_months'] : 0;
+        $diff = is_int($totals['diff'] ?? null) ? $totals['diff'] : null;
         $pct = is_int($totals['pct'] ?? null) ? $totals['pct'] : null;
 
-        $headline = $count === 0
-            ? 'まだ今期の売上の数字がありません'
-            : "今期{$count}か月の売上は、前期の同じ月より{$man($diff)}".($pct !== null ? '（'.abs($pct).'%）' : '').($diff < 0 ? '少ない' : '多い');
+        $headline = match (true) {
+            $count === 0 => 'まだ今期の売上の数字がありません',
+            $diff === null || $comparable === 0 => "今期{$count}か月分の売上が入っています。前期と比べられる月はまだありません",
+            default => "両年そろった{$comparable}か月の売上は、前期の同じ月より{$man($diff)}".($pct !== null ? '（'.abs($pct).'%）' : '').($diff < 0 ? '少ない' : '多い'),
+        };
 
         $busyAlert = null;
         foreach (is_array($input['months'] ?? null) ? $input['months'] : [] as $row) {
