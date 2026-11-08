@@ -15,6 +15,8 @@ use App\Models\JournalEntry;
 use App\Models\ReadingConfirmation;
 use App\Models\SourceRecord;
 use App\Models\User;
+use App\Support\DuplicateCandidateMatcher;
+use App\Support\DuplicateTarget;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingReview;
 use Carbon\CarbonImmutable;
@@ -32,6 +34,7 @@ class ConfirmEntryService
         private readonly JournalLineWriter $lineWriter,
         private readonly ConcernRules $concernRules,
         private readonly JournalBalanceChecker $balanceChecker,
+        private readonly DuplicateCandidateMatcher $duplicateMatcher,
         private readonly WorkbookService $workbook,
     ) {}
 
@@ -128,6 +131,18 @@ class ConfirmEntryService
             $corrected = in_array(ConcernFlag::Corrected->value, $entry->concern_flags ?? [], true)
                 || ($tracksAiCorrections && array_intersect($changed, ['category', 'amount']) !== []);
 
+            // 保存の直前にも、最新の値と最新の候補で照合し直す（判断は値が同じときだけ使う）。止めはしない
+            $duplicates = $this->duplicateMatcher->match($company, new DuplicateTarget(
+                sourceId: $source->id,
+                entryId: $entry->id,
+                date: $date,
+                vendor: $input->vendor,
+                amountYen: $amountYen,
+                direction: $category->direction,
+                bankKind: $bankAccount->kind,
+                dateUncertain: false,
+            ));
+
             $entry->forceFill([
                 'entry_date' => $date,
                 'vendor' => $input->vendor,
@@ -139,7 +154,7 @@ class ConfirmEntryService
                 'confirmed_by' => $user->id,
                 'confirmed_at' => now(),
                 'returned_reason' => null,
-                'concern_flags' => $this->concernRules->for($company, $amountYen, $entry->ai_check, $corrected, $amountMissing, $balance),
+                'concern_flags' => $this->concernRules->for($company, $amountYen, $entry->ai_check, $corrected, $amountMissing, $balance, $duplicates->concerning() !== []),
             ])->save();
 
             $entry->sources()->lockForUpdate()->get()->each(function (SourceRecord $linked) use ($date, $amountYen, $input): void {
@@ -158,7 +173,7 @@ class ConfirmEntryService
                 action: 'entry.confirm',
                 subject: $entry,
                 before: $before,
-                after: [...$after, 'corrected' => $changed, 'reason' => $input->reason?->value, 'reading_review' => $confirmations],
+                after: [...$after, 'corrected' => $changed, 'reason' => $input->reason?->value, 'reading_review' => $confirmations, 'duplicate_candidates' => array_map(fn ($c): array => ['entry_id' => $c->entryId, 'strength' => $c->strength->value, 'decision' => $c->review?->decision->value], array_slice($duplicates->all, 0, 10))],
                 company: $company,
             );
 

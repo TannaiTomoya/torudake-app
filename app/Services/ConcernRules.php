@@ -15,9 +15,10 @@ class ConcernRules
     /**
      * @param  array<string, mixed>|null  $aiCheck  L3 の検算結果
      * @param  BalanceResult|null  $balance  規則の貸借検算（保存されている最新の行から）。行がない下書きは null
+     * @param  bool  $duplicateCandidate  コードの照合で、強い・近い一致の候補があり、別の取引と判断されていない
      * @return list<string>
      */
-    public function for(Company $company, ?int $amountYen, ?array $aiCheck, bool $corrected, bool $amountMissing, ?BalanceResult $balance = null): array
+    public function for(Company $company, ?int $amountYen, ?array $aiCheck, bool $corrected, bool $amountMissing, ?BalanceResult $balance = null, bool $duplicateCandidate = false): array
     {
         $flags = [];
 
@@ -40,6 +41,10 @@ class ConcernRules
         // 貸借の判定は規則の検算だけを使う。AI の balanced（過去の回答）では決めない。
         if ($balance !== null && ! $balance->balanced()) {
             $flags[] = ConcernFlag::AiUnbalanced;
+        }
+
+        if ($duplicateCandidate) {
+            $flags[] = ConcernFlag::DuplicateCandidate;
         }
 
         if ($corrected) {

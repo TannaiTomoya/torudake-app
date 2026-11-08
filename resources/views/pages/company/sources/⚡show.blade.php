@@ -4,6 +4,7 @@ use App\Enums\AiStatus;
 use App\Enums\BalanceProblem;
 use App\Enums\ConcernFlag;
 use App\Enums\CorrectionReason;
+use App\Enums\DuplicateDecision;
 use App\Enums\EntryStatus;
 use App\Enums\SourceStatus;
 use App\Models\BankAccount;
@@ -14,7 +15,11 @@ use App\Models\SourceRecord;
 use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
+use App\Services\DuplicateReviewService;
 use App\Services\IgnoreSourceService;
+use App\Support\DuplicateCandidate;
+use App\Support\DuplicateCandidateMatcher;
+use App\Support\DuplicateCandidates;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
 use App\Support\ReadingReview;
@@ -49,6 +54,10 @@ new #[Title('直して確定')] class extends Component {
     public string $reason = '';
 
     public bool $confirmDate = false;
+
+    public string $duplicateReason = '';
+
+    public string $duplicateMessage = '';
 
     public string $ignoreReason = '';
 
@@ -96,6 +105,15 @@ new #[Title('直して確定')] class extends Component {
     }
 
     /**
+     * 二重計上の候補（コードの照合。保存されている値と最新の候補から、開くたびに引き直す）。
+     */
+    #[Computed]
+    public function duplicates(): DuplicateCandidates
+    {
+        return app(DuplicateCandidateMatcher::class)->forSource($this->company, $this->source);
+    }
+
+    /**
      * @return Collection<int, Category>
      */
     #[Computed]
@@ -135,6 +153,37 @@ new #[Title('直して確定')] class extends Component {
         ));
 
         $this->goToNext('確定しました。');
+    }
+
+    public function decideDuplicate(string $candidateEntryId, string $decision, DuplicateReviewService $service): void
+    {
+        $this->authorize('editDraft', $this->company);
+        $this->resetErrorBag();
+        $this->duplicateMessage = '';
+
+        $choice = DuplicateDecision::tryFrom($decision);
+
+        if ($choice === null) {
+            $this->addError('duplicateReason', '判断を選んでください。');
+
+            return;
+        }
+
+        /** @var User $user */
+        $user = Auth::user();
+
+        $service->decide($this->company, $user, $this->sourceId, $candidateEntryId, $choice, $this->duplicateReason);
+
+        $this->duplicateReason = '';
+
+        if ($choice === DuplicateDecision::Duplicate) {
+            $this->goToNext('重複として対象外にしました。');
+
+            return;
+        }
+
+        unset($this->duplicates);
+        $this->duplicateMessage = '判断を記録しました。';
     }
 
     public function ignore(IgnoreSourceService $service): void
@@ -180,6 +229,10 @@ new #[Title('直して確定')] class extends Component {
     $lowFields = ReadingChecks::lowConfidenceFields($check);
     $reviewItems = ReadingReview::items($entry?->reading_review, $check === [] ? null : $check);
     $reasonsFor = fn (string $field): array => array_values(array_diff($reviewItems[$field]['reasons'] ?? [], ['low_confidence']));
+    $duplicates = $entry !== null ? $this->duplicates : null;
+    $candidateSources = $duplicates !== null && $duplicates->all !== []
+        ? $company->sourceRecords()->with('evidence')->whereIn('id', collect($duplicates->shown())->pluck('sourceId')->filter()->all())->get()->keyBy('id')
+        : collect();
     $defaultedDate = ($reviewItems['date']['needs_confirmation'] ?? false) || ($entry === null);
     $low = fn (string $key): bool => in_array($key, $lowFields, true);
     $addresseeFlag = match ($check['addressee_kind'] ?? null) {
@@ -276,11 +329,71 @@ new #[Title('直して確定')] class extends Component {
                     @endif
                 </div>
             @endif
+            @if ($duplicates !== null && $entry?->amountYen() !== null)
+                <div @class(['space-y-3 rounded-xl border bg-panel p-4', 'border-warn' => $duplicates->all !== [], 'border-line' => $duplicates->all === []]) data-test="{{ $duplicates->all !== [] ? 'duplicate-candidates' : 'duplicate-none' }}">
+                    <h2 class="font-bold text-ink">二重計上の候補（金額・日付・店名の照合。前後{{ $duplicates->windowDays }}日・同じ金額）</h2>
+                    @if ($duplicates->all === [])
+                        <p class="text-note text-ink-sub">候補は見つかりませんでした。見つからないことは、重複がないことを保証しません（範囲外の日付・金額や店名がまったく違うものは探していません）。</p>
+                    @else
+                        <p class="text-note text-ink-sub">重複と決めつけるものではありません。同じ日・同じ店・同じ金額の別の取引もあります。写真と見比べて、人が判断してください。</p>
+                        @if (! $readOnly)
+                            <label class="block space-y-1">
+                                <span class="font-bold">判断の理由（「別の取引」「対象外」のときは必ず）</span>
+                                <input type="text" wire:model="duplicateReason" maxlength="200" data-test="duplicate-reason" class="w-full rounded-lg border border-line bg-paper px-3 py-2 text-body">
+                            </label>
+                            @error('duplicateReason') <p class="font-bold text-ng" data-test="duplicate-error">{{ $message }}</p> @enderror
+                            @if ($duplicateMessage !== '') <p class="font-bold text-ok" data-test="duplicate-message">{{ $duplicateMessage }}</p> @endif
+                        @endif
+                        @foreach ($duplicates->shown() as $candidate)
+                            @php
+                                $candidateSource = $candidate->sourceId !== null ? $candidateSources->get($candidate->sourceId) : null;
+                                $reviewed = $candidate->review;
+                            @endphp
+                            <div class="space-y-2 rounded-lg border border-line bg-paper p-3" data-test="duplicate-candidate" wire:key="dup-{{ $candidate->entryId }}">
+                                <p class="font-bold">
+                                    <span @class(['rounded-full px-3 py-1 text-note', 'bg-ng-soft text-ng' => $candidate->strength->value === 'strong', 'bg-warn-soft text-warn' => $candidate->strength->value !== 'strong'])>{{ $candidate->strength->label() }}</span>
+                                    {{ \Illuminate\Support\Carbon::parse($candidate->date)->isoFormat('M月D日(ddd)') }}　{{ $candidate->vendor ?? '（店名なし）' }}　{{ number_format($candidate->amountYen) }}円　（{{ $candidate->statusLabel }}）
+                                </p>
+                                <ul class="text-note text-ink-sub">
+                                    @foreach ($candidate->reasons as $code)
+                                        <li>・{{ DuplicateCandidate::reasonLabel($code, $candidate->dayDifference) }}</li>
+                                    @endforeach
+                                </ul>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    @if ($candidateSource?->evidence !== null && ! $candidateSource->evidence->isPurged() && $candidateSource->evidence->isImage())
+                                        <img src="{{ route('company.evidences.image', [$company, $candidateSource->evidence_id]) }}" alt="候補の写真" class="h-28 rounded-lg border border-line object-contain">
+                                    @elseif ($candidateSource !== null)
+                                        <span class="text-note text-ink-sub">候補の写真は残っていません</span>
+                                    @endif
+                                    <a href="{{ $candidate->sourceId !== null ? route('company.sources.show', [$company, $candidate->sourceId]) : route('company.entries.show', [$company, $candidate->entryId]) }}" wire:navigate class="text-note font-bold text-brand-ink underline" data-test="duplicate-open">候補を開いて見比べる</a>
+                                </div>
+                                @if ($reviewed !== null)
+                                    <p class="text-note font-bold" data-test="duplicate-reviewed">判断済み：{{ $reviewed->decision->label() }}（{{ $reviewed->decider?->name }}・{{ $reviewed->decided_at->isoFormat('M月D日(ddd) H:mm') }}）@if ($reviewed->reason)　理由：{{ $reviewed->reason }}@endif</p>
+                                @endif
+                                @if (! $readOnly && ($reviewed === null || $reviewed->decision === DuplicateDecision::Hold))
+                                    <div class="flex flex-wrap gap-2">
+                                        @foreach (DuplicateDecision::cases() as $choice)
+                                            <button type="button" wire:click="decideDuplicate('{{ $candidate->entryId }}', '{{ $choice->value }}')" wire:loading.attr="disabled" data-test="duplicate-{{ $choice->value }}"
+                                                    class="rounded-lg border-2 border-line bg-paper px-3 py-2 font-bold text-ink">{{ $choice->label() }}</button>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                        @if ($duplicates->hiddenCount() > 0)
+                            <p class="font-bold text-warn" data-test="duplicate-hidden">ほか {{ $duplicates->hiddenCount() }} 件の候補があります（表示は {{ $duplicates->displayLimit }} 件まで）。</p>
+                        @endif
+                    @endif
+                </div>
+            @endif
             @if ($entry && ($check !== []))
                 <div class="space-y-2 rounded-xl border border-line bg-panel p-4" data-test="ai-check">
                     <h2 class="font-bold text-ink">AIの気になる点</h2>
                     @if (($check['amount_missing'] ?? false) === true)
                         <p class="text-warn">金額の記載がない書類です（後日の請求書で決まる金額）。検算は金額を入れてから行います。</p>
+                    @endif
+                    @if (($check['duplicate_suspected'] ?? false) === true)
+                        <p class="text-warn" data-test="ai-duplicate-hint">AIの参考：重複の疑いがあるとAIが答えました。どの取引かはAIでは特定できません。上の「二重計上の候補」の照合で確かめてください。</p>
                     @endif
                     @foreach (($check['concerns'] ?? []) as $concern)
                         <p class="text-warn">・{{ $concern }}</p>

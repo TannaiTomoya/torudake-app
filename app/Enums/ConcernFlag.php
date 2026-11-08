@@ -13,6 +13,7 @@ enum ConcernFlag: string
     case AddresseeOtherCompany = 'addressee_other_company';
     case AddresseePerson = 'addressee_person';
     case LowConfidence = 'low_confidence';
+    case DuplicateCandidate = 'duplicate_candidate';
 
     public function label(): string
     {
@@ -22,7 +23,8 @@ enum ConcernFlag: string
             self::LowConfidence => '読み取りの自信が低い',
             self::Amount => '金額が大きい',
             self::AmountMissing => '金額の記載なし',
-            self::AiDuplicate => '重複の疑い',
+            self::AiDuplicate => 'AIの参考：重複の疑い',
+            self::DuplicateCandidate => '二重計上の候補あり（金額・日付・店名の照合）',
             self::AiPrivate => '私的支出の疑い',
             self::AiUnbalanced => '貸借が合わない',
             self::Corrected => '経理がAIを直した',
@@ -32,7 +34,7 @@ enum ConcernFlag: string
     public function color(): string
     {
         return match ($this) {
-            self::Amount, self::AmountMissing, self::LowConfidence => 'warn',
+            self::Amount, self::AmountMissing, self::LowConfidence, self::DuplicateCandidate => 'warn',
             self::AiDuplicate, self::AiPrivate, self::AiUnbalanced, self::AddresseeOtherCompany, self::AddresseePerson => 'ng',
             self::Corrected => 'brand',
         };

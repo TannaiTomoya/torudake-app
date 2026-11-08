@@ -16,6 +16,7 @@ use App\Models\SourceRecord;
 use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
+use App\Support\DuplicateCandidateMatcher;
 use App\Support\ReadingChecks;
 use App\Support\ReadingReview;
 use App\Support\RemainingCount;
@@ -289,6 +290,9 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     $lowFields = ReadingChecks::lowConfidenceFields($entry?->ai_check);
     $rowFields = ['店名' => 'vendor', '日付' => 'date', '合計' => 'total'];
     $reviewItems = ReadingReview::items($entry?->reading_review, $entry?->ai_check);
+    $duplicateCount = ($current !== null && $entry !== null && $entry->amountYen() !== null && $current->status !== SourceStatus::Confirmed)
+        ? count(app(DuplicateCandidateMatcher::class)->forSource($company, $current)->concerning())
+        : 0;
     $addresseeKind = $entry?->ai_check['addressee_kind'] ?? null;
     $addresseeFlag = match ($addresseeKind) {
         'other_company' => ConcernFlag::AddresseeOtherCompany,
@@ -377,6 +381,9 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                                         <p class="font-bold text-warn" data-test="live-reading-reason-{{ $item['field'] }}">{{ $item['label'] }}：{{ ReadingReview::reasonLabel($code) }}</p>
                                     @endforeach
                                 @endforeach
+                                @if ($duplicateCount > 0 && $current !== null)
+                                    <p class="font-bold text-warn" data-test="live-duplicate">二重計上の候補が {{ $duplicateCount }} 件あります。<a href="{{ route('company.sources.show', [$company, $current->id]) }}" wire:navigate class="underline">直して確定の画面で見比べる</a></p>
+                                @endif
                                 @error('confirmDate')
                                     <p class="font-bold text-ng" data-test="live-confirm-date-error">
                                         {{ $message }}
