@@ -11,11 +11,14 @@ use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\EntryPostEvent;
+use App\Models\FirstConfirmation;
 use App\Models\JournalEntry;
 use App\Models\ReadingConfirmation;
 use App\Models\SourceRecord;
 use App\Models\User;
 use App\Support\DuplicateCandidateMatcher;
+use App\Support\DuplicateCandidates;
 use App\Support\DuplicateTarget;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingReview;
@@ -94,6 +97,7 @@ class ConfirmEntryService
                 throw ValidationException::withMessages(['confirmDate' => 'AIは日付を読めず、今日の日付を仮に入れています。写真を見て確かめ、「この日付でよい」にチェックするか、日付を直してください。']);
             }
 
+            $beforeDescription = $entry->description;
             $wasPreviouslyConfirmed = $entry->confirmed_at !== null || $entry->status === EntryStatus::Returned;
             $tracksAiCorrections = $entry->ai_run_id !== null && ! $wasPreviouslyConfirmed;
             $changed = $this->changedFields($before, $after);
@@ -168,6 +172,12 @@ class ConfirmEntryService
 
             $confirmations = $this->recordReadingConfirmations($company, $user, $entry, $review, $before, $after, $dateConfirmed);
 
+            if ($wasPreviouslyConfirmed) {
+                $this->recordPostEvent($company, $user, $entry, $before, $after, $beforeDescription, $input->description);
+            } else {
+                $this->recordFirstConfirmation($company, $user, $entry, $source, $before, $after, $beforeDescription, $input, $confirmations, $duplicates);
+            }
+
             AuditLog::record(
                 user: $user,
                 action: 'entry.confirm',
@@ -225,6 +235,116 @@ class ConfirmEntryService
         }
 
         return $recorded;
+    }
+
+    /**
+     * 初回確定の時点の記録（#32）。1仕訳に1行で、あとから書き換えない。
+     * 数えるのは「下書きに手を入れたか」。AI の答えが会計として正しかったかは、ここでは言わない。
+     * 摘要は自由文のため、主な指標（手を入れなかった率）には含めず、別に記録する。
+     *
+     * @param  array<string, string|int|null>  $before
+     * @param  array<string, string|int|null>  $after
+     * @param  array<string, string>  $confirmations  欄 => 読み取りの確認の方法
+     */
+    private function recordFirstConfirmation(
+        Company $company,
+        User $user,
+        JournalEntry $entry,
+        SourceRecord $source,
+        array $before,
+        array $after,
+        ?string $beforeDescription,
+        ConfirmEntryInput $input,
+        array $confirmations,
+        DuplicateCandidates $duplicates,
+    ): void {
+        if ($company->firstConfirmations()->where('journal_entry_id', $entry->id)->exists()) {
+            return;
+        }
+
+        $isAi = $entry->ai_run_id !== null;
+        $run = $isAi ? $company->aiRuns()->find($entry->ai_run_id) : null;
+        $review = is_array($entry->reading_review) ? $entry->reading_review : [];
+        $origin = fn (string $field): string => is_array($review[$field] ?? null) && is_string($review[$field]['origin'] ?? null)
+            ? $review[$field]['origin']
+            : 'unknown';
+
+        $changed = $isAi ? $this->changedFields($before, $after) : [];
+        $filled = [];
+        foreach ($isAi ? $before : [] as $field => $value) {
+            if ($value === null && $after[$field] !== null) {
+                $filled[] = $field;
+            }
+        }
+
+        $row = new FirstConfirmation;
+        $row->forceFill([
+            'company_id' => $company->id,
+            'journal_entry_id' => $entry->id,
+            'source_record_id' => $source->id,
+            'kind' => $isAi ? FirstConfirmation::KIND_AI : FirstConfirmation::KIND_MANUAL,
+            // 実際の AI（claude）で、デモ会社でないものだけを real にする。fake・replay・デモ会社は別集計
+            'evaluation_class' => ! $company->is_demo && (! $isAi || $run?->driver === 'claude')
+                ? FirstConfirmation::CLASS_REAL
+                : FirstConfirmation::CLASS_DEMO,
+            'ai_run_id' => $run?->id,
+            'driver' => $run?->driver,
+            'prompt_version' => $run?->prompt_version,
+            'required_complete' => $isAi && $before['amount'] !== null && $origin('date') !== 'defaulted',
+            'changed_fields' => $changed,
+            'filled_fields' => $filled,
+            'description_changed' => $isAi && $this->differs($beforeDescription, $input->description),
+            'draft_origin' => [
+                'date' => $origin('date'),
+                'vendor' => $origin('vendor'),
+                'amount' => $origin('amount'),
+                'category' => $isAi ? 'ai' : 'none',
+                'payment' => $isAi ? ($entry->draft_payment_origin ?? 'unknown') : 'none',
+            ],
+            'reading_methods' => $confirmations,
+            'duplicate' => [
+                'shown' => count($duplicates->all),
+                'concerning' => count($duplicates->concerning()),
+                'decided' => count(array_filter($duplicates->all, fn ($candidate): bool => $candidate->review !== null)),
+            ],
+            'reason' => $changed !== [] ? $input->reason?->value : null,
+            'first_confirmed_by' => $user->id,
+            'first_confirmed_at' => $entry->confirmed_at ?? now(),
+        ])->save();
+    }
+
+    /**
+     * 戻したあとの再確定を、初回確定とは別に残す。どの欄が変わったか（摘要を含む）だけを持つ。
+     *
+     * @param  array<string, string|int|null>  $before
+     * @param  array<string, string|int|null>  $after
+     */
+    private function recordPostEvent(Company $company, User $user, JournalEntry $entry, array $before, array $after, ?string $beforeDescription, ?string $afterDescription): void
+    {
+        $fields = [];
+        foreach ($before as $field => $value) {
+            if ($value !== $after[$field]) {
+                $fields[] = $field;
+            }
+        }
+        if ($this->differs($beforeDescription, $afterDescription)) {
+            $fields[] = 'description';
+        }
+
+        $event = new EntryPostEvent;
+        $event->forceFill([
+            'company_id' => $company->id,
+            'journal_entry_id' => $entry->id,
+            'kind' => EntryPostEvent::KIND_RECONFIRMED,
+            'changed_fields' => $fields,
+            'actor_id' => $user->id,
+            'occurred_at' => now(),
+        ])->save();
+    }
+
+    private function differs(?string $a, ?string $b): bool
+    {
+        return trim((string) $a) !== trim((string) $b);
     }
 
     /**

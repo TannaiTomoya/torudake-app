@@ -81,21 +81,51 @@ new #[Title('AIの記録')] class extends Component {
         </div>
     </header>
 
-    {{-- その月の結論（デモの S5） --}}
-    <section class="space-y-3 rounded-2xl border-2 border-ink bg-panel p-5 md:p-6" data-test="ai-headline">
-        @if ($summary['ai_entries'] > 0)
+    {{-- 初回確定の記録（#32）。測っているのは「下書きに手を入れたか」で、AIの答えの正しさではない --}}
+    @php($first = $summary['first'])
+    <section class="space-y-3 rounded-2xl border-2 border-ink bg-panel p-5 md:p-6" data-test="ai-first">
+        <h2 class="text-xl font-bold">初回確定の記録{{ $first['class'] === 'demo' ? '（デモ・テスト用のデータ）' : '' }}</h2>
+        @if ($first['ai_first'] > 0)
             <p class="text-2xl font-bold leading-snug md:text-3xl">
+                この月に初めて確定したAIの下書き <span class="tabular-nums" data-test="first-total">{{ number_format($first['ai_first']) }}</span>件のうち、手を入れず確定 <span class="tabular-nums" data-test="first-unchanged">{{ number_format($first['unchanged']) }}</span>件（<span data-test="first-unchanged-pct">{{ $first['unchanged_pct'] }}</span>%）
+            </p>
+        @else
+            <p class="text-2xl font-bold leading-snug md:text-3xl" data-test="first-none">この月に初めて確定したAIの下書きは、まだありません</p>
+        @endif
+        <p class="text-note text-ink-sub">「手を入れず」は、日付と金額が読めていて、日付・店名・分類・支払い元・金額を変えなかったことです。AIの答えが会計として正しかった割合（正解率）ではありません。摘要は含めません。</p>
+        <dl class="grid gap-x-6 gap-y-1 sm:grid-cols-2" data-test="first-details">
+            <div class="flex justify-between gap-3"><dt>金額の記載がなく、人が入れた</dt><dd class="font-bold tabular-nums" data-test="first-amount-filled">{{ $first['amount_filled'] }}件{{ $first['amount_filled_pct'] === null ? '' : '（'.$first['amount_filled_pct'].'%）' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt>摘要を直した</dt><dd class="font-bold tabular-nums" data-test="first-description">{{ $first['description_changed'] }}件{{ $first['description_changed_pct'] === null ? '' : '（'.$first['description_changed_pct'].'%）' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt>支払い元に、直した履歴を使った</dt><dd class="font-bold tabular-nums" data-test="first-history">{{ $first['history_applied'] }}件</dd></div>
+            <div class="flex justify-between gap-3"><dt>履歴を使わなかった下書きで、手を入れず確定</dt><dd class="font-bold tabular-nums" data-test="first-without-history">{{ $first['without_history']['unchanged'] }}/{{ $first['without_history']['total'] }}件</dd></div>
+            <div class="flex justify-between gap-3"><dt>AIの下書きがなく、人が最初から入力</dt><dd class="font-bold tabular-nums" data-test="first-manual">{{ $first['manual'] }}件{{ $first['manual_pct'] === null ? '' : '（'.$first['manual_pct'].'%）' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt>確定のあとで戻した・再確定した</dt><dd class="font-bold tabular-nums" data-test="first-post">{{ $first['post_corrected'] }}件{{ $first['post_corrected_pct'] === null ? '' : '（'.$first['post_corrected_pct'].'%）' }}</dd></div>
+            <div class="flex justify-between gap-3"><dt>AIの読み取り・仕訳の失敗</dt><dd class="font-bold tabular-nums" data-test="first-ai-failed">{{ $first['ai_failed'] }}/{{ $first['ai_runs'] }}回</dd></div>
+        </dl>
+        @if ($first['legacy'] > 0)
+            <p class="text-note text-ink-sub" data-test="first-legacy">この機能より前に確定した {{ $first['legacy'] }}件は、初回確定の記録がないため、この率に入れていません（評価不能）。</p>
+        @endif
+        @if ($first['other_class'] > 0)
+            <p class="text-note text-ink-sub" data-test="first-other-class">{{ $first['class'] === 'demo' ? '実際のAIの' : 'デモ・テスト用（fake・再生・デモ会社）の' }}{{ $first['other_class'] }}件は、数字が混ざらないよう別にしています。</p>
+        @endif
+    </section>
+
+    {{-- 従来の数え方（確定した月・直した記録の有無）。再確定や過去の記録を含むため、上の記録と一致しないことがある --}}
+    <section class="space-y-3 rounded-2xl border border-line bg-panel p-5 md:p-6" data-test="ai-headline">
+        <h2 class="text-note font-bold text-ink-sub">従来の数え方（参考）</h2>
+        @if ($summary['ai_entries'] > 0)
+            <p class="text-xl font-bold leading-snug">
                 AIが作った仕訳 <span class="tabular-nums" data-test="ai-entries">{{ number_format($summary['ai_entries']) }}</span>件のうち、そのまま確定 <span class="tabular-nums" data-test="ai-unchanged">{{ number_format($summary['unchanged']) }}</span>件（<span data-test="ai-unchanged-pct">{{ $summary['unchanged_pct'] }}</span>%）
             </p>
         @else
-            <p class="text-2xl font-bold leading-snug md:text-3xl">この月は、AIが作って確定した仕訳がまだありません</p>
+            <p class="text-xl font-bold leading-snug">この月は、AIが作って確定した仕訳がまだありません</p>
         @endif
         @if ($summary['top_reason'] !== null)
             <p class="font-bold" data-test="ai-top-reason">一番多い直し：{{ $summary['top_reason']['label'] }}（{{ $summary['top_reason']['count'] }}件）</p>
         @else
             <p class="text-ink-sub">この月の直しはまだありません</p>
         @endif
-        <p class="text-ink-sub">直した記録は、次の Python 編で規則にする材料になります。</p>
+        <p class="text-note text-ink-sub">確定した月と、直した記録の有無で数えます。再確定した仕訳も含みます。直した記録は、次の Python 編で規則にする材料になります。</p>
     </section>
 
     <div class="grid gap-6 lg:grid-cols-2">

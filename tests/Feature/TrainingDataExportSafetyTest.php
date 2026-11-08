@@ -13,6 +13,7 @@ use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
 use App\Services\TrainingDataExporter;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 // #31：分析用の書き出しは「許可した項目だけ」。架空の個人情報を全階層に入れても出ない
@@ -81,7 +82,7 @@ function readExport(Company $company, ?CarbonImmutable $month = null): array
     $zip->close();
     unlink($path);
 
-    foreach (['ai_runs.jsonl', 'ai_corrections.jsonl', 'journal_entries.jsonl'] as $name) {
+    foreach (['ai_runs.jsonl', 'ai_corrections.jsonl', 'journal_entries.jsonl', 'first_confirmations.jsonl'] as $name) {
         $rows[$name] = array_map(
             fn (string $line): array => json_decode($line, true, flags: JSON_THROW_ON_ERROR),
             array_values(array_filter(explode("\n", $files[$name]))),
@@ -174,6 +175,17 @@ function poisonStoredText(Company $company): void
         $entry->forceFill(['vendor' => $name, 'description' => "{$memo} {$phone}"])->save();
     }
 
+    // 初回確定の記録は書き換えられないので、直接書いて、型の合わない値が出ないことを見る
+    DB::table('first_confirmations')->where('company_id', $company->id)->update([
+        'driver' => $name,
+        'prompt_version' => $memo,
+        'reason' => $address,
+        'draft_origin' => json_encode(['date' => $name, 'vendor' => $memo, 'amount' => $phone, 'category' => $email, 'payment' => $address]),
+        'reading_methods' => json_encode(['date' => $name, 'vendor' => $memo, 'amount' => $phone, 'note' => $address]),
+        'changed_fields' => json_encode([$name, 'amount', $memo]),
+        'duplicate' => json_encode(['shown' => $name, 'concerning' => $memo, 'decided' => $phone]),
+    ]);
+
     foreach ($company->categories()->get() as $category) {
         $category->forceFill(['name' => "{$name}分類{$category->sort_order}"])->save();
     }
@@ -222,7 +234,12 @@ test('各ファイルが持つ項目は許可した名前だけ。raw の input�
     ])->and(array_keys($export['rows']['journal_entries.jsonl'][0]))->toBe([
         'id', 'entry_date', 'status', 'vendor_key', 'category_key', 'payment_key', 'amount_yen', 'lines', 'ai_run_id', 'origin',
         'concern_flags', 'confirmed_by', 'confirmed_at',
-    ])->and(array_keys($export['rows']['journal_entries.jsonl'][0]['lines'][0]))->toBe(['side', 'account_code', 'amount_yen']);
+    ])->and(array_keys($export['rows']['journal_entries.jsonl'][0]['lines'][0]))->toBe(['side', 'account_code', 'amount_yen'])
+        ->and(array_keys($export['rows']['first_confirmations.jsonl'][0]))->toBe([
+            'id', 'journal_entry_id', 'ai_run_id', 'kind', 'evaluation_class', 'driver', 'prompt_version', 'required_complete', 'unchanged',
+            'changed_fields', 'filled_fields', 'description_changed', 'draft_origin', 'reading_methods', 'duplicate', 'reason',
+            'first_confirmed_by', 'first_confirmed_at', 'post_events',
+        ]);
 });
 
 test('読み取りの出力は型を確かめた値だけ。型が違う値は null になり、文字は通らない', function (): void {
@@ -343,7 +360,7 @@ test('manifest：版・期間・時刻の基準・件数・ハッシュが3つ�
         ->and($manifest['period']['from_utc'])->toBe($month->utc()->format('Y-m-d\TH:i:s\Z'))
         ->and($manifest['period']['to_utc'])->toBe($month->addMonth()->utc()->format('Y-m-d\TH:i:s\Z'))
         ->and($manifest['sensitivity'])->toContain('匿名化ではない')
-        ->and(array_keys($manifest['files']))->toBe(['ai_runs.jsonl', 'ai_corrections.jsonl', 'journal_entries.jsonl']);
+        ->and(array_keys($manifest['files']))->toBe(['ai_runs.jsonl', 'ai_corrections.jsonl', 'journal_entries.jsonl', 'first_confirmations.jsonl']);
 
     foreach ($manifest['files'] as $name => $info) {
         expect($info['rows'])->toBe(count($export['rows'][$name]))

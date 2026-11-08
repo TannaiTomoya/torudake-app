@@ -63,7 +63,10 @@ class AiDraftBuilder
 
             $vendor = is_string($draft['vendor'] ?? null) ? $draft['vendor'] : (is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null);
             $rememberedPayment = $this->paymentMemory->for($company, $vendor);
-            $bankAccount = $rememberedPayment ?? $this->resolveBankAccount($company, $reading, $draft);
+            [$resolvedAccount, $resolvedOrigin] = $this->resolveBankAccount($company, $reading, $draft);
+            $bankAccount = $rememberedPayment ?? $resolvedAccount;
+            // 下書きの支払い元が、AI の答えか、人が直した履歴か、規則・既定かを分けて残す（#32）
+            $paymentOrigin = $rememberedPayment !== null ? 'history' : $resolvedOrigin;
 
             if ($bankAccount === null) {
                 throw AiException::invalidOutput('支払い元の口座がありません');
@@ -87,6 +90,7 @@ class AiDraftBuilder
                 'concern_flags' => $this->concernRules->for($company, $amountYen, null, false, $amountYen === null),
                 'ai_check' => $rememberedPayment !== null ? ['remembered_payment' => $rememberedPayment->name] : null,
                 'reading_review' => ReadingReview::forDraft($reading, $vendor),
+                'draft_payment_origin' => $paymentOrigin,
             ])->save();
 
             if ($amountYen !== null) {
@@ -120,15 +124,16 @@ class AiDraftBuilder
      *
      * @param  array<string, mixed>  $reading
      * @param  array<string, mixed>  $draft
+     * @return array{0: BankAccount|null, 1: string} 口座と、決め方（invoice_rule・ai・default）
      */
-    private function resolveBankAccount(Company $company, array $reading, array $draft): ?BankAccount
+    private function resolveBankAccount(Company $company, array $reading, array $draft): array
     {
         $active = $company->bankAccounts()->whereNull('archived_at')->orderBy('created_at')->get();
 
         if (($reading['payment_method'] ?? null) === 'invoice_later') {
             $invoice = $active->first(fn (BankAccount $b): bool => $b->kind === BankAccountKind::Invoice);
             if ($invoice !== null) {
-                return $invoice;
+                return [$invoice, 'invoice_rule'];
             }
         }
 
@@ -136,8 +141,10 @@ class AiDraftBuilder
             ? $active->first(fn (BankAccount $b): bool => $b->name === $draft['bank_account'])
             : null;
 
-        return $named
-            ?? $active->first(fn (BankAccount $b): bool => $b->is_default_for_receipts)
-            ?? $active->first();
+        if ($named !== null) {
+            return [$named, 'ai'];
+        }
+
+        return [$active->first(fn (BankAccount $b): bool => $b->is_default_for_receipts) ?? $active->first(), 'default'];
     }
 }

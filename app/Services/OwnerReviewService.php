@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\EntryStatus;
 use App\Models\AuditLog;
 use App\Models\Company;
+use App\Models\EntryPostEvent;
 use App\Models\JournalEntry;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +45,16 @@ class OwnerReviewService
                 'returned_by' => $user->id,
                 'returned_at' => now(),
                 'returned_reason' => $reason,
+            ])->save();
+
+            $event = new EntryPostEvent;
+            $event->forceFill([
+                'company_id' => $company->id,
+                'journal_entry_id' => $entry->id,
+                'kind' => EntryPostEvent::KIND_RETURNED,
+                'changed_fields' => [],
+                'actor_id' => $user->id,
+                'occurred_at' => now(),
             ])->save();
 
             AuditLog::record(

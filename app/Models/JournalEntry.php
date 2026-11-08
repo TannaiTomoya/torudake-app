@@ -31,6 +31,7 @@ use LogicException;
  * @property string|null $ai_run_id
  * @property array<string, mixed>|null $ai_check
  * @property array<string, mixed>|null $reading_review
+ * @property string|null $draft_payment_origin
  * @property list<string>|null $concern_flags
  * @property Carbon|null $owner_seen_at
  * @property int|null $workbook_row

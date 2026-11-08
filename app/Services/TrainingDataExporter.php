@@ -6,7 +6,9 @@ use App\Enums\EntryStatus;
 use App\Models\AiCorrection;
 use App\Models\AiRun;
 use App\Models\Company;
+use App\Models\FirstConfirmation;
 use App\Models\JournalEntry;
+use App\Support\FirstConfirmationMetrics;
 use Carbon\CarbonImmutable;
 use RuntimeException;
 use ZipArchive;
@@ -18,7 +20,7 @@ use ZipArchive;
 class TrainingDataExporter
 {
     /**
-     * @return array{contents: string, counts: array{ai_runs: int, ai_corrections: int, journal_entries: int}, schema_version: int}
+     * @return array{contents: string, counts: array{ai_runs: int, ai_corrections: int, journal_entries: int, first_confirmations: int}, schema_version: int}
      */
     public function export(Company $company, CarbonImmutable $month): array
     {
@@ -60,18 +62,35 @@ class TrainingDataExporter
             ->map(fn (JournalEntry $entry): array => $sanitizer->entry($entry, $corrected))
             ->all());
 
+        // 初回確定の記録は、初回に確定した日が期間内のもの。再確定・戻しは行を増やさず、post_events に載せる
+        $firsts = $company->firstConfirmations()
+            ->where('first_confirmed_at', '>=', $from)
+            ->where('first_confirmed_at', '<', $to)
+            ->orderBy('first_confirmed_at')
+            ->orderBy('id')
+            ->get();
+        $events = $company->entryPostEvents()
+            ->whereIn('journal_entry_id', $firsts->pluck('journal_entry_id')->all())
+            ->orderBy('occurred_at')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('journal_entry_id');
+        $firstRows = array_values($firsts->map(fn (FirstConfirmation $row): array => $sanitizer->firstConfirmation($row, $events->get($row->journal_entry_id, collect())->all()))->all());
+
         $files = [
             'ai_runs.jsonl' => $this->jsonl($runs),
             'ai_corrections.jsonl' => $this->jsonl($corrections),
             'journal_entries.jsonl' => $this->jsonl($entries),
+            'first_confirmations.jsonl' => $this->jsonl($firstRows),
         ];
         $counts = [
             'ai_runs' => count($runs),
             'ai_corrections' => count($corrections),
             'journal_entries' => count($entries),
+            'first_confirmations' => count($firstRows),
         ];
 
-        $manifest = $this->manifest($sanitizer, $month, $from, $to, $files, $counts, $runs, $corrections, $entries);
+        $manifest = $this->manifest($company, $sanitizer, $month, $from, $to, $files, $counts, $runs, $corrections, $entries, $firstRows);
 
         $path = tempnam(sys_get_temp_dir(), 'torudake-training-');
         if ($path === false) {
@@ -103,13 +122,15 @@ class TrainingDataExporter
 
     /**
      * @param  array<string, string>  $files
-     * @param  array{ai_runs: int, ai_corrections: int, journal_entries: int}  $counts
+     * @param  array{ai_runs: int, ai_corrections: int, journal_entries: int, first_confirmations: int}  $counts
      * @param  list<array<string, mixed>>  $runs
      * @param  list<array<string, mixed>>  $corrections
      * @param  list<array<string, mixed>>  $entries
+     * @param  list<array<string, mixed>>  $firstRows
      * @return array<string, mixed>
      */
     private function manifest(
+        Company $company,
         AnalysisExportSanitizer $sanitizer,
         CarbonImmutable $month,
         CarbonImmutable $from,
@@ -119,6 +140,7 @@ class TrainingDataExporter
         array $runs,
         array $corrections,
         array $entries,
+        array $firstRows,
     ): array {
         $runIds = array_fill_keys(array_column($runs, 'id'), true);
         $entryIds = array_fill_keys(array_column($entries, 'id'), true);
@@ -135,7 +157,7 @@ class TrainingDataExporter
             'company_key' => $sanitizer->companyKey(),
             'month' => $month->format('Y-m'),
             'period' => [
-                'basis' => 'ai_runs と ai_corrections は created_at、journal_entries は confirmed_at が期間内（from 以上、to 未満）',
+                'basis' => 'ai_runs と ai_corrections は created_at、journal_entries は confirmed_at、first_confirmations は初回に確定した時刻（first_confirmed_at）が期間内（from 以上、to 未満）',
                 'timezone' => $from->getTimezone()->getName(),
                 'from_local' => $from->format('Y-m-d\TH:i:sP'),
                 'to_local' => $to->format('Y-m-d\TH:i:sP'),
@@ -148,6 +170,7 @@ class TrainingDataExporter
                 'rows' => (int) match ($name) {
                     'ai_runs.jsonl' => $counts['ai_runs'],
                     'ai_corrections.jsonl' => $counts['ai_corrections'],
+                    'first_confirmations.jsonl' => $counts['first_confirmations'],
                     default => $counts['journal_entries'],
                 },
                 'sha256' => hash('sha256', $files[$name]),
@@ -156,6 +179,8 @@ class TrainingDataExporter
                 ['from' => 'ai_corrections.ai_run_id', 'to' => 'ai_runs.id'],
                 ['from' => 'ai_corrections.journal_entry_id', 'to' => 'journal_entries.id'],
                 ['from' => 'journal_entries.ai_run_id', 'to' => 'ai_runs.id'],
+                ['from' => 'first_confirmations.journal_entry_id', 'to' => 'journal_entries.id'],
+                ['from' => 'first_confirmations.ai_run_id', 'to' => 'ai_runs.id'],
                 ['from' => 'ai_runs.subject_key', 'to' => 'journal_entries.id（subject_kind が JournalEntry のとき）'],
             ],
             'links_outside_period' => [
@@ -163,7 +188,11 @@ class TrainingDataExporter
                 'ai_corrections.ai_run_id' => $outside($corrections, 'ai_run_id', $runIds),
                 'ai_corrections.journal_entry_id' => $outside($corrections, 'journal_entry_id', $entryIds),
                 'journal_entries.ai_run_id' => $outside($entries, 'ai_run_id', $runIds),
+                'first_confirmations.journal_entry_id' => $outside($firstRows, 'journal_entry_id', $entryIds),
+                'first_confirmations.ai_run_id' => $outside($firstRows, 'ai_run_id', $runIds),
             ],
+            // 画面と同じ定義・同じ母数と分子。first_confirmations.jsonl から数え直すと一致する（docs/12 §6）
+            'metrics' => FirstConfirmationMetrics::for($company, $month),
         ];
     }
 

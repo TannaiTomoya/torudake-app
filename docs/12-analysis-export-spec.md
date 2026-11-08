@@ -15,7 +15,8 @@
 | `ai_runs.jsonl` | AI の実行1回 | `created_at` が期間内 |
 | `ai_corrections.jsonl` | 経理が AI の下書きを直した1か所 | `created_at` が期間内 |
 | `journal_entries.jsonl` | 確定した（または戻された）仕訳 | `confirmed_at` が期間内 |
-| `manifest.json` | 版・期間・件数・ハッシュ・関連の説明 | — |
+| `first_confirmations.jsonl` | 仕訳の初回確定の記録（1仕訳に1行） | `first_confirmed_at`（初回に確定した時刻）が期間内 |
+| `manifest.json` | 版・期間・件数・ハッシュ・関連・指標 | — |
 
 期間は「その月の1日 0時以上、翌月1日 0時未満」（会社の時刻 `Asia/Tokyo`）。`manifest.json` に UTC でも書く。
 
@@ -62,13 +63,32 @@
 - 店名・摘要・科目名・口座名は出さない。`account_code` は英数字とハイフンの短い値だけ。
 - `origin` の `corrected`：その仕訳に AI を直した記録が（期間に関係なく）1件でもある。
 
+### first_confirmations.jsonl（#32）
+`id`、`journal_entry_id`、`ai_run_id`、`kind`（`ai`・`manual`）、`evaluation_class`（`real`・`demo`）、`driver`、`prompt_version`、`required_complete`、`unchanged`、`changed_fields`、`filled_fields`、`description_changed`、`draft_origin`（`date`・`vendor`・`amount`＝`read`・`defaulted`・`missing`・`unknown`、`category`＝`ai`・`none`、`payment`＝`history`・`invoice_rule`・`ai`・`default`・`unknown`・`none`）、`reading_methods`（欄ごとに `confirmed`・`changed`・`entered`・`saved_as_is`）、`duplicate`（`shown`・`concerning`・`decided` の件数）、`reason`、`first_confirmed_by`、`first_confirmed_at`、`post_events`（`kind`＝`returned`・`reconfirmed`、`changed_fields`、`occurred_at`）
+- 欄の名前は `date`・`vendor`・`category`・`credit_account`・`amount`（`post_events` の変更欄だけ `description` も）。摘要・理由の文は出さない。
+- 戻し・再確定で行は増えない。後の出来事は `post_events` に載る（書き出した時点まで）。
+
 ## 5. manifest.json
-- `schema_version`（今は 2）、`metric_version`（項目の意味を変えたら上げる）、`sensitivity`、`company_key`、`month`
+- `schema_version`（今は 3）、`metric_version`（項目の意味を変えたら上げる）、`sensitivity`、`company_key`、`month`
 - `period`：数え方（`basis`）、`timezone`、`from_local`・`to_local`、`from_utc`・`to_utc`
 - `time_format`：時刻（`*_at`）はすべて UTC。`entry_date` は日付だけ
 - `files`：ファイルごとの `rows`（行数）と `sha256`
 - `links`：ファイルをまたぐ結び方（`ai_corrections.ai_run_id → ai_runs.id` など）
 - `links_outside_period`：相手が別の月にあり、この zip の中では結べない件数
+- `metrics`：画面（AIの記録）と同じ定義・同じ母数と分子（§7）
 
-## 6. 版1（〜2026-11-08）からの変更
+## 6. 版の履歴
+- 版3（2026-11-09、#32）：`first_confirmations.jsonl` と manifest の `metrics` を追加。`metric_version` は `analysis-metrics.v2`。
+
+### 版1（〜2026-11-08）からの版2の変更
 版1は、AI実行の `input`/`output`/`error`、店名・摘要・科目名・口座名、修正前後の文字、kernel の文を、そのまま出していた。版2で、すべて上の項目に置き換えた。ID は仮名のキーになり、版1の ID とは結べない。
+
+## 7. 「手を入れなかった率」などの定義（#32）
+正本は `App\Support\FirstConfirmationMetrics`（版 `first-confirmation.v1`）。画面・manifest の `metrics`・`first_confirmations.jsonl` から数え直した値は、母数も分子も一致する。
+- **母数**：その月（会社の時刻）に**初回確定**した、AI が下書きを作った仕訳（`kind=ai`）で、`evaluation_class` が同じもの。再確定・戻しでは増えず、月をまたいで二重に数えない。
+- **手を入れず確定（`unchanged`）**：必須項目（日付が読めた・金額の記載がある）が揃い、日付・店名・分類・支払い元・金額のどれも AI の値から変えず（`changed_fields` が空）、記載のなかった欄も人が埋めていない（`filled_fields` が空）。**摘要は含めず**、別に `description_changed` として数える。
+- **別に出す数**：金額の記載がなく人が入れた件数、摘要を直した件数、支払い元に履歴を使った件数と履歴なしの率、AI の下書きがなく人が最初から入力した件数（母数は AI 由来＋手入力）、確定のあとで戻した・再確定した件数、AI（読み取り・仕訳）の実行の失敗数。
+- **実際のAIとデモを混ぜない**：`real`＝実際の AI（claude）が作り、デモ会社でないもの。fake・replay・デモ会社は `demo`。実際の会社は `real` だけ、デモ会社は `demo` だけを出し、もう一方は `other_class` に件数だけ出す。
+- **記録のない過去の確定は評価不能**：この機能より前に確定した仕訳は初回確定の記録がない。`legacy` に件数だけ出し、率には入れない。後から正解のラベルを作らない。母数が0の率は `null`（0% にも 100% にもしない）。
+- **正解率ではない**：測るのは、下書きに手を入れたかという行動。AI の答えが会計として正しかった割合ではない。会計上の正解率は、人が検証したラベルのある評価集合でだけ測る。
+- 従来の指標（確定した月・直した記録の有無で数える `ai_corrections` ベース）は、画面に「従来の数え方（参考）」として残す。再確定や過去の記録を含むため、上の数字とは一致しないことがある。

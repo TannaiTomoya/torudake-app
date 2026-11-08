@@ -52,7 +52,7 @@
 ID は UUIDv7（`HasUuids`）。`users` は bigint（スターターキットのまま）。金額は `BIGINT`（円）。業務テーブルは `company_id`（restrict）と `created_at`・`updated_at` を持つ。
 
 ### 2.1 実装済みのテーブル（版2.0 のまま）
-`users`・`companies`・`memberships`・`accounts`・`categories`・`bank_accounts`・`audit_logs`・`evidences`・`source_records`・`journal_entries`・`journal_lines`・`ai_runs`・`ai_corrections`・`reading_confirmations`・`duplicate_reviews`（列は 2026_10_24_100000・110000 の移行ファイルのとおり）。
+`users`・`companies`・`memberships`・`accounts`・`categories`・`bank_accounts`・`audit_logs`・`evidences`・`source_records`・`journal_entries`・`journal_lines`・`ai_runs`・`ai_corrections`・`reading_confirmations`・`duplicate_reviews`・`first_confirmations`・`entry_post_events`（列は 2026_10_24_100000・110000 の移行ファイルのとおり）。
 
 ### 2.2 版3.0 で足す列（新しい移行ファイル `2026_10_24_140000_confirm_by_bookkeeper`）
 | テーブル | 列 | 型 | 内容 |
@@ -197,6 +197,9 @@ DB::transaction(function () use ($company, $user, $entryId, $input) {
 - **確認の記録**：保存のトランザクション内で、要確認の理由があった欄ごとに `reading_confirmations`（会社・仕訳・ai_run・欄・method・理由・保存した値・保存した人・日時）を1行ずつ残す。method：`confirmed`（確かめた）／`changed`（人が直した）／`entered`（AIが読めず人が入れた）／`saved_as_is`（注意が付いたまま保存）。元の警告と「人が確認した」は別の情報。値や読み取りの版が変われば新しい行になり、戻された仕訳の再確定ではもう一度確かめる（前の確認は使い回さない）。確定済みへの2回目の保存・後着のAIは記録を増やさず、`reading_review` も変えない。`entry.confirm` の監査記録にも欄ごとの method を残す。
 - 操作の権限は既存の `editDraft`（原資料の詳細を開いて保存できる人）と同じ。新しい権限・一括承認・自動確定は作らない。ライブ画面の S（そのまま保存）は、仮の日付のとき止まり、理由と「直して確定」の画面への道を出す。
 - #32（測定）には、`ai_corrections`（直した欄）と `reading_confirmations`（method）を渡す。
+- **初回確定の記録（#32）**：`first_confirmations`（1仕訳に1行、書き換え・削除不可）。初回確定のトランザクション内で、種類（`ai`／`manual`）・評価の分類（`real`＝実際のAI（claude）かつ実際の会社／`demo`＝fake・replay・デモ会社）・L2 実行ID・driver・prompt_version・必須項目の充足・AI の値を変えた欄（`changed_fields`）・記載がなく人が埋めた欄（`filled_fields`）・摘要を直したか・下書きの値の由来（日付・店名・金額の読み取り、分類＝AI、支払い元＝`history`（同じ店で直した履歴）／`invoice_rule`／`ai`／`default`）・読み取りの確認の方法・重複候補の件数と判断済み件数・直した理由・初回確定の人と時刻を残す。戻し・再確定は `entry_post_events`（`returned`／`reconfirmed`、変わった欄）に別に残し、初回の記録は変えない。履歴・規則由来の値を、AI 自身の答えと混ぜない（`journal_entries.draft_payment_origin`）。
+- **指標の定義の正本は `App\Support\FirstConfirmationMetrics`**（版 `first-confirmation.v1`）。画面（AIの記録）・書き出しの manifest・JSONL から数え直した値が、同じ母数・分子になる。母数は「その月に初回確定した、AIが下書きを作った仕訳」で、再確定・戻しでは増えず月をまたいで二重に数えない。「手を入れず確定」は、日付が読めて金額の記載があり、日付・店名・分類・支払い元・金額を変えず、記載のなかった欄も埋めていないこと。摘要は自由文なので含めず別に数える。実際のAIとデモ・fake は混ぜない。記録のない過去の確定は「評価不能」として件数だけ出し、率に入れない（母数0は0%にも100%にもしない）。**正解率ではなく、下書きに手を入れたかという行動の数字**で、会計上の正しさは別途、人が検証したラベルのある評価集合でだけ測る。
+- 推薦（#54）の採否は、#54 の実装時に同じ初回確定の記録へ足す（今は支払い元の「履歴」の反映だけを区別する）。
 
 **二重計上の候補（版3.3・#53）**：撮り直し・別ファイル（hash が違う）の同じ取引を、コードで探して根拠つきで見せる。AI は使わない。完全な重複検出ではなく、不正の検知でもない（誤警告もある）。
 - **探す範囲（本人の決定 2026-11-08）**：同じ会社の仕訳のうち、**日付が前後7日**・**借方の行の金額が同じ**もの。状態は下書き・確定・社長から戻しを含め、**対象外にした原資料は含めない**。金額がまだない下書きは探さない。件数は黙って切らない。表示は1件の原資料につき**5件まで**、超えた分は「ほか n 件」と件数で出す。
@@ -360,6 +363,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | T22★ | 30日を過ぎた写真が消える。監査記録 | 済み（`torudake:purge-evidence`、毎日3時。消した写真は「写真は保存期間が過ぎたため削除しました」） |
 | T23 | 再生モード：デモ用の会社どうしで、同じ写真（`ai_runs.photo_sha256`）の練習の記録を同じ秒数で再生し AI を呼ばない。「再生」と出す。記録のない写真・実在の会社・claude/fake では本物（テストでは偽物）を呼ぶ | 済み |
 | T28 | 宛名の印（別の会社・個人は印、上様・空欄・自分の会社〔「(株)」と「株式会社」の違いも〕は印なし）と、読み取りの自信（合計0.75で「確かめて」と low_confidence、0.85で付かない）。印は確定後も残り社長の気になる仕訳に出る | 済み |
+| T44 | 初回確定の記録（#32）：無変更・分類変更・金額補完・摘要のみ・日付補完・店名補完・手入力・fake・履歴反映の期待値を固定。月またぎ・再ダウンロード・二重クリックで二重に数えない。戻し中・再確定は事後修正に別に数える。母数0と記録のない過去データは率を出さない。実AIとデモを混ぜず、他社の数字は混ざらない。画面・manifest・JSONL の母数と分子が一致。記録は書き換え・削除できない | 済み（`FirstConfirmationTest`） |
 | T27 | AIの記録：「AIが作った仕訳 n件のうち、そのまま確定 m件」・一番多い直し・間違いの型（表示は日本語、kernel はそのまま）。学習データは JSONL 3つ（ai_runs・ai_corrections・journal_entries）と manifest.json の zip、その会社のその月の分だけ。**許可した項目だけを出し（自由文・名前・メール・OCR全文・例外メッセージは出さない）、店・分類・人・仕訳は会社ごとの仮名のキー（#31、docs/12）**。書き出しは監査記録（版・件数）。経理は 403・他社は 404 | 済み |
 | T24★ | 移行：approved の仕訳が confirmed になる | これから |
 | T29 | ログイン状態の保持はしない（画面にチェックなし・remember を捨てる・保持のクッキーで来たらゲストに戻す）。ログインから24時間で切れる | 済み |

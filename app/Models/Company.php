@@ -151,6 +151,22 @@ class Company extends Model
     }
 
     /**
+     * @return HasMany<FirstConfirmation, $this>
+     */
+    public function firstConfirmations(): HasMany
+    {
+        return $this->hasMany(FirstConfirmation::class);
+    }
+
+    /**
+     * @return HasMany<EntryPostEvent, $this>
+     */
+    public function entryPostEvents(): HasMany
+    {
+        return $this->hasMany(EntryPostEvent::class);
+    }
+
+    /**
      * @return HasMany<ExternalMonthlyFigure, $this>
      */
     public function externalMonthlyFigures(): HasMany

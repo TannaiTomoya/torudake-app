@@ -7,11 +7,13 @@ use App\Enums\CorrectionReason;
 use App\Enums\EntryStatus;
 use App\Models\AiRun;
 use App\Models\Company;
+use App\Support\FirstConfirmationMetrics;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * AIの記録の数字（1か月分）。仕訳は確定した日、AIの実行と直しは記録した日でその月に入れる。
+ * AIの記録の数字（1か月分）。仕訳は確定した日、AIの実行と直しは記録した日でその月に入れる（従来の数え方）。
+ * 「下書きに手を入れなかった率」などは、初回確定の記録から FirstConfirmationMetrics が数える（#32）。
  */
 class AiRecordSummary
 {
@@ -36,6 +38,7 @@ class AiRecordSummary
      *     tasks: list<array{label: string, runs: int, failed: int, avg_seconds: float, tokens: int}>,
      *     runs: int,
      *     recent: Collection<int, AiRun>,
+     *     first: array<string, mixed>,
      * }
      */
     public function for(Company $company, CarbonImmutable $month): array
@@ -121,6 +124,7 @@ class AiRecordSummary
             'tasks' => array_values($tasks),
             'runs' => array_sum(array_column($tasks, 'runs')),
             'recent' => $runs()->latest('created_at')->limit(10)->get(),
+            'first' => FirstConfirmationMetrics::for($company, $month),
         ];
     }
 

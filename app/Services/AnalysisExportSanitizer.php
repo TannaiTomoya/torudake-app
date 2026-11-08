@@ -4,10 +4,13 @@ namespace App\Services;
 
 use App\Enums\AiTask;
 use App\Enums\ConcernFlag;
+use App\Enums\CorrectionReason;
 use App\Enums\Side;
 use App\Models\AiCorrection;
 use App\Models\AiRun;
 use App\Models\Company;
+use App\Models\EntryPostEvent;
+use App\Models\FirstConfirmation;
 use App\Models\JournalEntry;
 use App\Models\JournalLine;
 use App\Support\DuplicateCandidateMatcher;
@@ -21,10 +24,10 @@ use Carbon\CarbonInterface;
  */
 class AnalysisExportSanitizer
 {
-    public const SCHEMA_VERSION = 2;
+    public const SCHEMA_VERSION = 3;
 
     /** 項目の意味（どの値をどう数えるか）を変えたら上げる。分析側が版をそろえて読むため */
-    public const METRIC_VERSION = 'analysis-metrics.v1';
+    public const METRIC_VERSION = 'analysis-metrics.v2';
 
     private const CORRECTION_FIELDS = ['date', 'vendor', 'category', 'credit_account', 'amount'];
 
@@ -150,6 +153,84 @@ class AnalysisExportSanitizer
             'confirmed_by' => $this->key('u', $entry->confirmed_by),
             'confirmed_at' => $this->time($entry->confirmed_at),
         ];
+    }
+
+    /**
+     * 初回確定の記録（#32）。値は列挙・真偽・件数・仮名のキー・時刻だけ。画面の数字と同じ定義（FirstConfirmationMetrics）で数えられる。
+     *
+     * @param  iterable<EntryPostEvent>  $events  その仕訳の、確定後の出来事
+     * @return array<string, mixed>
+     */
+    public function firstConfirmation(FirstConfirmation $row, iterable $events): array
+    {
+        $fields = ['date', 'vendor', 'category', 'credit_account', 'amount'];
+        $origins = ['read', 'defaulted', 'missing', 'unknown'];
+        $draft = $row->draft_origin;
+
+        $methods = [];
+        foreach (['date', 'vendor', 'amount'] as $field) {
+            $method = $this->enum($row->reading_methods[$field] ?? null, ['confirmed', 'changed', 'entered', 'saved_as_is']);
+            if ($method !== null) {
+                $methods[$field] = $method;
+            }
+        }
+
+        $post = [];
+        foreach ($events as $event) {
+            $post[] = [
+                'kind' => $this->enum($event->kind, [EntryPostEvent::KIND_RETURNED, EntryPostEvent::KIND_RECONFIRMED]),
+                'changed_fields' => $this->fieldList($event->changed_fields, [...$fields, 'description']),
+                'occurred_at' => $this->time($event->occurred_at),
+            ];
+        }
+
+        return [
+            'id' => $this->key('f', $row->id),
+            'journal_entry_id' => $this->key('e', $row->journal_entry_id),
+            'ai_run_id' => $this->key('r', $row->ai_run_id),
+            'kind' => $this->enum($row->kind, [FirstConfirmation::KIND_AI, FirstConfirmation::KIND_MANUAL]),
+            'evaluation_class' => $this->enum($row->evaluation_class, [FirstConfirmation::CLASS_REAL, FirstConfirmation::CLASS_DEMO]),
+            'driver' => $this->token($row->driver, 40),
+            'prompt_version' => $this->token($row->prompt_version, 80),
+            'required_complete' => $row->required_complete,
+            'unchanged' => $row->isUnchanged(),
+            'changed_fields' => $this->fieldList($row->changed_fields, $fields),
+            'filled_fields' => $this->fieldList($row->filled_fields, $fields),
+            'description_changed' => $row->description_changed,
+            'draft_origin' => [
+                'date' => $this->enum($draft['date'] ?? null, $origins),
+                'vendor' => $this->enum($draft['vendor'] ?? null, $origins),
+                'amount' => $this->enum($draft['amount'] ?? null, $origins),
+                'category' => $this->enum($draft['category'] ?? null, ['ai', 'none']),
+                'payment' => $this->enum($draft['payment'] ?? null, ['history', 'invoice_rule', 'ai', 'default', 'unknown', 'none']),
+            ],
+            'reading_methods' => $methods,
+            'duplicate' => [
+                'shown' => $this->int($row->duplicate['shown'] ?? null),
+                'concerning' => $this->int($row->duplicate['concerning'] ?? null),
+                'decided' => $this->int($row->duplicate['decided'] ?? null),
+            ],
+            'reason' => $this->enum($row->reason, array_map(fn (CorrectionReason $reason): string => $reason->value, CorrectionReason::cases())),
+            'first_confirmed_by' => $this->key('u', $row->first_confirmed_by),
+            'first_confirmed_at' => $this->time($row->first_confirmed_at),
+            'post_events' => $post,
+        ];
+    }
+
+    /**
+     * @param  list<string>  $allowed
+     * @return list<string>
+     */
+    private function fieldList(mixed $value, array $allowed): array
+    {
+        $list = [];
+        foreach (is_array($value) ? $value : [] as $item) {
+            if (is_string($item) && in_array($item, $allowed, true) && ! in_array($item, $list, true)) {
+                $list[] = $item;
+            }
+        }
+
+        return $list;
     }
 
     public function time(?CarbonInterface $time): ?string
