@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\Evidence;
 use App\Models\SourceRecord;
 use App\Models\User;
+use App\Services\PurgeExpiredEvidence;
 use App\Services\SubmitEvidence;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -266,4 +267,49 @@ test('重複通知：別の会社の人には、同じ写真でも他社の存�
     expect($result->duplicate)->toBeFalse()
         ->and($result->source?->company_id)->toBe($other->id)
         ->and($result->source?->id)->not->toBe($source->id);
+});
+
+test('重複通知：同じバッチの同じ写真は1件だけ受け付け、写真が30日で消えたあとに送り直しても原資料もAIも増えない', function (): void {
+    Queue::fake();
+    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor, submitOnly: true);
+
+    $file = UploadedFile::fake()->image('a.jpg', 210, 310);
+    $bytes = (string) file_get_contents((string) $file->getRealPath());
+
+    Livewire::actingAs($user)
+        ->test('pages::company.submit', ['company' => $company])
+        ->set('photos', [UploadedFile::fake()->createWithContent('1.jpg', $bytes), UploadedFile::fake()->createWithContent('2.jpg', $bytes)])
+        ->call('send')
+        ->assertSet('sentCount', 1)
+        ->assertSet('duplicateCount', 1);
+
+    $evidence = Evidence::query()->firstOrFail();
+    $evidence->forceFill(['purge_after' => now()->subDay()])->save();
+    expect(app(PurgeExpiredEvidence::class)->run())->toBe(1);
+
+    Livewire::actingAs($user)
+        ->test('pages::company.submit', ['company' => $company])
+        ->set('photo', UploadedFile::fake()->createWithContent('3.jpg', $bytes))
+        ->call('send')
+        ->assertSet('state', 'duplicate');
+
+    expect(SourceRecord::count())->toBe(1)
+        ->and(Evidence::count())->toBe(1);
+    Queue::assertPushed(ProcessEvidenceWithAi::class, 1);
+});
+
+test('重複通知：所属を止められた人は、送る画面も更新の通信も開けず、原資料は増えない', function (): void {
+    ['company' => $company, 'bytes' => $bytes] = companyWithWorkerPhoto();
+    ['user' => $b, 'membership' => $membership] = createCompanyWithMember(Role::Editor, submitOnly: true, company: $company);
+
+    $component = Livewire::actingAs($b)->test('pages::company.submit', ['company' => $company]);
+
+    $membership->forceFill(['disabled_at' => now()])->save();
+
+    $this->actingAs($b)->get(route('company.submit', $company))->assertNotFound();
+    Livewire::actingAs($b)->test('pages::company.submit', ['company' => $company])->assertForbidden();
+
+    expect(fn () => $component->set('photo', UploadedFile::fake()->createWithContent('same.jpg', $bytes))->call('send'))
+        ->toThrow(Exception::class);
+    expect(SourceRecord::count())->toBe(1)->and(Evidence::count())->toBe(1);
 });
