@@ -30,6 +30,7 @@ use LogicException;
  * @property string|null $returned_reason
  * @property string|null $ai_run_id
  * @property array<string, mixed>|null $ai_check
+ * @property array<string, mixed>|null $reading_review
  * @property list<string>|null $concern_flags
  * @property Carbon|null $owner_seen_at
  * @property int|null $workbook_row
@@ -68,6 +69,7 @@ class JournalEntry extends Model
             'returned_at' => 'datetime',
             'owner_seen_at' => 'datetime',
             'ai_check' => 'array',
+            'reading_review' => 'array',
             'concern_flags' => 'array',
             'workbook_row' => 'integer',
         ];
@@ -101,6 +103,14 @@ class JournalEntry extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(JournalLine::class)->orderBy('line_no');
+    }
+
+    /**
+     * @return HasMany<ReadingConfirmation, $this>
+     */
+    public function readingConfirmations(): HasMany
+    {
+        return $this->hasMany(ReadingConfirmation::class)->orderBy('confirmed_at');
     }
 
     /**

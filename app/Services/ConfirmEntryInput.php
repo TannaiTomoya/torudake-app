@@ -9,6 +9,9 @@ use App\Enums\CorrectionReason;
  */
 final readonly class ConfirmEntryInput
 {
+    /**
+     * @param  list<string>  $readingConfirmed  経理が「確かめた」と答えた読み取り欄（date など）
+     */
     public function __construct(
         public string $entryDate,
         public ?string $vendor,
@@ -17,5 +20,6 @@ final readonly class ConfirmEntryInput
         public string $bankAccountId,
         public ?int $amountYen,
         public ?CorrectionReason $reason = null,
+        public array $readingConfirmed = [],
     ) {}
 }

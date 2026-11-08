@@ -62,6 +62,7 @@ test('T15: 「あと n 件」＝未処理＋下書き＋社長から戻し。台
             ->set('categoryId', (string) $company->categories()->where('name', '消耗品')->value('id'))
             ->set('amountYen', '1000')
             ->set('reason', 'misread')
+            ->set('confirmDate', true)
             ->call('confirm')
             ->assertHasNoErrors();
     }

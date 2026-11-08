@@ -20,6 +20,33 @@ final class ReadingChecks
      */
     public static function validReceiptDate(mixed $value): ?CarbonImmutable
     {
+        $date = self::parseDate($value);
+
+        return $date !== null && ! $date->isAfter(CarbonImmutable::today()) ? $date : null;
+    }
+
+    /**
+     * AI の日付が使えない理由。使えるなら null。
+     *
+     * @return 'missing'|'invalid'|'future'|null
+     */
+    public static function dateProblem(mixed $value): ?string
+    {
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return 'missing';
+        }
+
+        $date = self::parseDate($value);
+
+        if ($date === null) {
+            return 'invalid';
+        }
+
+        return $date->isAfter(CarbonImmutable::today()) ? 'future' : null;
+    }
+
+    private static function parseDate(mixed $value): ?CarbonImmutable
+    {
         if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
             return null;
         }
@@ -34,8 +61,7 @@ final class ReadingChecks
 
         if (! $date instanceof CarbonImmutable
             || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-            || $date->toDateString() !== $value
-            || $date->isAfter(CarbonImmutable::today())) {
+            || $date->toDateString() !== $value) {
             return null;
         }
 
@@ -63,6 +89,38 @@ final class ReadingChecks
         }
 
         return $low;
+    }
+
+    /**
+     * 自信度が欠けている・範囲外（0〜1でない）・数字でない欄。「確認不要」とは扱わない。
+     * 自信度の項目自体がない仕訳（AI がまだ読んでいない・古いデータ）は対象にしない。
+     *
+     * @param  array<string, mixed>|null  $aiCheck  仕訳の ai_check
+     * @return list<string> date・vendor・total のうち自信度が使えないもの
+     */
+    public static function unknownConfidenceFields(?array $aiCheck): array
+    {
+        if ($aiCheck === null || ! array_key_exists('reading_confidence', $aiCheck)) {
+            return [];
+        }
+
+        $confidence = is_array($aiCheck['reading_confidence']) ? $aiCheck['reading_confidence'] : [];
+        $amountMissing = ($aiCheck['amount_missing'] ?? false) === true;
+        $unknown = [];
+
+        foreach (array_keys(self::THRESHOLDS) as $field) {
+            if ($field === 'total' && $amountMissing) {
+                continue;
+            }
+
+            $value = $confidence[$field] ?? null;
+
+            if (! is_numeric($value) || (float) $value < 0.0 || (float) $value > 1.0) {
+                $unknown[] = $field;
+            }
+        }
+
+        return $unknown;
     }
 
     /**

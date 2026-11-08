@@ -17,6 +17,7 @@ use App\Services\ConfirmEntryService;
 use App\Services\IgnoreSourceService;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
+use App\Support\ReadingReview;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
@@ -46,6 +47,8 @@ new #[Title('直して確定')] class extends Component {
     public string $amountYen = '';
 
     public string $reason = '';
+
+    public bool $confirmDate = false;
 
     public string $ignoreReason = '';
 
@@ -89,7 +92,7 @@ new #[Title('直して確定')] class extends Component {
     {
         return $this->source->journal_entry_id === null
             ? null
-            : $this->company->journalEntries()->with(['lines.account', 'confirmer'])->find($this->source->journal_entry_id);
+            : $this->company->journalEntries()->with(['lines.account', 'confirmer', 'readingConfirmations.confirmer'])->find($this->source->journal_entry_id);
     }
 
     /**
@@ -128,6 +131,7 @@ new #[Title('直して確定')] class extends Component {
             bankAccountId: $this->bankAccountId,
             amountYen: $digits === '' || $digits === null ? null : (int) $digits,
             reason: CorrectionReason::tryFrom($this->reason),
+            readingConfirmed: $this->confirmDate ? ['date'] : [],
         ));
 
         $this->goToNext('確定しました。');
@@ -174,6 +178,9 @@ new #[Title('直して確定')] class extends Component {
     $balance = $entry !== null ? app(JournalBalanceChecker::class)->forEntry($entry) : null;
     $balanceUnchecked = $balance?->problem === BalanceProblem::Empty;
     $lowFields = ReadingChecks::lowConfidenceFields($check);
+    $reviewItems = ReadingReview::items($entry?->reading_review, $check === [] ? null : $check);
+    $reasonsFor = fn (string $field): array => array_values(array_diff($reviewItems[$field]['reasons'] ?? [], ['low_confidence']));
+    $defaultedDate = ($reviewItems['date']['needs_confirmation'] ?? false) || ($entry === null);
     $low = fn (string $key): bool => in_array($key, $lowFields, true);
     $addresseeFlag = match ($check['addressee_kind'] ?? null) {
         'other_company' => ConcernFlag::AddresseeOtherCompany,
@@ -235,6 +242,37 @@ new #[Title('直して確定')] class extends Component {
                     <p class="text-note text-ink-sub">貸借が合っていても、科目や金額が正しいとは限りません。</p>
                     @if (! $balanceUnchecked && is_bool($check['balanced'] ?? null) && $check['balanced'] !== $balance->balanced())
                         <p class="text-warn" data-test="ai-balance-differs">AIの回答（貸借は{{ $check['balanced'] ? '一致' : '不一致' }}）は、保存されている行の検算と食い違っています。検算の結果を正とします。</p>
+                    @endif
+                </div>
+            @endif
+            @if ($reviewItems !== [])
+                <div class="space-y-2 rounded-xl border border-line bg-panel p-4" data-test="reading-review">
+                    <h2 class="font-bold text-ink">読み取りの確認（日付・店名・金額）</h2>
+                    <ul class="space-y-1">
+                        @foreach ($reviewItems as $item)
+                            <li data-test="reading-item-{{ $item['field'] }}">
+                                <span class="font-bold">{{ $item['label'] }}</span>：{{ ReadingReview::originLabel($item['origin']) }}
+                                @foreach ($item['reasons'] as $code)
+                                    <span class="block text-note text-warn">・{{ ReadingReview::reasonLabel($code) }}</span>
+                                @endforeach
+                            </li>
+                        @endforeach
+                    </ul>
+                    <p class="text-note text-ink-sub">AIの自信が高くても、読み違いはあります。写真と見比べてください。写真の上の位置は示せません。</p>
+                    @if ($entry?->readingConfirmations->isNotEmpty())
+                        <div class="space-y-1 border-t border-line pt-2" data-test="reading-confirmations">
+                            <p class="font-bold">確認の記録</p>
+                            @foreach ($entry->readingConfirmations as $confirmation)
+                                <p class="text-note">
+                                    {{ ReadingReview::FIELDS[$confirmation->field] ?? $confirmation->field }}「{{ $confirmation->value }}」：{{ match ($confirmation->method) {
+                                        'confirmed' => '確かめた',
+                                        'changed' => '人が直した',
+                                        'entered' => '人が入れた',
+                                        default => '注意が付いたまま保存した',
+                                    } }}（{{ $confirmation->confirmer?->name }}・{{ $confirmation->confirmed_at->isoFormat('M月D日(ddd) H:mm') }}）
+                                </p>
+                            @endforeach
+                        </div>
                     @endif
                 </div>
             @endif
@@ -302,6 +340,9 @@ new #[Title('直して確定')] class extends Component {
                         @elseif ($low('total'))
                             <span class="block font-bold text-warn" data-test="check-total">確かめて（AIの読み取りの自信が低い）</span>
                         @endif
+                        @foreach (array_diff($reasonsFor('amount'), ['amount_missing']) as $code)
+                            <span class="block text-note text-warn" data-test="reading-reason-amount">・{{ ReadingReview::reasonLabel($code) }}</span>
+                        @endforeach
                         @error('amountYen') <span class="block text-ng">{{ $message }}</span> @enderror
                     </label>
 
@@ -311,8 +352,18 @@ new #[Title('直して確定')] class extends Component {
                         @if ($low('date'))
                             <span class="block font-bold text-warn" data-test="check-date">確かめて（AIの読み取りの自信が低い）</span>
                         @endif
+                        @foreach ($reasonsFor('date') as $code)
+                            <span class="block text-note text-warn" data-test="reading-reason-date">・{{ ReadingReview::reasonLabel($code) }}</span>
+                        @endforeach
                         @error('entryDate') <span class="block text-ng">{{ $message }}</span> @enderror
                     </label>
+                    @if ($defaultedDate)
+                        <label class="flex items-start gap-3 rounded-lg border border-warn bg-warn-soft p-3" data-test="confirm-date-box">
+                            <input type="checkbox" wire:model="confirmDate" class="mt-1 size-5" data-test="confirm-date">
+                            <span class="font-bold text-ink">AIは日付を読めず、今日の日付を仮に入れています。写真を見て、この日付でよいことを確かめた（違うときは日付を直してください）</span>
+                        </label>
+                        @error('confirmDate') <span class="block font-bold text-ng" data-test="confirm-date-error">{{ $message }}</span> @enderror
+                    @endif
 
                     <label class="block space-y-1">
                         <span class="font-bold">取引先</span>
@@ -320,6 +371,9 @@ new #[Title('直して確定')] class extends Component {
                         @if ($low('vendor'))
                             <span class="block font-bold text-warn" data-test="check-vendor">確かめて（AIの読み取りの自信が低い）</span>
                         @endif
+                        @foreach ($reasonsFor('vendor') as $code)
+                            <span class="block text-note text-warn" data-test="reading-reason-vendor">・{{ ReadingReview::reasonLabel($code) }}</span>
+                        @endforeach
                     </label>
 
                     <label class="block space-y-1">

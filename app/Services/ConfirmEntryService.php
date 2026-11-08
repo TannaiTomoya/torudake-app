@@ -12,9 +12,11 @@ use App\Models\BankAccount;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\JournalEntry;
+use App\Models\ReadingConfirmation;
 use App\Models\SourceRecord;
 use App\Models\User;
 use App\Support\JournalBalanceChecker;
+use App\Support\ReadingReview;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -82,6 +84,13 @@ class ConfirmEntryService
                 'amount' => $amountYen,
             ];
 
+            // AI が読めず補った日付は、人が確かめるか直すまで保存しない（直す＝人が入れた値）
+            $review = ReadingReview::items($entry->reading_review, $entry->ai_check);
+            $dateConfirmed = in_array('date', $input->readingConfirmed, true);
+            if (($review['date']['needs_confirmation'] ?? false) && $after['date'] === $before['date'] && ! $dateConfirmed) {
+                throw ValidationException::withMessages(['confirmDate' => 'AIは日付を読めず、今日の日付を仮に入れています。写真を見て確かめ、「この日付でよい」にチェックするか、日付を直してください。']);
+            }
+
             $wasPreviouslyConfirmed = $entry->confirmed_at !== null || $entry->status === EntryStatus::Returned;
             $tracksAiCorrections = $entry->ai_run_id !== null && ! $wasPreviouslyConfirmed;
             $changed = $this->changedFields($before, $after);
@@ -142,17 +151,65 @@ class ConfirmEntryService
                 ])->save();
             });
 
+            $confirmations = $this->recordReadingConfirmations($company, $user, $entry, $review, $before, $after, $dateConfirmed);
+
             AuditLog::record(
                 user: $user,
                 action: 'entry.confirm',
                 subject: $entry,
                 before: $before,
-                after: [...$after, 'corrected' => $changed, 'reason' => $input->reason?->value],
+                after: [...$after, 'corrected' => $changed, 'reason' => $input->reason?->value, 'reading_review' => $confirmations],
                 company: $company,
             );
 
             return $entry;
         });
+    }
+
+    /**
+     * 要確認の理由があった欄ごとに、保存した人・日時・保存した値・読み取りの版（ai_run）を残す。
+     * 記録の method：confirmed（確かめた）・changed（人が直した）・entered（AI が読めず人が入れた）・saved_as_is（注意が付いたまま保存）。
+     * 値や読み取りの版が変われば新しい記録になり、前の記録は使い回さない。
+     *
+     * @param  array<string, array{field: string, label: string, origin: string, reasons: list<string>, needs_confirmation: bool}>  $review
+     * @param  array<string, string|int|null>  $before
+     * @param  array<string, string|int|null>  $after
+     * @return array<string, string> 欄 => method
+     */
+    private function recordReadingConfirmations(Company $company, User $user, JournalEntry $entry, array $review, array $before, array $after, bool $dateConfirmed): array
+    {
+        $recorded = [];
+
+        foreach ($review as $field => $item) {
+            if ($item['reasons'] === []) {
+                continue;
+            }
+
+            $value = $after[$field] ?? null;
+            $method = match (true) {
+                $item['origin'] !== 'read' && $before[$field] === null && $value !== null => 'entered',
+                $before[$field] !== $value => 'changed',
+                $field === 'date' && $dateConfirmed => 'confirmed',
+                default => 'saved_as_is',
+            };
+
+            $row = new ReadingConfirmation;
+            $row->forceFill([
+                'company_id' => $company->id,
+                'journal_entry_id' => $entry->id,
+                'ai_run_id' => $entry->ai_run_id,
+                'field' => $field,
+                'method' => $method,
+                'reasons' => $item['reasons'],
+                'value' => $value === null ? null : mb_substr((string) $value, 0, 200),
+                'confirmed_by' => $user->id,
+                'confirmed_at' => now(),
+            ])->save();
+
+            $recorded[$field] = $method;
+        }
+
+        return $recorded;
     }
 
     /**
@@ -167,6 +224,7 @@ class ConfirmEntryService
             'kind' => EntryKind::Normal,
             'status' => EntryStatus::Draft,
             'created_by' => $user->id,
+            'reading_review' => ReadingReview::forManual(),
         ])->save();
 
         $source->forceFill([

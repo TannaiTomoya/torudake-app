@@ -15,6 +15,7 @@ use App\Models\SourceRecord;
 use App\Services\Ai\AiException;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
+use App\Support\ReadingReview;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -85,6 +86,7 @@ class AiDraftBuilder
                 'ai_run_id' => $run->id,
                 'concern_flags' => $this->concernRules->for($company, $amountYen, null, false, $amountYen === null),
                 'ai_check' => $rememberedPayment !== null ? ['remembered_payment' => $rememberedPayment->name] : null,
+                'reading_review' => ReadingReview::forDraft($reading, $vendor),
             ])->save();
 
             if ($amountYen !== null) {

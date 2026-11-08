@@ -166,13 +166,13 @@ test('T12/T17: AIの下書きがない手入力仕訳の再確定もAI修正の�
     ['user' => $owner] = createCompanyWithMember(Role::Owner, company: $company);
     $source = sendReceipt($company, $editor);
     Livewire::actingAs($editor)->test('pages::company.sources.show', ['company' => $company, 'source' => $source->id])
-        ->set('categoryId', categoryId($company, '消耗品'))->set('amountYen', '1200')
+        ->set('categoryId', categoryId($company, '消耗品'))->set('amountYen', '1200')->set('confirmDate', true)
         ->call('confirm')->assertHasNoErrors();
     $entry = $source->refresh()->journalEntry()->firstOrFail();
     app(OwnerReviewService::class)->returnToBookkeeper($company, $owner, $entry->id, '金額を確認してください');
 
     Livewire::actingAs($editor)->test('pages::company.sources.show', ['company' => $company, 'source' => $source->id])
-        ->set('categoryId', categoryId($company, '燃料'))->set('amountYen', '1500')
+        ->set('categoryId', categoryId($company, '燃料'))->set('amountYen', '1500')->set('confirmDate', true)
         ->call('confirm')->assertHasNoErrors();
 
     expect($entry->refresh()->ai_run_id)->toBeNull()

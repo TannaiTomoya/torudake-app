@@ -234,6 +234,7 @@ test('AI が読めなかった原資料は、経理が手で入れて確定で�
         ->set('vendor', '△△商店')
         ->set('categoryId', categoryId($company, '部品・修理'))
         ->set('amountYen', '12000')
+        ->set('confirmDate', true)
         ->call('confirm')
         ->assertHasNoErrors();
 
@@ -260,6 +261,7 @@ test('Issue #1: 手で確定した原資料の後からキュー済みAIジョ�
         ->set('vendor', '手入力の取引先')
         ->set('categoryId', categoryId($company, '部品・修理'))
         ->set('amountYen', '12000')
+        ->set('confirmDate', true)
         ->call('confirm')
         ->assertHasNoErrors();
 
@@ -326,6 +328,7 @@ test('T34: AIジョブの最終失敗・停滞復旧は手入力対象になり�
         ->set('vendor', '手入力の取引先')
         ->set('categoryId', categoryId($company, '消耗品'))
         ->set('amountYen', '12000')
+        ->set('confirmDate', true)
         ->call('confirm')
         ->assertHasNoErrors()
         ->assertRedirect(route('company.sources.show', [$company, $next]));

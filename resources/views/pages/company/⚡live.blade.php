@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
 use App\Support\ReadingChecks;
+use App\Support\ReadingReview;
 use App\Support\RemainingCount;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -287,6 +288,7 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
     $done = $this->remaining === 0 && $this->confirmedThisMonth > 0;
     $lowFields = ReadingChecks::lowConfidenceFields($entry?->ai_check);
     $rowFields = ['店名' => 'vendor', '日付' => 'date', '合計' => 'total'];
+    $reviewItems = ReadingReview::items($entry?->reading_review, $entry?->ai_check);
     $addresseeKind = $entry?->ai_check['addressee_kind'] ?? null;
     $addresseeFlag = match ($addresseeKind) {
         'other_company' => ConcernFlag::AddresseeOtherCompany,
@@ -370,6 +372,17 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
                                         </div>
                                     @endforeach
                                 </dl>
+                                @foreach ($reviewItems as $item)
+                                    @foreach (array_diff($item['reasons'], ['low_confidence', 'amount_missing']) as $code)
+                                        <p class="font-bold text-warn" data-test="live-reading-reason-{{ $item['field'] }}">{{ $item['label'] }}：{{ ReadingReview::reasonLabel($code) }}</p>
+                                    @endforeach
+                                @endforeach
+                                @error('confirmDate')
+                                    <p class="font-bold text-ng" data-test="live-confirm-date-error">
+                                        {{ $message }}
+                                        @if ($current !== null)<a href="{{ route('company.sources.show', [$company, $current->id]) }}" wire:navigate class="underline">直して確定の画面を開く</a>@endif
+                                    </p>
+                                @enderror
 
                             @else
                                 {{-- E 直す：ライブ画面の上で直す --}}

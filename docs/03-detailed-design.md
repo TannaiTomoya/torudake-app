@@ -52,7 +52,7 @@
 ID は UUIDv7（`HasUuids`）。`users` は bigint（スターターキットのまま）。金額は `BIGINT`（円）。業務テーブルは `company_id`（restrict）と `created_at`・`updated_at` を持つ。
 
 ### 2.1 実装済みのテーブル（版2.0 のまま）
-`users`・`companies`・`memberships`・`accounts`・`categories`・`bank_accounts`・`audit_logs`・`evidences`・`source_records`・`journal_entries`・`journal_lines`・`ai_runs`・`ai_corrections`（列は 2026_10_24_100000・110000 の移行ファイルのとおり）。
+`users`・`companies`・`memberships`・`accounts`・`categories`・`bank_accounts`・`audit_logs`・`evidences`・`source_records`・`journal_entries`・`journal_lines`・`ai_runs`・`ai_corrections`・`reading_confirmations`（列は 2026_10_24_100000・110000 の移行ファイルのとおり）。
 
 ### 2.2 版3.0 で足す列（新しい移行ファイル `2026_10_24_140000_confirm_by_bookkeeper`）
 | テーブル | 列 | 型 | 内容 |
@@ -189,6 +189,14 @@ DB::transaction(function () use ($company, $user, $entryId, $input) {
 - **貸借が一致しない・行が不正な仕訳は確定させない（版3.1・実務用の仕様。デモの「止めない」から変更）**。保存のトランザクション内で行を書き直したあと、最新の行を `JournalBalanceChecker` で検算し、問題があれば例外でトランザクションごと戻す（仕訳・原資料・直した記録・Excel・監査に何も残さない）。社長から戻された仕訳の再確定でも同じ。問題の種類：行なし／借方か貸方のみ／借貸が不正／1円未満・整数でない／範囲外（1行 1,000億円・合計 1兆円まで）／合計不一致。
 - 金額の記載がない下書き（行なし）は「検算していない」と表示し、不一致とは言わない。保存には金額が必要（行を書いたあとの検算で確かめる）。
 - 貸借が合っていても、科目・税率・取引内容が正しいとは限らない。画面にもそう書く。
+
+**読み取りの確認（版3.2・#51）**：AI が読んだ値と、読めず補った値と、人が確かめた記録を分ける。
+- `journal_entries.reading_review`（json）に、下書きを作るときの欄ごと（日付・店名・金額）の由来を残す：`read`（AIが読んだ）／`defaulted`（日付が欠落・形式不正・存在しない日・未来日で、今日の日付を仮に入れた。理由は `missing`・`invalid`・`future`）／`missing`（読めなかった）。原文は `ai_runs` を参照し、複製しない。AI が読めず人が最初から入れる下書きは、日付が `defaulted`、店名・金額が `missing`。
+- 要確認の理由は欄ごとに別に出す：`date_missing`／`date_invalid`／`date_future`／`vendor_missing`／`amount_missing`／`low_confidence`（合計 0.8 未満、日付・店名 0.7 未満。ちょうど閾値は低くない）／`confidence_unknown`（自信度が欠けている・0〜1 の範囲外・数字でない。「確認不要」とは扱わない）。AIの自信度は正解率ではなく、高くても読み違いはあり得る（画面にもそう書く）。画像上の位置は持っていないので、文字の位置を示す枠は出さない。
+- **保存を止める範囲（本人の決定 2026-11-08）**：AIが読めず補った日付（`defaulted`）だけ。人が日付を直すか「写真を見て、この日付でよい」にチェックしないと保存（確定）できない。低い自信度・自信度不明・店名や金額の欠落は、表示するだけで保存は止めない（金額は従来どおり入力が必須）。自信度だけで全欄を確認済みにも自動確定にもしない。
+- **確認の記録**：保存のトランザクション内で、要確認の理由があった欄ごとに `reading_confirmations`（会社・仕訳・ai_run・欄・method・理由・保存した値・保存した人・日時）を1行ずつ残す。method：`confirmed`（確かめた）／`changed`（人が直した）／`entered`（AIが読めず人が入れた）／`saved_as_is`（注意が付いたまま保存）。元の警告と「人が確認した」は別の情報。値や読み取りの版が変われば新しい行になり、戻された仕訳の再確定ではもう一度確かめる（前の確認は使い回さない）。確定済みへの2回目の保存・後着のAIは記録を増やさず、`reading_review` も変えない。`entry.confirm` の監査記録にも欄ごとの method を残す。
+- 操作の権限は既存の `editDraft`（原資料の詳細を開いて保存できる人）と同じ。新しい権限・一括承認・自動確定は作らない。ライブ画面の S（そのまま保存）は、仮の日付のとき止まり、理由と「直して確定」の画面への道を出す。
+- #32（測定）には、`ai_corrections`（直した欄）と `reading_confirmations`（method）を渡す。
 - AI修正の記録・理由は初回のAI下書きの確定だけ。再確定では `ai_corrections` を追加せず、「経理がAIを直した」の印も新しく付けない。初回に付いた印は保持し、再確定の変更前後は `entry.confirm` の監査記録に残す。
 
 ### 4.4 ReturnToBookkeeper（F13、社長から戻す）
