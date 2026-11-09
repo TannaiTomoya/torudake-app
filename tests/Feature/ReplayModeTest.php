@@ -2,10 +2,13 @@
 
 use App\Enums\AiStatus;
 use App\Enums\AiTask;
+use App\Enums\CorrectionReason;
 use App\Enums\EntryStatus;
 use App\Enums\Role;
 use App\Models\AiRun;
 use App\Models\Company;
+use App\Models\SourceRecord;
+use App\Models\User;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\FakeClaudeClient;
 use Carbon\CarbonInterval;
@@ -77,6 +80,51 @@ test('T23: 再生モードでは、練習用のデモの会社の記録を、本
     Livewire::actingAs($user)
         ->test('pages::company.live', ['company' => $stage])
         ->assertSeeHtml('data-test="live-replay">再生</span>');
+});
+
+test('台本 S3 を再生モードで通す：1枚目の支払い元を社長の立替に直すと、2枚目は AI を呼ばずに「覚えています」と履歴の参考が出て、S で確定できる', function (): void {
+    /** 1枚目を送り、ライブ画面で支払い元を社長の立替に直して確定し、同じ店の2枚目を送る */
+    $scene = function (Company $company, User $user): SourceRecord {
+        $first = sendReceipt($company, $user, 400);
+        Livewire::actingAs($user)
+            ->test('pages::company.live', ['company' => $company])
+            ->call('startEdit', $first->id)
+            ->set('bankAccountId', bankAccountId($company, '社長の立替'))
+            ->set('reason', CorrectionReason::WrongPayment->value)
+            ->call('save', $first->id)
+            ->assertHasNoErrors();
+
+        return sendReceipt($company, $user, 410);
+    };
+
+    ['company' => $practice, 'user' => $coach] = createCompanyWithMember(Role::Owner);
+    $practice->forceFill(['is_demo' => true])->save();
+    $scene($practice, $coach);
+    $practice->aiRuns()->get()->each(fn (AiRun $run) => $run->forceFill(['driver' => 'claude', 'model' => 'claude-練習', 'latency_ms' => 1500])->save());
+
+    ['company' => $stage, 'user' => $user] = createCompanyWithMember(Role::Owner);
+    $stage->forceFill(['is_demo' => true])->save();
+    $fake = useReplayDriver();
+
+    $source = $scene($stage, $user);
+    $second = $source->journalEntry()->with('bankAccount')->firstOrFail();
+
+    expect($fake->requests)->toBe([])
+        ->and($stage->aiRuns()->pluck('driver')->unique()->all())->toBe(['replay'])
+        ->and($second->bankAccount?->name)->toBe('社長の立替')
+        ->and($second->recommendation['status'] ?? null)->toBe('hold');
+
+    $this->actingAs($user)->get(route('company.live', $stage))
+        ->assertSee('前回の修正を覚えています')
+        ->assertSee('過去の確認は『社長の立替』（同じ店1件・参考。まだ決めきれません）')
+        ->assertSee('S 保存（確定）して次へ');
+
+    Livewire::actingAs($user)
+        ->test('pages::company.live', ['company' => $stage])
+        ->call('save', $source->id)
+        ->assertHasNoErrors();
+
+    expect($second->refresh()->status)->toBe(EntryStatus::Confirmed);
 });
 
 test('再生モードでも、練習の記録がない写真は本物（ここでは偽物）の AI を呼び、「再生」は出ない', function (): void {
