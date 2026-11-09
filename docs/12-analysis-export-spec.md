@@ -68,6 +68,9 @@
 - 欄の名前は `date`・`vendor`・`category`・`credit_account`・`amount`（`post_events` の変更欄だけ `description` も）。摘要・理由の文は出さない。
 - 戻し・再確定で行は増えない。後の出来事は `post_events` に載る（書き出した時点まで）。
 
+## 4b. 読み手
+`tools/analysis/analyze.py`（#33）が、`ai_runs`・`ai_corrections`・`first_confirmations` を読んで集計する。`journal_entries.jsonl` は使わない（L3 の評価は、同じ実行の保存済みの入力と出力だけで行い、後から直した仕訳とは比べない）。版3・4 に対応し、それ以外は止める。
+
 ## 5. manifest.json
 - `schema_version`（今は 4）、`metric_version`（項目の意味を変えたら上げる）、`sensitivity`、`company_key`、`month`
 - `period`：数え方（`basis`）、`timezone`、`from_local`・`to_local`、`from_utc`・`to_utc`

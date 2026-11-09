@@ -1,0 +1,454 @@
+{
+ "_note": "PHP の App\\Support\\JournalBalanceChecker と Python の tools/analysis/models.py が同じ答えを返すことを確かめる共通の架空ベクトル。どちらかの規則を変えたら、ここを直して両方のテストを通す。",
+ "cases": [
+  {
+   "name": "一致：借方1000・貸方1000",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 1000
+    },
+    {
+     "side": "credit",
+     "amount": 1000
+    }
+   ],
+   "balanced": true,
+   "problem": null,
+   "debit_total": 1000,
+   "credit_total": 1000
+  },
+  {
+   "name": "1円差は不一致",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 1000
+    },
+    {
+     "side": "credit",
+     "amount": 999
+    }
+   ],
+   "balanced": false,
+   "problem": "mismatch",
+   "debit_total": 1000,
+   "credit_total": 999
+  },
+  {
+   "name": "複数行は合計で比べる",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 700
+    },
+    {
+     "side": "debit",
+     "amount": 300
+    },
+    {
+     "side": "credit",
+     "amount": 1000
+    }
+   ],
+   "balanced": true,
+   "problem": null,
+   "debit_total": 1000,
+   "credit_total": 1000
+  },
+  {
+   "name": "空の配列",
+   "rows": [],
+   "balanced": false,
+   "problem": "empty",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "借方だけ",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "one_sided",
+   "debit_total": 100,
+   "credit_total": 0
+  },
+  {
+   "name": "貸方だけ",
+   "rows": [
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "one_sided",
+   "debit_total": 0,
+   "credit_total": 100
+  },
+  {
+   "name": "不正な借貸",
+   "rows": [
+    {
+     "side": "both",
+     "amount": 100
+    },
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "invalid_side",
+   "debit_total": 0,
+   "credit_total": 100
+  },
+  {
+   "name": "借貸が null",
+   "rows": [
+    {
+     "side": null,
+     "amount": 100
+    },
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "invalid_side",
+   "debit_total": 0,
+   "credit_total": 100
+  },
+  {
+   "name": "借貸が真偽値",
+   "rows": [
+    {
+     "side": true,
+     "amount": 100
+    },
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "invalid_side",
+   "debit_total": 0,
+   "credit_total": 100
+  },
+  {
+   "name": "0円の行",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 0
+    },
+    {
+     "side": "credit",
+     "amount": 0
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "負の行",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": -100
+    },
+    {
+     "side": "credit",
+     "amount": -100
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "小数 100.5",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 100.5
+    },
+    {
+     "side": "credit",
+     "amount": 100.5
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "小数 100.0（整数とみなさない）",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 100.0
+    },
+    {
+     "side": "credit",
+     "amount": 100.0
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "数字の文字列",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": "100"
+    },
+    {
+     "side": "credit",
+     "amount": "100"
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "金額が null",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": null
+    },
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 100
+  },
+  {
+   "name": "金額が真偽値 true",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": true
+    },
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 100
+  },
+  {
+   "name": "1行の上限ちょうどは一致",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    }
+   ],
+   "balanced": true,
+   "problem": null,
+   "debit_total": 100000000000,
+   "credit_total": 100000000000
+  },
+  {
+   "name": "1行の上限を1円超えると範囲外",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 100000000001
+    },
+    {
+     "side": "credit",
+     "amount": 100000000001
+    }
+   ],
+   "balanced": false,
+   "problem": "out_of_range",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "符号付き64bit整数の最大",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 9223372036854775807
+    },
+    {
+     "side": "credit",
+     "amount": 9223372036854775807
+    }
+   ],
+   "balanced": false,
+   "problem": "out_of_range",
+   "debit_total": 0,
+   "credit_total": 0
+  },
+  {
+   "name": "合計が上限を超えると範囲外（上限+1で止める）",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    },
+    {
+     "side": "debit",
+     "amount": 100000000000
+    },
+    {
+     "side": "credit",
+     "amount": 100000000000
+    }
+   ],
+   "balanced": false,
+   "problem": "out_of_range",
+   "debit_total": 1000000000001,
+   "credit_total": 1000000000001
+  },
+  {
+   "name": "問題が複数：最初に見つけた問題を返す（借貸）",
+   "rows": [
+    {
+     "side": "x",
+     "amount": 0
+    },
+    {
+     "side": "debit",
+     "amount": 100
+    },
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "invalid_side",
+   "debit_total": 100,
+   "credit_total": 100
+  },
+  {
+   "name": "問題が複数：最初に見つけた問題を返す（金額）",
+   "rows": [
+    {
+     "side": "debit",
+     "amount": 0
+    },
+    {
+     "side": "x",
+     "amount": 100
+    },
+    {
+     "side": "credit",
+     "amount": 100
+    }
+   ],
+   "balanced": false,
+   "problem": "non_positive",
+   "debit_total": 0,
+   "credit_total": 100
+  }
+ ]
+}

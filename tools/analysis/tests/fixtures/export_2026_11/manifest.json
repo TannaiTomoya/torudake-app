@@ -1,0 +1,21 @@
+{
+  "company_key": "k_0000000000000001",
+  "files": {
+    "ai_corrections.jsonl": {
+      "rows": 8,
+      "sha256": "87725fa5eb490c9f5efa72047e9598296cf728e7d7a8efa55c4361a67de27ad9"
+    },
+    "ai_runs.jsonl": {
+      "rows": 16,
+      "sha256": "42809d6db2b33ec2b6f4fc43d1e991e569efcf3661a28069ef054e82754c2d0f"
+    },
+    "first_confirmations.jsonl": {
+      "rows": 11,
+      "sha256": "038ecd0fbf6536a05a01290cbba7bfbd3e7478dff7bf7d672635c5fb52b3f0c1"
+    }
+  },
+  "metric_version": "analysis-metrics.v2",
+  "month": "2026-11",
+  "schema_version": 4,
+  "sensitivity": "pseudonymized-confidential"
+}

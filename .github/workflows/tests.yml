@@ -58,3 +58,17 @@ jobs:
 
       - name: Run CI Checks
         run: composer ci:check
+
+  python:
+    # 分析用 CLI（tools/analysis）。架空 fixture だけを使い、ネットワーク・実AI・本番の資格情報・成果物のアップロードはしない。
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Python tests
+        working-directory: tools/analysis
+        run: python3 -m unittest discover -s tests -t .

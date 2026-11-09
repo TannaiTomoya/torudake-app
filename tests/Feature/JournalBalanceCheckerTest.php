@@ -84,6 +84,20 @@ test('貸借の検算：上限ちょうどは一致、1円超えると範囲外�
     expect($huge->problem)->toBe(BalanceProblem::OutOfRange);
 });
 
+test('貸借の検算：Python（tools/analysis）と共通の架空ベクトルで同じ答えになる', function (): void {
+    $vectors = json_decode((string) file_get_contents(base_path('tests/fixtures/balance_vectors.json')), true, 512, JSON_THROW_ON_ERROR);
+    expect($vectors['cases'])->not->toBeEmpty();
+
+    foreach ($vectors['cases'] as $case) {
+        $result = checkRows($case['rows']);
+
+        expect($result->balanced())->toBe($case['balanced'], $case['name'])
+            ->and($result->problem?->value)->toBe($case['problem'], $case['name'])
+            ->and($result->debitTotal)->toBe($case['debit_total'], $case['name'])
+            ->and($result->creditTotal)->toBe($case['credit_total'], $case['name']);
+    }
+});
+
 test('貸借の検算：問題が複数あっても、最初に見つけた問題を返し、一致にはならない', function (): void {
     $result = checkRows([['side' => 'x', 'amount' => 0], ['side' => Side::Debit, 'amount' => 100], ['side' => Side::Credit, 'amount' => 100]]);
 

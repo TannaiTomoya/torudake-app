@@ -1,0 +1,9 @@
+# 分析レポート・実データは置かない（仮名化しただけの機密データ。docs/12-analysis-export-spec.md）
+out/
+reports/
+*.zip
+__pycache__/
+*.pyc
+
+# 架空の fixture だけは入れる
+!tests/fixtures/**/*.jsonl
