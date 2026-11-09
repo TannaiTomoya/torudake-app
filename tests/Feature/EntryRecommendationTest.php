@@ -249,6 +249,30 @@ test('候補の「今回も使う」は欄に入れるだけで確定になら�
         ->and($rec['review_seconds'])->toBeNull();
 });
 
+test('候補が複数並ぶとき、2番目の候補を「今回も使う」で選んで保存しても採用として残る', function (): void {
+    ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
+    history($company, bank: '社長の立替', daysAgo: 4);
+    history($company, bank: '社長の立替', daysAgo: 5);
+    history($company, bank: '現金', daysAgo: 1);
+    history($company, bank: '現金', daysAgo: 2);
+    history($company, bank: '現金', daysAgo: 3);
+
+    $candidates = recommend($company)->candidates;
+    expect($candidates)->toHaveCount(2)
+        ->and($candidates[1]['bank_account_name'])->toBe('社長の立替');
+
+    $source = realSend($company, $editor, 430);
+    Livewire::actingAs($editor)
+        ->test('pages::company.sources.show', ['company' => $company, 'source' => $source->id])
+        ->call('useRecommendation', 1)
+        ->assertSet('bankAccountId', bankAccountId($company, '社長の立替'))
+        ->set('reason', 'wrong_payment')
+        ->call('confirm')->assertHasNoErrors();
+
+    expect($company->firstConfirmations()->sole()->recommendation)
+        ->toMatchArray(['outcome' => 'adopted', 'status' => 'hold', 'candidate_count' => 2]);
+});
+
 test('根拠にした履歴が戻されると候補は失効し、画面に警告が出て、初回確定の記録にも残る', function (): void {
     ['company' => $company, 'user' => $editor] = createCompanyWithMember(Role::Editor);
     $a = history($company);

@@ -57,6 +57,8 @@ new #[Title('原資料')] class extends Component {
     #[Computed]
     public function counts(): array
     {
+        $this->authorize('viewSources', $this->company);
+
         /** @var array<string, int> $counts */
         $counts = $this->company->sourceRecords()
             ->selectRaw('status, count(*) as aggregate')

@@ -258,6 +258,25 @@ test('重複通知：資料を読める経理には、送るだけの人が送�
     expect(SourceRecord::count())->toBe(1);
 });
 
+test('重複通知：まとめて送った中に読める重複と読めない重複があれば、読める方の日付と店名を出す', function (): void {
+    ['company' => $company, 'a' => $a, 'bytes' => $bytes, 'source' => $source] = companyWithWorkerPhoto();
+    ['user' => $b] = createCompanyWithMember(Role::Editor, submitOnly: true, company: $company);
+    $other = UploadedFile::fake()->image('b.jpg', 333, 444);
+    $otherBytes = (string) file_get_contents((string) $other->getRealPath());
+    app(SubmitEvidence::class)->submit($company, $b, $other);
+
+    Livewire::actingAs($a)
+        ->test('pages::company.submit', ['company' => $company])
+        ->set('photos', [UploadedFile::fake()->createWithContent('mine.jpg', $bytes), UploadedFile::fake()->createWithContent('theirs.jpg', $otherBytes)])
+        ->call('send')
+        ->assertSet('state', 'duplicate')
+        ->assertSet('duplicateCount', 2)
+        ->assertSee((string) $source->vendor)
+        ->assertDontSee('すでに受け付けた写真です');
+
+    expect(SourceRecord::count())->toBe(2);
+});
+
 test('重複通知：別の会社の人には、同じ写真でも他社の存在や情報を出さず、独立して受け付ける', function (): void {
     ['bytes' => $bytes, 'source' => $source] = companyWithWorkerPhoto();
     ['company' => $other, 'user' => $c] = createCompanyWithMember(Role::Editor, submitOnly: true);

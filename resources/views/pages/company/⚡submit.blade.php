@@ -176,9 +176,12 @@ new #[Title('レシートを送る')] class extends Component {
             if ($result->duplicate) {
                 $this->duplicateCount++;
                 $existing = $result->source;
-                $this->duplicateOf = $existing !== null
-                    ? $existing->created_at?->isoFormat('M月D日(ddd)').'に送った'.($existing->vendor !== null ? $existing->vendor.'の' : '').'レシートと同じです'
-                    : 'すでに受け付けた写真です';
+                // 読める重複の案内を、読めない重複の汎用文で上書きしない
+                if ($existing !== null) {
+                    $this->duplicateOf = $existing->created_at?->isoFormat('M月D日(ddd)').'に送った'.($existing->vendor !== null ? $existing->vendor.'の' : '').'レシートと同じです';
+                } elseif ($this->duplicateOf === '') {
+                    $this->duplicateOf = 'すでに受け付けた写真です';
+                }
             } else {
                 $this->sentCount++;
             }

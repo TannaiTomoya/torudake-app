@@ -347,10 +347,14 @@ class ConfirmEntryService
         // 下書きを作ったときの候補の根拠が、その後変わったか（戻された・直された・使えなくなった）。扱いの記録とは別に持つ
         $expired = $recorded && ! $this->recommender->stillValid($company, $snapshot ?? [], $entry->vendor);
 
+        // 候補は最大3つ並ぶので、1位に限らず、どれかと同じなら採用
+        $chosen = collect($current->candidates)
+            ->first(fn (array $c): bool => $c['category_id'] === $category->id && $c['bank_account_id'] === $bankAccount->id);
+
         $outcome = match (true) {
             $candidate === null => 'no_candidate',
             $input->recommendationHeld => 'held',
-            $candidate['category_id'] === $category->id && $candidate['bank_account_id'] === $bankAccount->id => 'adopted',
+            $chosen !== null => 'adopted',
             default => 'rejected',
         };
 
@@ -359,7 +363,7 @@ class ConfirmEntryService
             'status' => $current->status,
             'reasons' => $current->reasons,
             'usable_count' => $current->usableCount,
-            'candidate_count' => $candidate['count'] ?? 0,
+            'candidate_count' => $outcome === 'adopted' ? $chosen['count'] : ($candidate['count'] ?? 0),
             'applied' => (bool) ($snapshot['applied'] ?? false),
             'expired' => $expired,
             'outcome' => $outcome,
