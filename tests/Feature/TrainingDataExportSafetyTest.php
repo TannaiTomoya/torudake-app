@@ -237,7 +237,7 @@ test('各ファイルが持つ項目は許可した名前だけ。raw の input�
     ])->and(array_keys($export['rows']['journal_entries.jsonl'][0]['lines'][0]))->toBe(['side', 'account_code', 'amount_yen'])
         ->and(array_keys($export['rows']['first_confirmations.jsonl'][0]))->toBe([
             'id', 'journal_entry_id', 'ai_run_id', 'kind', 'evaluation_class', 'driver', 'prompt_version', 'required_complete', 'unchanged',
-            'changed_fields', 'filled_fields', 'description_changed', 'draft_origin', 'reading_methods', 'duplicate', 'reason',
+            'changed_fields', 'filled_fields', 'description_changed', 'draft_origin', 'reading_methods', 'duplicate', 'recommendation', 'reason',
             'first_confirmed_by', 'first_confirmed_at', 'post_events',
         ]);
 });

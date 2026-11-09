@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Support\DuplicateCandidateMatcher;
 use App\Support\DuplicateCandidates;
 use App\Support\DuplicateTarget;
+use App\Support\EntryRecommendation;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingReview;
 use Carbon\CarbonImmutable;
@@ -39,6 +40,7 @@ class ConfirmEntryService
         private readonly JournalBalanceChecker $balanceChecker,
         private readonly DuplicateCandidateMatcher $duplicateMatcher,
         private readonly WorkbookService $workbook,
+        private readonly EntryRecommender $recommender,
     ) {}
 
     public function confirm(Company $company, User $user, string $sourceId, ConfirmEntryInput $input): JournalEntry
@@ -147,6 +149,9 @@ class ConfirmEntryService
                 dateUncertain: false,
             ));
 
+            // 保存の直前に、履歴からの候補を最新の履歴で確かめ直し、経理がどう扱ったかを決める（#54）
+            $recommendation = $wasPreviouslyConfirmed ? null : $this->recommendationOutcome($company, $entry, $input, $category, $bankAccount);
+
             $entry->forceFill([
                 'entry_date' => $date,
                 'vendor' => $input->vendor,
@@ -175,7 +180,7 @@ class ConfirmEntryService
             if ($wasPreviouslyConfirmed) {
                 $this->recordPostEvent($company, $user, $entry, $before, $after, $beforeDescription, $input->description);
             } else {
-                $this->recordFirstConfirmation($company, $user, $entry, $source, $before, $after, $beforeDescription, $input, $confirmations, $duplicates);
+                $this->recordFirstConfirmation($company, $user, $entry, $source, $before, $after, $beforeDescription, $input, $confirmations, $duplicates, $recommendation);
             }
 
             AuditLog::record(
@@ -245,6 +250,7 @@ class ConfirmEntryService
      * @param  array<string, string|int|null>  $before
      * @param  array<string, string|int|null>  $after
      * @param  array<string, string>  $confirmations  欄 => 読み取りの確認の方法
+     * @param  array<string, mixed>|null  $recommendation  履歴からの候補の扱い（recommendationOutcome）
      */
     private function recordFirstConfirmation(
         Company $company,
@@ -257,6 +263,7 @@ class ConfirmEntryService
         ConfirmEntryInput $input,
         array $confirmations,
         DuplicateCandidates $duplicates,
+        ?array $recommendation,
     ): void {
         if ($company->firstConfirmations()->where('journal_entry_id', $entry->id)->exists()) {
             return;
@@ -307,10 +314,56 @@ class ConfirmEntryService
                 'concerning' => count($duplicates->concerning()),
                 'decided' => count(array_filter($duplicates->all, fn ($candidate): bool => $candidate->review !== null)),
             ],
+            'recommendation' => $recommendation,
             'reason' => $changed !== [] ? $input->reason?->value : null,
             'first_confirmed_by' => $user->id,
             'first_confirmed_at' => $entry->confirmed_at ?? now(),
         ])->save();
+    }
+
+    /**
+     * 履歴からの候補を、経理がどう扱ったか（初回確定の記録に残す。#54）。
+     * - no_candidate：いま候補がない（失敗ではない）
+     * - held：経理が「保留」にした
+     * - adopted：分類・支払い元が、いまの候補と同じ
+     * - rejected：別を選んだ（直した）
+     * 別に、下書きを作ったときの候補の根拠が、その後変わって使えなくなったか（expired）も残す。
+     * 採用しても確定にはならない。確定は経理の保存だけ。
+     *
+     * @return array<string, mixed>|null 記録する値。下書きに候補の記録がなく、いまも候補がなければ null
+     */
+    private function recommendationOutcome(Company $company, JournalEntry $entry, ConfirmEntryInput $input, Category $category, BankAccount $bankAccount): ?array
+    {
+        $snapshot = is_array($entry->recommendation) ? $entry->recommendation : null;
+        $paymentMethod = is_string($snapshot['payment_method'] ?? null) ? $snapshot['payment_method'] : null;
+        $current = $this->recommender->for($company, $input->vendor, $paymentMethod);
+        $candidate = $current->top();
+        $recorded = is_array($snapshot['candidates'] ?? null) && $snapshot['candidates'] !== [];
+
+        if ($snapshot === null && $candidate === null) {
+            return null;
+        }
+
+        // 下書きを作ったときの候補の根拠が、その後変わったか（戻された・直された・使えなくなった）。扱いの記録とは別に持つ
+        $expired = $recorded && ! $this->recommender->stillValid($company, $snapshot ?? [], $entry->vendor);
+
+        $outcome = match (true) {
+            $candidate === null => 'no_candidate',
+            $input->recommendationHeld => 'held',
+            $candidate['category_id'] === $category->id && $candidate['bank_account_id'] === $bankAccount->id => 'adopted',
+            default => 'rejected',
+        };
+
+        return [
+            'version' => EntryRecommendation::VERSION,
+            'status' => $current->status,
+            'reasons' => $current->reasons,
+            'usable_count' => $current->usableCount,
+            'candidate_count' => $candidate['count'] ?? 0,
+            'applied' => (bool) ($snapshot['applied'] ?? false),
+            'expired' => $expired,
+            'outcome' => $outcome,
+        ];
     }
 
     /**

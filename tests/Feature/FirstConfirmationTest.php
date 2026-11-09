@@ -348,18 +348,23 @@ test('由来を混ぜない：同じ店で直した支払い元の履歴を使�
     $otherBank = (string) $company->bankAccounts()->whereKeyNot($draftA->bank_account_id)->orderBy('created_at')->value('id');
     $a = confirmFirst($company, $editor, $sourceA, ['bankAccountId' => $otherBank, 'reason' => CorrectionReason::WrongPayment]);
 
+    // 履歴1件では当てない（#54）。同じ店で2件そろってから、支払い元に履歴を当てる
+    $sourceA2 = realReceipt($company, $editor, 405);
+    $a2 = confirmFirst($company, $editor, $sourceA2); // AI は直した記録を例として受け取り、同じ支払い元を選ぶ
+
     $sourceB = realReceipt($company, $editor, 410);
     $b = confirmFirst($company, $editor, $sourceB);
 
     expect(firstRow($a)->draft_origin['payment'])->toBeIn(['ai', 'default'])
         ->and(firstRow($a)->changed_fields)->toBe(['credit_account'])
+        ->and(firstRow($a2)->draft_origin['payment'])->toBe('ai')
         ->and(firstRow($b)->draft_origin['payment'])->toBe('history')
         ->and(firstRow($b)->isUnchanged())->toBeTrue()
         ->and(FirstConfirmationMetrics::for($company, thisMonth()))->toMatchArray([
-            'ai_first' => 2,
-            'unchanged' => 1,
+            'ai_first' => 3,
+            'unchanged' => 2,
             'history_applied' => 1,
-            'without_history' => ['total' => 1, 'unchanged' => 0, 'pct' => 0],
+            'without_history' => ['total' => 2, 'unchanged' => 1, 'pct' => 50],
         ]);
 });
 
@@ -414,7 +419,7 @@ test('画面・書き出しの manifest・JSONL から数え直した値が、�
 
     expect($export['manifest']['metrics'])->toBe(json_decode((string) json_encode($metrics), true))
         ->and($export['manifest']['metric_version'])->toBe('analysis-metrics.v2')
-        ->and($export['manifest']['schema_version'])->toBe(3)
+        ->and($export['manifest']['schema_version'])->toBe(4)
         ->and($ai->count())->toBe($metrics['ai_first'])
         ->and($ai->where('unchanged', true)->count())->toBe($metrics['unchanged'])
         ->and($ai->where('description_changed', true)->count())->toBe($metrics['description_changed'])

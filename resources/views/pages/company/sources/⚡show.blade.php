@@ -16,10 +16,12 @@ use App\Models\User;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
 use App\Services\DuplicateReviewService;
+use App\Services\EntryRecommender;
 use App\Services\IgnoreSourceService;
 use App\Support\DuplicateCandidate;
 use App\Support\DuplicateCandidateMatcher;
 use App\Support\DuplicateCandidates;
+use App\Support\EntryRecommendation;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
 use App\Support\ReadingReview;
@@ -54,6 +56,9 @@ new #[Title('直して確定')] class extends Component {
     public string $reason = '';
 
     public bool $confirmDate = false;
+
+    /** 履歴からの候補を「保留」にして保存する（#54） */
+    public bool $recommendationHeld = false;
 
     public string $duplicateReason = '';
 
@@ -114,6 +119,56 @@ new #[Title('直して確定')] class extends Component {
     }
 
     /**
+     * 同じ店の確定履歴からの候補。AI の案ではなく、この会社の人が確定した履歴だけが根拠（開くたびに引き直す）。
+     */
+    #[Computed]
+    public function recommendation(): EntryRecommendation
+    {
+        $snapshot = $this->entry?->recommendation;
+        $paymentMethod = is_array($snapshot) && is_string($snapshot['payment_method'] ?? null) ? $snapshot['payment_method'] : null;
+
+        return app(EntryRecommender::class)->for($this->company, trim($this->vendor) === '' ? null : trim($this->vendor), $paymentMethod);
+    }
+
+    /**
+     * 下書きを作ったときに当てた候補の根拠が、その後変わって使えなくなったか。
+     */
+    #[Computed]
+    public function recommendationExpired(): bool
+    {
+        $snapshot = $this->entry?->recommendation;
+
+        return is_array($snapshot)
+            && ($snapshot['applied'] ?? false) === true
+            && ! app(EntryRecommender::class)->stillValid($this->company, $snapshot, $this->entry?->vendor);
+    }
+
+    /**
+     * 候補を欄に入れる。確定にはならない（保存するのは経理）。確認する権限は「直して確定」と同じ。
+     */
+    public function useRecommendation(int $index): void
+    {
+        $this->authorize('editDraft', $this->company);
+
+
+        $candidate = $this->recommendation->candidates[$index] ?? null;
+        if ($candidate === null) {
+            return;
+        }
+
+        $this->categoryId = $candidate['category_id'];
+        $this->bankAccountId = $candidate['bank_account_id'];
+        $this->recommendationHeld = false;
+    }
+
+    public function holdRecommendation(): void
+    {
+        $this->authorize('editDraft', $this->company);
+
+        $this->recommendationHeld = true;
+    }
+
+    /**
      * @return Collection<int, Category>
      */
     #[Computed]
@@ -150,6 +205,7 @@ new #[Title('直して確定')] class extends Component {
             amountYen: $digits === '' || $digits === null ? null : (int) $digits,
             reason: CorrectionReason::tryFrom($this->reason),
             readingConfirmed: $this->confirmDate ? ['date'] : [],
+            recommendationHeld: $this->recommendationHeld,
         ));
 
         $this->goToNext('確定しました。');
@@ -404,7 +460,7 @@ new #[Title('直して確定')] class extends Component {
                         </p>
                     @endif
                     @if (is_string($check['remembered_payment'] ?? null))
-                        <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="remembered-payment">前回、この店は『{{ $check['remembered_payment'] }}』に直されました</p>
+                        <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="remembered-payment">過去の確認（同じ店）から『{{ $check['remembered_payment'] }}』にしました</p>
                     @elseif (($check['remembered'] ?? false) === true)
                         <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="remembered">前回の修正を覚えています</p>
                     @endif
@@ -488,6 +544,33 @@ new #[Title('直して確定')] class extends Component {
                             <span class="block text-note text-warn" data-test="reading-reason-vendor">・{{ ReadingReview::reasonLabel($code) }}</span>
                         @endforeach
                     </label>
+
+                    @php($recommendation = $this->recommendation)
+                    @if ($recommendation->candidates !== [] || $this->recommendationExpired)
+                        <div class="space-y-2 rounded-xl border border-line bg-panel p-4" data-test="recommendation" data-status="{{ $recommendation->status }}">
+                            <p class="font-bold">過去の確認から<span class="ml-2 text-note font-normal text-ink-sub">（AIの案ではなく、この会社で確定した履歴から出しています）</span></p>
+                            @if ($this->recommendationExpired)
+                                <p class="text-warn" data-test="recommendation-expired">下書きに当てた候補の根拠が、その後変わりました。いまの履歴で確かめ直してください。</p>
+                            @endif
+                            @foreach ($recommendation->candidates as $index => $candidate)
+                                <div class="flex flex-wrap items-center justify-between gap-2" data-test="recommendation-candidate">
+                                    <p>分類「{{ $candidate['category_name'] }}」・支払い元「{{ $candidate['bank_account_name'] }}」<span class="block text-note text-ink-sub">同じ店で{{ $candidate['count'] }}件・最後の確認は{{ \Carbon\CarbonImmutable::parse($candidate['last_confirmed_on'])->isoFormat('M月D日(ddd)') }}</span></p>
+                                    @if (! $recommendationHeld)
+                                        <button type="button" wire:click="useRecommendation({{ $index }})" class="rounded-lg border-2 border-ink bg-paper px-3 py-1 font-bold text-ink" data-test="recommendation-use">今回も使う</button>
+                                    @endif
+                                </div>
+                            @endforeach
+                            @if ($recommendation->status === EntryRecommendation::HOLD)
+                                <p class="text-note text-warn" data-test="recommendation-hold-reason">決めきれません：{{ implode('／', $recommendation->reasonLabels()) }}</p>
+                            @endif
+                            @if ($recommendationHeld)
+                                <p class="text-note text-ink-sub" data-test="recommendation-held">候補は保留にしています（そのまま保存できます）</p>
+                            @elseif ($recommendation->candidates !== [])
+                                <button type="button" wire:click="holdRecommendation" class="text-note font-bold text-ink-sub underline" data-test="recommendation-hold">保留にする</button>
+                            @endif
+                            <p class="text-note text-ink-sub">別にするときは、下の欄を直してください。候補を使っても確定にはなりません。</p>
+                        </div>
+                    @endif
 
                     <label class="block space-y-1">
                         <span class="font-bold">分類</span>

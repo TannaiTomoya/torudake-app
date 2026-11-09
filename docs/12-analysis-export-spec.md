@@ -64,12 +64,12 @@
 - `origin` の `corrected`：その仕訳に AI を直した記録が（期間に関係なく）1件でもある。
 
 ### first_confirmations.jsonl（#32）
-`id`、`journal_entry_id`、`ai_run_id`、`kind`（`ai`・`manual`）、`evaluation_class`（`real`・`demo`）、`driver`、`prompt_version`、`required_complete`、`unchanged`、`changed_fields`、`filled_fields`、`description_changed`、`draft_origin`（`date`・`vendor`・`amount`＝`read`・`defaulted`・`missing`・`unknown`、`category`＝`ai`・`none`、`payment`＝`history`・`invoice_rule`・`ai`・`default`・`unknown`・`none`）、`reading_methods`（欄ごとに `confirmed`・`changed`・`entered`・`saved_as_is`）、`duplicate`（`shown`・`concerning`・`decided` の件数）、`reason`、`first_confirmed_by`、`first_confirmed_at`、`post_events`（`kind`＝`returned`・`reconfirmed`、`changed_fields`、`occurred_at`）
+`id`、`journal_entry_id`、`ai_run_id`、`kind`（`ai`・`manual`）、`evaluation_class`（`real`・`demo`）、`driver`、`prompt_version`、`required_complete`、`unchanged`、`changed_fields`、`filled_fields`、`description_changed`、`draft_origin`（`date`・`vendor`・`amount`＝`read`・`defaulted`・`missing`・`unknown`、`category`＝`ai`・`none`、`payment`＝`history`・`invoice_rule`・`ai`・`default`・`unknown`・`none`）、`reading_methods`（欄ごとに `confirmed`・`changed`・`entered`・`saved_as_is`）、`duplicate`（`shown`・`concerning`・`decided` の件数）、`recommendation`（履歴からの候補の扱い。`status`＝`confident`・`hold`・`none`、`reasons`（理由の型）、`usable_count`、`candidate_count`、`applied`、`expired`、`outcome`＝`adopted`・`rejected`・`held`・`no_candidate`。分類・口座・店名は出さない）、`reason`、`first_confirmed_by`、`first_confirmed_at`、`post_events`（`kind`＝`returned`・`reconfirmed`、`changed_fields`、`occurred_at`）
 - 欄の名前は `date`・`vendor`・`category`・`credit_account`・`amount`（`post_events` の変更欄だけ `description` も）。摘要・理由の文は出さない。
 - 戻し・再確定で行は増えない。後の出来事は `post_events` に載る（書き出した時点まで）。
 
 ## 5. manifest.json
-- `schema_version`（今は 3）、`metric_version`（項目の意味を変えたら上げる）、`sensitivity`、`company_key`、`month`
+- `schema_version`（今は 4）、`metric_version`（項目の意味を変えたら上げる）、`sensitivity`、`company_key`、`month`
 - `period`：数え方（`basis`）、`timezone`、`from_local`・`to_local`、`from_utc`・`to_utc`
 - `time_format`：時刻（`*_at`）はすべて UTC。`entry_date` は日付だけ
 - `files`：ファイルごとの `rows`（行数）と `sha256`

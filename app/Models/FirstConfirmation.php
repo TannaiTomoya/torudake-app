@@ -27,6 +27,7 @@ use LogicException;
  * @property array<string, string> $draft_origin
  * @property array<string, string> $reading_methods
  * @property array{shown: int, concerning: int, decided: int} $duplicate
+ * @property array<string, mixed>|null $recommendation 履歴からの候補の扱い（#54）
  * @property string|null $reason
  * @property int $first_confirmed_by
  * @property Carbon $first_confirmed_at
@@ -71,6 +72,7 @@ class FirstConfirmation extends Model
             'draft_origin' => 'array',
             'reading_methods' => 'array',
             'duplicate' => 'array',
+            'recommendation' => 'array',
             'first_confirmed_at' => 'datetime',
         ];
     }

@@ -13,6 +13,7 @@ use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\SourceRecord;
 use App\Services\Ai\AiException;
+use App\Support\EntryRecommendation;
 use App\Support\JournalBalanceChecker;
 use App\Support\ReadingChecks;
 use App\Support\ReadingReview;
@@ -28,7 +29,7 @@ class AiDraftBuilder
     public function __construct(
         private readonly JournalLineWriter $lineWriter,
         private readonly ConcernRules $concernRules,
-        private readonly PaymentMemory $paymentMemory,
+        private readonly EntryRecommender $recommender,
         private readonly JournalBalanceChecker $balanceChecker,
     ) {}
 
@@ -62,10 +63,14 @@ class AiDraftBuilder
             }
 
             $vendor = is_string($draft['vendor'] ?? null) ? $draft['vendor'] : (is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null);
-            $rememberedPayment = $this->paymentMemory->for($company, $vendor);
+            // 同じ店の確定履歴からの候補（#54）。十分にそろった履歴だけを支払い元に当て、保留の候補は参考として記録する
+            $paymentMethod = is_string($reading['payment_method'] ?? null) ? $reading['payment_method'] : null;
+            $recommendation = $this->recommender->for($company, $vendor, $paymentMethod);
+            $applicable = $recommendation->applicable();
+            $rememberedPayment = $applicable === null ? null : $company->bankAccounts()->whereNull('archived_at')->find($applicable['bank_account_id']);
             [$resolvedAccount, $resolvedOrigin] = $this->resolveBankAccount($company, $reading, $draft);
             $bankAccount = $rememberedPayment ?? $resolvedAccount;
-            // 下書きの支払い元が、AI の答えか、人が直した履歴か、規則・既定かを分けて残す（#32）
+            // 下書きの支払い元が、AI の答えか、人が確定した履歴か、規則・既定かを分けて残す（#32）
             $paymentOrigin = $rememberedPayment !== null ? 'history' : $resolvedOrigin;
 
             if ($bankAccount === null) {
@@ -91,6 +96,13 @@ class AiDraftBuilder
                 'ai_check' => $rememberedPayment !== null ? ['remembered_payment' => $rememberedPayment->name] : null,
                 'reading_review' => ReadingReview::forDraft($reading, $vendor),
                 'draft_payment_origin' => $paymentOrigin,
+                // 元の AI（L2）の案・履歴の候補・当てたかを分けて残す（#54）
+                'recommendation' => $recommendation->status === EntryRecommendation::NONE && $recommendation->reasons === []
+                    ? null
+                    : $recommendation->snapshot($rememberedPayment !== null, [
+                        'category_id' => $category->id,
+                        'bank_account_id' => $resolvedAccount?->id,
+                    ], $paymentMethod),
             ])->save();
 
             if ($amountYen !== null) {
@@ -120,7 +132,7 @@ class AiDraftBuilder
     }
 
     /**
-     * 同じ店で人が直した支払い元があれば、それを先に使う（build）。なければ、後日の請求書なら「後日の請求」の口座を優先し、次に AI が選んだ名前、最後に会社の既定の口座。
+     * 同じ店の確定履歴が十分にそろっていれば、それを先に使う（build。EntryRecommender）。なければ、後日の請求書なら「後日の請求」の口座を優先し、次に AI が選んだ名前、最後に会社の既定の口座。
      *
      * @param  array<string, mixed>  $reading
      * @param  array<string, mixed>  $draft

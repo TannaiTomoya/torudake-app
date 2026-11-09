@@ -7,6 +7,7 @@ use App\Enums\EntryStatus;
 use App\Models\Company;
 use App\Models\FirstConfirmation;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 
 /**
  * 「下書きに手を入れなかった率」などの定義の正本（#32）。画面・書き出しの manifest・後続の分析が、この定義と同じ母数・分子を使う。
@@ -38,6 +39,7 @@ final class FirstConfirmationMetrics
      *     manual_pct: int|null,
      *     post_corrected: int,
      *     post_corrected_pct: int|null,
+     *     recommendation: array{with_candidate: int, adopted: int, adopted_pct: int|null, rejected: int, rejected_pct: int|null, held: int, held_pct: int|null, adopted_then_corrected: int, expired: int, no_candidate: int, review_seconds: null},
      *     ai_runs: int,
      *     ai_failed: int,
      *     ai_failed_pct: int|null,
@@ -109,11 +111,49 @@ final class FirstConfirmationMetrics
             'manual_pct' => self::pct($manual, $total + $manual),
             'post_corrected' => $postCorrected,
             'post_corrected_pct' => self::pct($postCorrected, $total),
+            'recommendation' => self::recommendation($company, $ai),
             'ai_runs' => $aiRuns,
             'ai_failed' => $aiFailed,
             'ai_failed_pct' => self::pct($aiFailed, $aiRuns),
             'legacy' => $legacy,
             'other_class' => $period()->where('evaluation_class', '!=', $class)->count(),
+        ];
+    }
+
+    /**
+     * 履歴からの候補（#54）。採用率だけでなく、別を選んだ・保留・採用したあとの事後修正・根拠の失効を並べる。
+     * 母数は「候補があった（採用・別を選んだ・保留）」初回確定。候補がなかったものは失敗ではないので、別に件数だけ出す。
+     * 確認にかかった時間は、実作業の計測（#44）がまだないので null（測っていない）。この数字だけで改善したとは言わない。
+     *
+     * @param  Collection<int, FirstConfirmation>  $ai
+     * @return array{with_candidate: int, adopted: int, adopted_pct: int|null, rejected: int, rejected_pct: int|null, held: int, held_pct: int|null, adopted_then_corrected: int, expired: int, no_candidate: int, review_seconds: null}
+     */
+    private static function recommendation(Company $company, $ai): array
+    {
+        $outcome = fn (string $name) => $ai->filter(fn (FirstConfirmation $row): bool => ($row->recommendation['outcome'] ?? null) === $name);
+
+        $adopted = $outcome('adopted');
+        $rejected = $outcome('rejected')->count();
+        $held = $outcome('held')->count();
+        $withCandidate = $adopted->count() + $rejected + $held;
+
+        $adoptedThenCorrected = $adopted->isEmpty() ? 0 : $company->entryPostEvents()
+            ->whereIn('journal_entry_id', $adopted->pluck('journal_entry_id'))
+            ->distinct()
+            ->count('journal_entry_id');
+
+        return [
+            'with_candidate' => $withCandidate,
+            'adopted' => $adopted->count(),
+            'adopted_pct' => self::pct($adopted->count(), $withCandidate),
+            'rejected' => $rejected,
+            'rejected_pct' => self::pct($rejected, $withCandidate),
+            'held' => $held,
+            'held_pct' => self::pct($held, $withCandidate),
+            'adopted_then_corrected' => $adoptedThenCorrected,
+            'expired' => $ai->filter(fn (FirstConfirmation $row): bool => ($row->recommendation['expired'] ?? false) === true)->count(),
+            'no_candidate' => $ai->count() - $withCandidate,
+            'review_seconds' => null,
         ];
     }
 

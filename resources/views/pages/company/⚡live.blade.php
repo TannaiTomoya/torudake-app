@@ -427,9 +427,15 @@ new #[Layout('layouts::live')] #[Title('ライブ')] class extends Component {
 
                     <div class="flex shrink-0 flex-col gap-2">
                         @if (! $isEditing)
+                                @php
+                                    $recommended = is_array($entry?->recommendation['candidates'][0] ?? null) ? $entry->recommendation['candidates'][0] : null;
+                                @endphp
                                 @if (is_string($entry?->ai_check['remembered_payment'] ?? null))
-                                    <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered-payment">前回、この店は『{{ $entry->ai_check['remembered_payment'] }}』に直されました</p>
-                                @elseif (($entry?->ai_check['remembered'] ?? false) === true)
+                                    <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered-payment">過去の確認（同じ店{{ isset($recommended['count']) ? $recommended['count'].'件' : '' }}）から『{{ $entry->ai_check['remembered_payment'] }}』にしました</p>
+                                @elseif ($recommended !== null)
+                                    <p class="live-reveal self-start rounded-lg bg-panel px-3 py-1 font-bold text-ink-sub" data-test="live-recommendation">過去の確認は『{{ $recommended['bank_account_name'] }}』（同じ店{{ $recommended['count'] }}件・参考。まだ決めきれません）</p>
+                                @endif
+                                @if (($entry?->ai_check['remembered'] ?? false) === true)
                                     <p class="live-reveal self-start rounded-lg bg-brand-soft px-3 py-1 font-bold text-brand-ink" data-test="live-remembered">前回の修正を覚えています</p>
                                 @endif
                                 @if ($addresseeFlag !== null)

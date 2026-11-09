@@ -14,6 +14,7 @@ use App\Models\FirstConfirmation;
 use App\Models\JournalEntry;
 use App\Models\JournalLine;
 use App\Support\DuplicateCandidateMatcher;
+use App\Support\EntryRecommendation;
 use Carbon\CarbonInterface;
 
 /**
@@ -24,7 +25,7 @@ use Carbon\CarbonInterface;
  */
 class AnalysisExportSanitizer
 {
-    public const SCHEMA_VERSION = 3;
+    public const SCHEMA_VERSION = 4;
 
     /** 項目の意味（どの値をどう数えるか）を変えたら上げる。分析側が版をそろえて読むため */
     public const METRIC_VERSION = 'analysis-metrics.v2';
@@ -210,10 +211,34 @@ class AnalysisExportSanitizer
                 'concerning' => $this->int($row->duplicate['concerning'] ?? null),
                 'decided' => $this->int($row->duplicate['decided'] ?? null),
             ],
+            'recommendation' => $this->recommendation($row),
             'reason' => $this->enum($row->reason, array_map(fn (CorrectionReason $reason): string => $reason->value, CorrectionReason::cases())),
             'first_confirmed_by' => $this->key('u', $row->first_confirmed_by),
             'first_confirmed_at' => $this->time($row->first_confirmed_at),
             'post_events' => $post,
+        ];
+    }
+
+    /**
+     * 履歴からの候補の扱い（#54）。分類・支払い元・店名は入れず、状態・理由の型・件数・扱いだけ。
+     *
+     * @return array<string, mixed>|null
+     */
+    private function recommendation(FirstConfirmation $row): ?array
+    {
+        $rec = $row->recommendation;
+        if ($rec === null) {
+            return null;
+        }
+
+        return [
+            'status' => $this->enum($rec['status'] ?? null, ['confident', 'hold', 'none']),
+            'reasons' => $this->fieldList($rec['reasons'] ?? null, array_keys(EntryRecommendation::REASON_LABELS)),
+            'usable_count' => $this->int($rec['usable_count'] ?? null),
+            'candidate_count' => $this->int($rec['candidate_count'] ?? null),
+            'applied' => ($rec['applied'] ?? false) === true,
+            'expired' => ($rec['expired'] ?? false) === true,
+            'outcome' => $this->enum($rec['outcome'] ?? null, ['adopted', 'rejected', 'held', 'no_candidate']),
         ];
     }
 

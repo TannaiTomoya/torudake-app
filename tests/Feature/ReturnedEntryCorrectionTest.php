@@ -11,8 +11,8 @@ use App\Services\AiRecordSummary;
 use App\Services\AnalysisExportSanitizer;
 use App\Services\ConfirmEntryInput;
 use App\Services\ConfirmEntryService;
+use App\Services\EntryRecommender;
 use App\Services\OwnerReviewService;
-use App\Services\PaymentMemory;
 use App\Services\TrainingDataExporter;
 use App\Services\WorkbookService;
 use Carbon\CarbonImmutable;
@@ -87,7 +87,9 @@ test('T12/T17: 再確定の変更はAI修正に混ぜず、初回の記録・印
     $summary = app(AiRecordSummary::class)->for($company, CarbonImmutable::instance(now()));
     expect($summary['corrections'])->toBe(count($corrections))
         ->and($summary['unchanged'])->toBe($initialCorrection ? 0 : 1)
-        ->and(app(PaymentMemory::class)->for($company, $vendor)?->name)->toBe($initialCorrection ? '社長の立替' : null);
+        // 再確定で直した値が履歴になる（戻される前の値は残らない）。1件だけなので参考の候補にとどまる
+        ->and(app(EntryRecommender::class)->for($company, $vendor)->top()['bank_account_name'] ?? null)->toBe('事業用カード')
+        ->and(app(EntryRecommender::class)->for($company, $vendor)->status)->toBe('hold');
 
     $export = app(TrainingDataExporter::class)->export($company, CarbonImmutable::instance(now()));
     $path = tempnam(sys_get_temp_dir(), 'reconfirmed-training-');

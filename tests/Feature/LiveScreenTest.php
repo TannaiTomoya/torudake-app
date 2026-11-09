@@ -120,7 +120,7 @@ test('ライブ画面：E で直して理由を選び S で確定。理由がな
         ->and($entry->category?->name)->toBe('燃料');
 });
 
-test('台本の場面：支払い元を現金→社長の立替に直すと、同じ店の2枚目は「前回、この店は『社長の立替』に直されました」と出て支払い元が合う。確定は S', function (): void {
+test('台本の場面：支払い元を現金→社長の立替に直すと、同じ店の2枚目は AI が前回の修正を覚えて支払い元が合い、履歴は参考として出る（1件では当てない）。確定は S', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
     $first = sendReceipt($company, $owner);
     $advance = bankAccountId($company, '社長の立替');
@@ -149,16 +149,22 @@ test('台本の場面：支払い元を現金→社長の立替に直すと、�
     expect($entry->status)->toBe(EntryStatus::Draft)
         ->and($entry->bankAccount?->name)->toBe('社長の立替')
         ->and($entry->lines[1]->account?->name)->toBe('役員借入金')
-        ->and($entry->ai_check['remembered_payment'] ?? null)->toBe('社長の立替');
+        ->and($entry->ai_check['remembered_payment'] ?? null)->toBeNull()
+        ->and($entry->draft_payment_origin)->toBe('ai')
+        ->and($entry->recommendation['status'] ?? null)->toBe('hold')
+        ->and($entry->recommendation['reasons'] ?? null)->toBe(['few_history'])
+        ->and($entry->recommendation['applied'] ?? null)->toBeFalse();
 
     $this->actingAs($owner)->get(route('company.live', $company))
-        ->assertSee('前回、この店は『社長の立替』に直されました')
-        ->assertDontSee('前回の修正を覚えています')
+        ->assertSee('前回の修正を覚えています')
+        ->assertSee('過去の確認は『社長の立替』（同じ店1件・参考。まだ決めきれません）')
+        ->assertDontSee('data-test="live-remembered-payment"', false)
         ->assertSee('仕訳　消耗品費 3,850円 ／ 役員借入金 3,850円')
         ->assertSee('S 保存（確定）して次へ');
 
     $this->actingAs($owner)->get(route('company.sources.show', [$company, $second->id]))
-        ->assertSee('前回、この店は『社長の立替』に直されました');
+        ->assertSee('data-test="recommendation"', false)
+        ->assertSee('同じ店で1件');
 
     Livewire::actingAs($owner)
         ->test('pages::company.live', ['company' => $company])
@@ -175,7 +181,7 @@ test('台本の場面：支払い元を現金→社長の立替に直すと、�
         ->and($sheet->getCell([13, 3])->getValue())->toBe('AIのまま');
 });
 
-test('支払い元の記憶は直した記録で決める：AI が現金と答えても、表記の違う同じ店なら社長の立替。別の店・他社の記録は使わない', function (): void {
+test('支払い元の記憶は同じ店の確定履歴（2件以上）で決める：AI が現金と答えても、表記の違う同じ店なら社長の立替。別の店・他社の記録は使わない', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
     ['company' => $other, 'user' => $otherUser] = createCompanyWithMember(Role::Owner);
     $fake = app(FakeClaudeClient::class);
@@ -196,6 +202,11 @@ test('支払い元の記憶は直した記録で決める：AI が現金と答�
         ->set('bankAccountId', bankAccountId($company, '社長の立替'))
         ->set('reason', CorrectionReason::WrongPayment->value)
         ->call('save', $first->id)->assertHasNoErrors();
+
+    // 履歴が1件のうちは当てない。同じ店の2件目を確定する（AI は前回の修正を覚えて社長の立替と答える）
+    $second = sendReceipt($company, $owner, 305);
+    expect($second->journalEntry()->firstOrFail()->ai_check['remembered_payment'] ?? null)->toBeNull();
+    Livewire::actingAs($owner)->test('pages::company.live', ['company' => $company])->call('save', $second->id)->assertHasNoErrors();
 
     // 全角・空白の違う同じ店。AI は決めつけず現金と答える
     $fake->withReading(['vendor' => '〇〇石油　八幡平店 ']);

@@ -11,6 +11,7 @@ final readonly class ConfirmEntryInput
 {
     /**
      * @param  list<string>  $readingConfirmed  経理が「確かめた」と答えた読み取り欄（date など）
+     * @param  bool  $recommendationHeld  履歴からの候補を「保留」にして保存するとき true（#54）
      */
     public function __construct(
         public string $entryDate,
@@ -21,5 +22,6 @@ final readonly class ConfirmEntryInput
         public ?int $amountYen,
         public ?CorrectionReason $reason = null,
         public array $readingConfirmed = [],
+        public bool $recommendationHeld = false,
     ) {}
 }

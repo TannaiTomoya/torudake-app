@@ -102,6 +102,20 @@ new #[Title('AIの記録')] class extends Component {
             <div class="flex justify-between gap-3"><dt>確定のあとで戻した・再確定した</dt><dd class="font-bold tabular-nums" data-test="first-post">{{ $first['post_corrected'] }}件{{ $first['post_corrected_pct'] === null ? '' : '（'.$first['post_corrected_pct'].'%）' }}</dd></div>
             <div class="flex justify-between gap-3"><dt>AIの読み取り・仕訳の失敗</dt><dd class="font-bold tabular-nums" data-test="first-ai-failed">{{ $first['ai_failed'] }}/{{ $first['ai_runs'] }}回</dd></div>
         </dl>
+        @php($rec = $first['recommendation'])
+        <div class="space-y-1 border-t border-line pt-3" data-test="first-recommendation">
+            <h3 class="font-bold">履歴からの候補（同じ店の確定履歴）</h3>
+            <dl class="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                <div class="flex justify-between gap-3"><dt>候補があった初回確定</dt><dd class="font-bold tabular-nums" data-test="rec-with-candidate">{{ $rec['with_candidate'] }}件</dd></div>
+                <div class="flex justify-between gap-3"><dt>候補どおりにした</dt><dd class="font-bold tabular-nums" data-test="rec-adopted">{{ $rec['adopted'] }}件{{ $rec['adopted_pct'] === null ? '' : '（'.$rec['adopted_pct'].'%）' }}</dd></div>
+                <div class="flex justify-between gap-3"><dt>別を選んだ</dt><dd class="font-bold tabular-nums" data-test="rec-rejected">{{ $rec['rejected'] }}件{{ $rec['rejected_pct'] === null ? '' : '（'.$rec['rejected_pct'].'%）' }}</dd></div>
+                <div class="flex justify-between gap-3"><dt>保留にした</dt><dd class="font-bold tabular-nums" data-test="rec-held">{{ $rec['held'] }}件{{ $rec['held_pct'] === null ? '' : '（'.$rec['held_pct'].'%）' }}</dd></div>
+                <div class="flex justify-between gap-3"><dt>候補どおりにしたあとで戻した・再確定した</dt><dd class="font-bold tabular-nums" data-test="rec-corrected">{{ $rec['adopted_then_corrected'] }}件</dd></div>
+                <div class="flex justify-between gap-3"><dt>下書きの候補の根拠が、あとで変わった</dt><dd class="font-bold tabular-nums" data-test="rec-expired">{{ $rec['expired'] }}件</dd></div>
+                <div class="flex justify-between gap-3"><dt>候補がなかった（失敗ではありません）</dt><dd class="font-bold tabular-nums" data-test="rec-none">{{ $rec['no_candidate'] }}件</dd></div>
+            </dl>
+            <p class="text-note text-ink-sub" data-test="rec-note">候補どおりにした率だけでは、候補が良かったとは言えません。確認にかかった時間はまだ測っていません（実作業の計測は #44）。</p>
+        </div>
         @if ($first['legacy'] > 0)
             <p class="text-note text-ink-sub" data-test="first-legacy">この機能より前に確定した {{ $first['legacy'] }}件は、初回確定の記録がないため、この率に入れていません（評価不能）。</p>
         @endif

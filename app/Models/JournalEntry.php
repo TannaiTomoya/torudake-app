@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\EntryKind;
 use App\Enums\EntryStatus;
 use App\Enums\Side;
+use App\Support\VendorKey;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,7 @@ use LogicException;
  * @property EntryStatus $status
  * @property string|null $description
  * @property string|null $vendor
+ * @property string|null $vendor_key 正規化した店名（VendorKey。保存のたびに vendor から作る）
  * @property string|null $category_id
  * @property string|null $bank_account_id
  * @property int|null $created_by
@@ -32,6 +34,7 @@ use LogicException;
  * @property array<string, mixed>|null $ai_check
  * @property array<string, mixed>|null $reading_review
  * @property string|null $draft_payment_origin
+ * @property array<string, mixed>|null $recommendation 下書きを作った時点の、履歴からの推薦の記録（EntryRecommendation::snapshot）
  * @property list<string>|null $concern_flags
  * @property Carbon|null $owner_seen_at
  * @property int|null $workbook_row
@@ -44,6 +47,10 @@ class JournalEntry extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (JournalEntry $entry): void {
+            $entry->vendor_key = VendorKey::of($entry->vendor);
+        });
+
         static::updating(function (JournalEntry $entry): void {
             if ($entry->getOriginal('status') !== EntryStatus::Draft && $entry->status === EntryStatus::Draft) {
                 throw new LogicException('確定した仕訳は下書きに戻せません。');
@@ -71,6 +78,7 @@ class JournalEntry extends Model
             'owner_seen_at' => 'datetime',
             'ai_check' => 'array',
             'reading_review' => 'array',
+            'recommendation' => 'array',
             'concern_flags' => 'array',
             'workbook_row' => 'integer',
         ];
