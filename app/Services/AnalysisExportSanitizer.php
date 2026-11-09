@@ -25,7 +25,7 @@ use Carbon\CarbonInterface;
  */
 class AnalysisExportSanitizer
 {
-    public const SCHEMA_VERSION = 4;
+    public const SCHEMA_VERSION = 5;
 
     /** 項目の意味（どの値をどう数えるか）を変えたら上げる。分析側が版をそろえて読むため */
     public const METRIC_VERSION = 'analysis-metrics.v2';
@@ -339,9 +339,10 @@ class AnalysisExportSanitizer
             $out === null ? null : [
                 'debit_total' => $this->int($out['debit_total'] ?? null),
                 'credit_total' => $this->int($out['credit_total'] ?? null),
-                'balanced' => ($out['balanced'] ?? null) === true,
-                'duplicate_suspected' => ($out['duplicate_suspected'] ?? null) === true,
-                'private_suspected' => ($out['private_suspected'] ?? null) === true,
+                // 答えがない・型が違うときは null（false にすると「不一致と答えた」と区別できない）
+                'balanced' => is_bool($out['balanced'] ?? null) ? $out['balanced'] : null,
+                'duplicate_suspected' => is_bool($out['duplicate_suspected'] ?? null) ? $out['duplicate_suspected'] : null,
+                'private_suspected' => is_bool($out['private_suspected'] ?? null) ? $out['private_suspected'] : null,
                 'concerns_count' => is_array($out['concerns'] ?? null) ? count($out['concerns']) : null,
             ],
         ];

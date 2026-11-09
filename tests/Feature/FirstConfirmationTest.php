@@ -419,7 +419,7 @@ test('画面・書き出しの manifest・JSONL から数え直した値が、�
 
     expect($export['manifest']['metrics'])->toBe(json_decode((string) json_encode($metrics), true))
         ->and($export['manifest']['metric_version'])->toBe('analysis-metrics.v2')
-        ->and($export['manifest']['schema_version'])->toBe(4)
+        ->and($export['manifest']['schema_version'])->toBe(5)
         ->and($ai->count())->toBe($metrics['ai_first'])
         ->and($ai->where('unchanged', true)->count())->toBe($metrics['unchanged'])
         ->and($ai->where('description_changed', true)->count())->toBe($metrics['description_changed'])

@@ -50,7 +50,7 @@
   - output：`category_key`、`payment_key`、`vendor_key`、`confidence`、`remembered`
 - `check_entry`（L3 の評価用）：
   - input：`entry_date`、`lines`（`side`・`amount_yen`。科目名は出さない）、`recent_entries_count`
-  - output：`debit_total`、`credit_total`、`balanced`、`duplicate_suspected`、`private_suspected`、`concerns_count`（文は出さない）
+  - output：`debit_total`、`credit_total`、`balanced`、`duplicate_suspected`、`private_suspected`、`concerns_count`（文は出さない）。真偽の3つは、AI の答えがない・型が違うと `null`（`false` は「AI がそう答えた」だけ）
 - 上の3つ以外（月次集計・社長へのひとこと・見込み・帳票の読み取り など）：`input_features`・`output_features` は `null`（自由文が中心のため中身は出さない）
 
 ### ai_corrections.jsonl
@@ -69,10 +69,10 @@
 - 戻し・再確定で行は増えない。後の出来事は `post_events` に載る（書き出した時点まで）。
 
 ## 4b. 読み手
-`tools/analysis/analyze.py`（#33）が、`ai_runs`・`ai_corrections`・`first_confirmations` を読んで集計する。`journal_entries.jsonl` は使わない（L3 の評価は、同じ実行の保存済みの入力と出力だけで行い、後から直した仕訳とは比べない）。版3・4 に対応し、それ以外は止める。
+`tools/analysis/analyze.py`（#33）が、`ai_runs`・`ai_corrections`・`first_confirmations` を読んで集計する。`journal_entries.jsonl` は使わない（L3 の評価は、同じ実行の保存済みの入力と出力だけで行い、後から直した仕訳とは比べない）。版3〜5 に対応し、それ以外は止める。版4までの `balanced` は答えがなくても `false` なので、「AI は不一致と判定」に答えのない実行が混ざりうる。
 
 ## 5. manifest.json
-- `schema_version`（今は 4）、`metric_version`（項目の意味を変えたら上げる）、`sensitivity`、`company_key`、`month`
+- `schema_version`（今は 5）、`metric_version`（項目の意味を変えたら上げる）、`sensitivity`、`company_key`、`month`
 - `period`：数え方（`basis`）、`timezone`、`from_local`・`to_local`、`from_utc`・`to_utc`
 - `time_format`：時刻（`*_at`）はすべて UTC。`entry_date` は日付だけ
 - `files`：ファイルごとの `rows`（行数）と `sha256`
@@ -81,6 +81,8 @@
 - `metrics`：画面（AIの記録）と同じ定義・同じ母数と分子（§7）
 
 ## 6. 版の履歴
+- 版5（2026-11-09、#61）：`check_entry` の `balanced`・`duplicate_suspected`・`private_suspected` を、答えがない・型が違うとき `null` にした（版4までは `false`）。
+- 版4（2026-11-09、#54）：`first_confirmations.jsonl` に `recommendation` を追加。
 - 版3（2026-11-09、#32）：`first_confirmations.jsonl` と manifest の `metrics` を追加。`metric_version` は `analysis-metrics.v2`。
 
 ### 版1（〜2026-11-08）からの版2の変更

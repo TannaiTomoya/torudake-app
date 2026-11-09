@@ -261,6 +261,33 @@ test('読み取りの出力は型を確かめた値だけ。型が違う値は n
         ->and($read['has_error'])->toBeTrue();
 });
 
+test('L3 の評価用：AI の一致・疑いの答えがない・型が違うときは null で出し、false（不一致と答えた）と区別する', function (mixed $answer, ?bool $expected): void {
+    ['company' => $company] = exportCompany();
+    $run = $company->aiRuns()->where('task', AiTask::CheckEntry)->firstOrFail();
+    $output = $run->output;
+    foreach (['balanced', 'duplicate_suspected', 'private_suspected'] as $key) {
+        if ($answer === 'missing') {
+            unset($output[$key]);
+        } else {
+            $output[$key] = $answer;
+        }
+    }
+    $run->forceFill(['output' => $output])->save();
+
+    $features = (new AnalysisExportSanitizer($company))->run($run->refresh())['output_features'];
+
+    expect($features['balanced'])->toBe($expected)
+        ->and($features['duplicate_suspected'])->toBe($expected)
+        ->and($features['private_suspected'])->toBe($expected);
+})->with([
+    '一致と答えた' => [true, true],
+    '不一致と答えた' => [false, false],
+    '答えがない' => ['missing', null],
+    'null' => [null, null],
+    '文字列' => ['true', null],
+    '数' => [1, null],
+]);
+
 test('L3 の評価用：検算の実行は、同じ実行の行（side・金額）と型を確かめた合計・一致だけを出す', function (): void {
     ['company' => $company, 'entry' => $entry] = exportCompany();
     $sanitizer = new AnalysisExportSanitizer($company);

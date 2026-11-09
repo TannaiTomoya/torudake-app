@@ -144,6 +144,17 @@ class L3Test(unittest.TestCase):
         self.assertEqual(g["input_tokens"], {"n": 8, "avg": 113})  # 900/8=112.5
         self.assertEqual(g["output_tokens"], {"n": 7, "avg": 50})
 
+    def test_版5の答えなし_null_は出力欠損に数え_行列に入れない(self):
+        answered = fx.run(1, 1, "2026-11-05T01:00:01Z", lines=fx.pair(10, 10), out=fx.l3_out(True, 10, 10))
+        silent = fx.run(2, 2, "2026-11-05T01:00:02Z", lines=fx.pair(10, 9), out={**fx.l3_out(False, 10, 9), "balanced": None})
+        with tempfile.TemporaryDirectory() as tmp:
+            write_export(Path(tmp) / "e", {"ai_runs.jsonl": line(answered) + line(silent)}, schema_version=5)
+            l3 = analyze.analyze(load_inputs([Path(tmp) / "e"]))["l3"]
+
+        self.assertEqual((l3["evaluated"], l3["excluded"]["missing_output"]), (1, 1))
+        self.assertEqual(sum(l3["groups"][0]["matrix"].values()), 1)
+        self.assertEqual(l3["groups"][0]["matrix"]["rule_balanced_ai_balanced"], 1)
+
     def test_prompt_versionごとに分ける(self):
         self.assertEqual([g["prompt_version"] for g in self.l3()["groups"]], ["check_entry.v1", "check_entry.v2"])
         self.assertEqual(self.group("check_entry.v2")["evaluated"], 1)

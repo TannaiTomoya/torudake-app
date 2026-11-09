@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-SUPPORTED_SCHEMA_VERSIONS = (3, 4)
+SUPPORTED_SCHEMA_VERSIONS = (3, 4, 5)
 
 REQUIRED_FILES = ("ai_runs.jsonl", "ai_corrections.jsonl", "first_confirmations.jsonl")
 
