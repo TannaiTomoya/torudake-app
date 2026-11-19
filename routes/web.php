@@ -3,6 +3,7 @@
 use App\Http\Controllers\EvidenceImageController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\TrainingDataExportController;
+use App\Http\Controllers\TrialBalanceDownloadController;
 use App\Http\Controllers\WorkbookDownloadController;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -53,12 +54,15 @@ Route::middleware(['auth', 'verified', 'company', 'two-factor'])
         Route::livewire('owner', 'pages::company.owner')->can('viewOwner', 'company')->name('owner');
         Route::livewire('reports', 'pages::company.reports')->can('importReports', 'company')->name('reports');
         Route::livewire('balances', 'pages::company.balances')->can('enterBankBalance', 'company')->name('balances');
+        Route::livewire('trial-balance', 'pages::company.trial-balance')->can('viewTrialBalance', 'company')->name('trial-balance');
+        Route::livewire('opening', 'pages::company.opening')->can('enterOpeningEntry', 'company')->name('opening');
         Route::livewire('live', 'pages::company.live')->can('viewLive', 'company')->name('live');
         Route::livewire('ai', 'pages::company.ai')->can('viewAi', 'company')->name('ai');
         Route::livewire('settings', 'pages::company.settings')->can('manageSettings', 'company')->name('settings');
 
         Route::get('evidences/{evidence}/image', EvidenceImageController::class)->name('evidences.image');
         Route::get('workbook.xlsx', WorkbookDownloadController::class)->name('workbook');
+        Route::get('trial-balance/{month}.xlsx', TrialBalanceDownloadController::class)->where('month', '\d{4}-(0[1-9]|1[0-2])')->name('trial-balance.xlsx');
 
         Route::get('exports/training-data.zip', TrainingDataExportController::class)->name('exports.training');
     });

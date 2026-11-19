@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EntryKind;
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -135,9 +136,31 @@ class Company extends Model
     }
 
     /**
+     * 通常の仕訳だけ。開始仕訳（#65）は一覧・社長の画面・Excel の仕訳帳・分析用の書き出し・率に入れないため、ここで外す。
+     *
      * @return HasMany<JournalEntry, $this>
      */
     public function journalEntries(): HasMany
+    {
+        return $this->hasMany(JournalEntry::class)->where('kind', EntryKind::Normal->value);
+    }
+
+    /**
+     * 開始仕訳（期首の残高。会社に1件まで）。入れる・直すのは OpeningEntryService だけ。
+     *
+     * @return HasMany<JournalEntry, $this>
+     */
+    public function openingEntries(): HasMany
+    {
+        return $this->hasMany(JournalEntry::class)->where('kind', EntryKind::Opening->value);
+    }
+
+    /**
+     * 通常の仕訳と開始仕訳の両方。試算表（TrialBalanceReport）だけが使う。
+     *
+     * @return HasMany<JournalEntry, $this>
+     */
+    public function ledgerEntries(): HasMany
     {
         return $this->hasMany(JournalEntry::class);
     }

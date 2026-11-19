@@ -59,6 +59,11 @@
                             仕訳の一覧
                         </flux:sidebar.item>
                     @endcan
+                    @can('viewTrialBalance', $navCompany)
+                        <flux:sidebar.item icon="scale" :href="route('company.trial-balance', $navCompany)" :current="request()->routeIs('company.trial-balance', 'company.opening')" wire:navigate data-test="sidebar-trial-balance">
+                            試算表
+                        </flux:sidebar.item>
+                    @endcan
                     @can('enterBankBalance', $navCompany)
                         <flux:sidebar.item icon="banknotes" :href="route('company.balances', $navCompany)" :current="request()->routeIs('company.balances')" wire:navigate data-test="sidebar-balances">
                             通帳の残高

@@ -36,6 +36,9 @@ python3 tools/analysis/analyze.py 書き出しのフォルダか.zip [別の月 
 `models.py` の `check_balance` は `App\Support\JournalBalanceChecker` と同じ規則（整数のみ・空／片側だけ／不正な借貸／1円未満／範囲外は一致にしない・最初の問題を返す）。
 共通の架空ベクトル `tests/fixtures/balance_vectors.json` を、PHP（`JournalBalanceCheckerTest`）と Python（`tests/test_models.py`）の両方が読む。**どちらかの規則を変えたら、ベクトルを直して両方を通す。**
 
+### 試算表の規則（PHP と共通。#65）
+`trial_balance.py` の `compute` は `App\Support\TrialBalance` と同じ規則（確定だけ・開始仕訳は前月まで・収益費用は期の初めから・整数のみ）。共通の架空ベクトル `tests/fixtures/trial_balance_vectors.json` を、PHP（`TrialBalanceTest`）と Python（`tests/test_trial_balance.py`）の両方が読む。
+
 ## テスト
 ```bash
 cd tools/analysis && python3 -m unittest discover -s tests -t .

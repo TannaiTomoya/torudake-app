@@ -233,6 +233,15 @@ DB::transaction(function () use ($company, $user, $entryId, $input) {
 - #32/#44 には、`duplicate_reviews` の判断（誰が・どの強さの候補を・どう判断したか）を渡す。
 - AI修正の記録・理由は初回のAI下書きの確定だけ。再確定では `ai_corrections` を追加せず、「経理がAIを直した」の印も新しく付けない。初回に付いた印は保持し、再確定の変更前後は `entry.confirm` の監査記録に残す。
 
+### 4.3c 試算表と開始仕訳（#65）
+- **試算表**（`App\Support\TrialBalance`。DB を見ない純粋な規則、AI は使わない）：確定（confirmed）の仕訳だけを勘定科目ごとに足す。下書き・社長から戻しは入れない。列は「前月まで・借方・貸方・月末の残高」。借方・貸方はその月の通常の仕訳。前月までは、資産・負債・純資産は使い始めから（開始仕訳を含む）、収益・費用はその期（`FiscalYear`）の初めから。開始仕訳があれば、その日付より前の通常の仕訳は数えない（開始仕訳の残高に含まれるため）。科目コードは文字として並べる。残高の符号は、資産・費用は借方が＋、負債・純資産・収益は貸方が＋。その月の借方合計と貸方合計が違えば「合っていません」（`unbalanced`）、0円の行・知らない科目があれば `invalid_line` で同じく合っていないにする。画面には「アプリに登録した仕訳の分」と添える。
+- 共通の架空ベクトル `tests/fixtures/trial_balance_vectors.json` を、PHP（`TrialBalanceTest`）と Python の参照実装（`tools/analysis/trial_balance.py`）の両方が読む。どちらかの規則を変えたら、ベクトルを直して両方を通す。
+- **開始仕訳**（`kind=opening`、`OpeningEntryService`）：前期の決算書（貸借対照表）の残高を、使い始めた日（`bookkeeping_start_date`、なければ今日）を含む期の初日の日付で、会社に1件だけ入れる（日付は最初に入れたときに決まり、あとで使い始めた日を変えても動かさない）。入れられるのは資産・負債・純資産の科目だけ。入れた時点で確定で、AI・経理の保存・社長の戻しには乗らない。直すと同じ1件の行を入れ替え、監査 `opening_entry.update` に前後の行（科目コード・借貸・金額）を残す（初回は `opening_entry.enter`）。借方と貸方が同じで、1円以上・使っている科目だけ（入れたあとで使わなくした科目は、すでに開始仕訳にあれば直せる）。会社の行を `lockForUpdate()` して1社1件にする。
+- 開始仕訳がないあいだは、試算表に「使い始めてからの増減です。残高ではありません」と出す。
+- `Company::journalEntries()` は通常の仕訳だけを返す。開始仕訳は `openingEntries()`、両方は `ledgerEntries()`（試算表だけが使う）。このため開始仕訳は、仕訳の一覧・詳細・社長の画面・戻す・帳簿の Excel（仕訳帳）・#31 分析用の書き出し・#32 の率・#73 会計ソフトへの出力（作るときも `journalEntries()` を使う）に入らない。
+- **Excel**：試算表と開始仕訳の2シートを、帳簿（`workbook.xlsx`）とは別のファイル `trial-balance/{YYYY-MM}.xlsx` にする（帳簿は閲覧のみの人も落とせるため）。文字は数式として書かない。
+- **まだしないこと**：期末の締め（収益・費用を繰越利益剰余金へ振り替える仕訳）。このため2期目からは、月末の残高の左右の合計はそろわない（前の期の利益が純資産に移らない）。月の借方・貸方の一致は、締めがなくても確かめられる。
+
 ### 4.4 ReturnToBookkeeper（F13、社長から戻す）
 confirmed → returned、`returned_by`・`returned_at`・`returned_reason`（必須、200文字まで）。社長・管理者だけ。社長の画面の気になる仕訳と、仕訳の画面から戻せる。監査 `entry.return`。Excel の行の状態を「社長から戻し」に書き換える。経理への通知。経理が直して保存すると、ふたたび confirmed（Excel の同じ行を上書き）。
 
@@ -322,6 +331,9 @@ Route::livewire('reports/{report}', 'pages::company.reports.show')->name('report
 Route::get('workbook.xlsx', WorkbookDownloadController::class)->name('workbook');  // Excel の1冊
 Route::livewire('notifications', 'pages::company.notifications')->name('notifications');
 Route::livewire('balances', 'pages::company.balances')->can('enterBankBalance', 'company')->name('balances'); // 通帳の残高（#66）
+Route::livewire('trial-balance', 'pages::company.trial-balance')->can('viewTrialBalance', 'company')->name('trial-balance'); // 試算表（#65）
+Route::livewire('opening', 'pages::company.opening')->can('enterOpeningEntry', 'company')->name('opening');             // 開始仕訳（#65）
+Route::get('trial-balance/{month}.xlsx', TrialBalanceDownloadController::class)->name('trial-balance.xlsx');            // 試算表の Excel（#65）
 ```
 `close/{month}` と `exports/{month}.xlsx` はなくす（`workbook.xlsx` に置き換え）。
 
@@ -335,6 +347,8 @@ Route::livewire('balances', 'pages::company.balances')->can('enterBankBalance', 
 | 社長の画面 `⚡owner` | 上から3段：①ひとこと ②数字3つ ③三期比較のグラフ。表と「くわしく見る」はたたむ（§7.3） |
 | 帳票の取り込み `reports/⚡index`・`⚡show` | 種類を選んで撮る → AIが読んだ表 → 直して保存 |
 | 通知 `⚡notifications` | ベルを押すと一覧 |
+| 試算表 `⚡trial-balance` | 月を選ぶと、科目ごとの前月まで・借方・貸方・月末の残高と、この月の合計。合っている／合っていない、開始仕訳がなければ「使い始めてからの増減です。残高ではありません」。Excel（2シート）と、入れられる人には「開始仕訳」へのリンク。owner・admin・editor（#65） |
+| 開始仕訳 `⚡opening` | 期首の日付を示し、科目・借方／貸方・金額の行を足して保存。借方と貸方の合計を出す。入れ済みなら今の行を出して直せる。owner・editor（#65） |
 | 通帳の残高 `⚡balances` | 銀行の口座・日付・残高（マイナスは先頭に -）を入れて保存。同じ日は上書き。下に入れた残高の一覧（新しい日から60件）と「取り消す」。owner・admin・editor だけ（#66） |
 | ライブ画面 `⚡live` | 1920×1080、サイドバーなし（`layouts::live`）、0.5秒ごとに読み直す。左に今の1件（写真・店名→日付→合計→分類→支払い元が0.4秒ずつ出る・覚えています・理由・仕訳）、右は全期間の「あと n 件」と前月以前の未処理件数、流れ（直近3件）（AIの処理時間は左の「AIが読み取りました（○秒）」で出す）。今の1件＝最新のまとめて送った回のまだ確定していない一番古い写真、その回が済んだらまだのものの一番新しい1件。**E 直す**はライブ画面の上で分類・合計・支払い元・理由を直す（画面を移らない）。**S 保存（確定）して次へ**は AI の値のまま確定（金額がないときは押せず「E で金額を入れると保存できます」）。読み取り中は秒数、15秒で「少し時間がかかっています」、30秒で「時間がかかっています。E で手で入れられます」（表示だけ。ジョブは続ける）。未処理が0件で全面に「未処理の帳簿ができました」。キー 3 Excel・4 AIの記録・5 社長の画面・Esc ホーム（直している最中の Esc はやめるだけ）。左上の「撮って送るだけ帳簿」もホームへ。下の一文は「確定は人が保存します。写真は30日で消え、AIの学習には使われません。」。名前・メールは出さない |
 | ホーム `⚡home` | owner は「社長の画面」を一番上に。admin・approver・editor は「未処理 あと n 件」と「直して保存」を優先し、前月以前の日付の未処理件数も添える。0件なら送信を案内する。admin の社長画面・AI記録は補助リンクからも開ける。表示は現在の会社のロールで決め、アクセス許可は既存 Policy で判定する |
@@ -418,6 +432,8 @@ Route::livewire('balances', 'pages::company.balances')->can('enterBankBalance', 
 | T48 | 分析用 CLI（`tools/analysis`、#33）：修正の項目数と仕訳数を分けて手計算どおりに数える・率の母数と丸めが PHP と同じ・貸借の共通ベクトル（`tests/fixtures/balance_vectors.json`）が PHP と Python で同じ答え・空行・不正な金額・範囲外・0件・欠損・重複ID・月またぎ・再試行・実AI以外の除外・prompt_version 別・2回実行して同じ結果・ネットワークなしで動く・壊れた行の値を出さない | 済み（`tools/analysis/tests`、PHP 側は `JournalBalanceCheckerTest`。CI の `python` ジョブ） |
 | T49 | 向きの判定（#30）：5要素×増減の10通りと不明、実際の組み立てで作った現金購入・カード払い・社長の立替・売上の入金は警告なし、わざと逆にした行だけを検出、返金・借入返済・振替は意味を指定すれば判定・分からなければ保留、複合仕訳、同じ行でも取引の意味で答えが変わる（逆算しない）、行なし・不正な借貸や勘定の種類は無効、貸借の一致×向きの一致の4通りと保留・未入力・無効が独立 | 済み（`AccountSideRuleTest`） |
 | T50 | 通帳の残高（#66）：入れると口座×日付で1件と監査、マイナスも入る、同じ日は上書きで監査に前後、取り消しも監査（二度目は案内だけ）、△ のマイナスも読む、銀行以外・使っていない口座・先の日付・範囲外・数字以外は拒む、他社の口座・残高・画面は404（画面から他社のIDを渡しても他社の行は変わらない）、owner・admin・editor だけ（approver・viewer・送るだけは403）、開いたあとで viewer・送るだけになったら保存・取り消しとも403、サイドバーは入れられる人だけ | 済み（`BankBalanceTest`） |
+| T51 | 試算表（#65）：Python と共通の架空ベクトル（0件の月・1件・月またぎ・下書きと戻しを入れない・開始仕訳は前月まで・収益費用は期の初めから・合っていない・不正な行・先の開始仕訳・決算12月・開始仕訳より前の仕訳を数えない・科目コードは文字で並べる）、DB からは確定だけ・他社を入れない、画面の注意と0件の月、Excel は2シートで文字を数式にしない、owner・admin・editor だけ（approver・viewer・送るだけは403）、他社と形の違う月は404、開いたあとで役割が変わったら403 | 済み（`TrialBalanceTest`） |
+| T52 | 開始仕訳（#65）：期首の日付で確定の1件と監査、2回目は同じ1件を直し前後を監査（同じ中身なら記録しない）、貸借不一致・0円・使っていない科目・空・収益費用の科目は拒む、入れたあとで使わなくした科目は直せる、他社の科目・画面は404、owner・editor だけ（admin も403）、開いたあとで admin になったら403、仕訳の一覧・詳細・戻す・帳簿の Excel・分析用の書き出しに出ない | 済み（`OpeningEntryTest`） |
 
 ## 9. 初期データ
 - 開発：版2.0 のまま。**2段階認証の鍵は16文字以上の固定値に直す**（ブラウザでログインできるように）。社長・経理・送るだけ・他社の4人

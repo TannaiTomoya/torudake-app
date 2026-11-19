@@ -1,0 +1,867 @@
+{
+  "description": "月の試算表（#65）の共通ベクトル。PHP（App\\Support\\TrialBalance・TrialBalanceTest）と Python（tools/analysis/trial_balance.py）の両方が読む。数字はすべて架空。",
+  "accounts": [
+    {
+      "id": "a101",
+      "code": "101",
+      "name": "現金",
+      "type": "asset"
+    },
+    {
+      "id": "a102",
+      "code": "102",
+      "name": "普通預金",
+      "type": "asset"
+    },
+    {
+      "id": "a202",
+      "code": "202",
+      "name": "未払金",
+      "type": "liability"
+    },
+    {
+      "id": "a301",
+      "code": "301",
+      "name": "資本金",
+      "type": "equity"
+    },
+    {
+      "id": "a302",
+      "code": "302",
+      "name": "繰越利益剰余金",
+      "type": "equity"
+    },
+    {
+      "id": "a401",
+      "code": "401",
+      "name": "売上高",
+      "type": "revenue"
+    },
+    {
+      "id": "a505",
+      "code": "505",
+      "name": "消耗品費",
+      "type": "expense"
+    },
+    {
+      "id": "a1100",
+      "code": "1100",
+      "name": "仮払金",
+      "type": "asset"
+    }
+  ],
+  "cases": [
+    {
+      "name": "仕訳0件の月",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [],
+        "debit_total": 0,
+        "credit_total": 0,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "1件の月",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-09-10",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 3850
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 3850
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a101",
+            "code": "101",
+            "name": "現金",
+            "type": "asset",
+            "carried": 0,
+            "debit": 0,
+            "credit": 3850,
+            "closing": -3850
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 3850,
+            "credit": 0,
+            "closing": 3850
+          }
+        ],
+        "debit_total": 3850,
+        "credit_total": 3850,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "月またぎ：前月末は前月まで、翌月1日は入れない",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-08-31",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 500
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 500
+            }
+          ]
+        },
+        {
+          "date": "2026-09-01",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 700
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 700
+            }
+          ]
+        },
+        {
+          "date": "2026-10-01",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 900
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 900
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a101",
+            "code": "101",
+            "name": "現金",
+            "type": "asset",
+            "carried": -500,
+            "debit": 0,
+            "credit": 700,
+            "closing": -1200
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 500,
+            "debit": 700,
+            "credit": 0,
+            "closing": 1200
+          }
+        ],
+        "debit_total": 700,
+        "credit_total": 700,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "下書きと社長から戻した仕訳は入れない",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-09-05",
+          "kind": "normal",
+          "status": "draft",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 1000
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 1000
+            }
+          ]
+        },
+        {
+          "date": "2026-09-06",
+          "kind": "normal",
+          "status": "returned",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 2000
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 2000
+            }
+          ]
+        },
+        {
+          "date": "2026-09-07",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 300
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 300
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a101",
+            "code": "101",
+            "name": "現金",
+            "type": "asset",
+            "carried": 0,
+            "debit": 0,
+            "credit": 300,
+            "closing": -300
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 300,
+            "credit": 0,
+            "closing": 300
+          }
+        ],
+        "debit_total": 300,
+        "credit_total": 300,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "開始仕訳は月の動きではなく前月までに入る",
+      "month": "2026-08",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-08-01",
+          "kind": "opening",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a102",
+              "side": "debit",
+              "amount": 1000000
+            },
+            {
+              "account_id": "a101",
+              "side": "debit",
+              "amount": 50000
+            },
+            {
+              "account_id": "a202",
+              "side": "credit",
+              "amount": 150000
+            },
+            {
+              "account_id": "a301",
+              "side": "credit",
+              "amount": 500000
+            },
+            {
+              "account_id": "a302",
+              "side": "credit",
+              "amount": 400000
+            }
+          ]
+        },
+        {
+          "date": "2026-08-20",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a102",
+              "side": "debit",
+              "amount": 200000
+            },
+            {
+              "account_id": "a401",
+              "side": "credit",
+              "amount": 200000
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": true,
+        "rows": [
+          {
+            "account_id": "a101",
+            "code": "101",
+            "name": "現金",
+            "type": "asset",
+            "carried": 50000,
+            "debit": 0,
+            "credit": 0,
+            "closing": 50000
+          },
+          {
+            "account_id": "a102",
+            "code": "102",
+            "name": "普通預金",
+            "type": "asset",
+            "carried": 1000000,
+            "debit": 200000,
+            "credit": 0,
+            "closing": 1200000
+          },
+          {
+            "account_id": "a202",
+            "code": "202",
+            "name": "未払金",
+            "type": "liability",
+            "carried": 150000,
+            "debit": 0,
+            "credit": 0,
+            "closing": 150000
+          },
+          {
+            "account_id": "a301",
+            "code": "301",
+            "name": "資本金",
+            "type": "equity",
+            "carried": 500000,
+            "debit": 0,
+            "credit": 0,
+            "closing": 500000
+          },
+          {
+            "account_id": "a302",
+            "code": "302",
+            "name": "繰越利益剰余金",
+            "type": "equity",
+            "carried": 400000,
+            "debit": 0,
+            "credit": 0,
+            "closing": 400000
+          },
+          {
+            "account_id": "a401",
+            "code": "401",
+            "name": "売上高",
+            "type": "revenue",
+            "carried": 0,
+            "debit": 0,
+            "credit": 200000,
+            "closing": 200000
+          }
+        ],
+        "debit_total": 200000,
+        "credit_total": 200000,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "収益・費用は期の初めで0から、資産は前の期から続く",
+      "month": "2026-08",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-07-15",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a102",
+              "side": "debit",
+              "amount": 300000
+            },
+            {
+              "account_id": "a401",
+              "side": "credit",
+              "amount": 300000
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a102",
+            "code": "102",
+            "name": "普通預金",
+            "type": "asset",
+            "carried": 300000,
+            "debit": 0,
+            "credit": 0,
+            "closing": 300000
+          }
+        ],
+        "debit_total": 0,
+        "credit_total": 0,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "借方と貸方が違う月は合っていない",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-09-10",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 1000
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 900
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a101",
+            "code": "101",
+            "name": "現金",
+            "type": "asset",
+            "carried": 0,
+            "debit": 0,
+            "credit": 900,
+            "closing": -900
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 1000,
+            "credit": 0,
+            "closing": 1000
+          }
+        ],
+        "debit_total": 1000,
+        "credit_total": 900,
+        "balanced": false,
+        "problem": "unbalanced"
+      }
+    },
+    {
+      "name": "0円の行・知らない科目は数えず、合っていないにする",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-09-10",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 500
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 0
+            },
+            {
+              "account_id": "zzz",
+              "side": "credit",
+              "amount": 500
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 500,
+            "credit": 0,
+            "closing": 500
+          }
+        ],
+        "debit_total": 500,
+        "credit_total": 0,
+        "balanced": false,
+        "problem": "invalid_line"
+      }
+    },
+    {
+      "name": "選んだ月より後の開始仕訳は入れない",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-10-01",
+          "kind": "opening",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a102",
+              "side": "debit",
+              "amount": 1000
+            },
+            {
+              "account_id": "a301",
+              "side": "credit",
+              "amount": 1000
+            }
+          ]
+        },
+        {
+          "date": "2026-09-07",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 300
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 300
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a101",
+            "code": "101",
+            "name": "現金",
+            "type": "asset",
+            "carried": 0,
+            "debit": 0,
+            "credit": 300,
+            "closing": -300
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 300,
+            "credit": 0,
+            "closing": 300
+          }
+        ],
+        "debit_total": 300,
+        "credit_total": 300,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "決算月が12月：1月は新しい期",
+      "month": "2026-01",
+      "fiscal_year_end_month": 12,
+      "entries": [
+        {
+          "date": "2025-12-20",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 400
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 400
+            }
+          ]
+        },
+        {
+          "date": "2026-01-05",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 100
+            },
+            {
+              "account_id": "a101",
+              "side": "credit",
+              "amount": 100
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-01-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a101",
+            "code": "101",
+            "name": "現金",
+            "type": "asset",
+            "carried": -400,
+            "debit": 0,
+            "credit": 100,
+            "closing": -500
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 100,
+            "credit": 0,
+            "closing": 100
+          }
+        ],
+        "debit_total": 100,
+        "credit_total": 100,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "開始仕訳より前の日付の通常の仕訳は数えない（開始仕訳の残高に含まれる）",
+      "month": "2026-08",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-07-20",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a102",
+              "side": "debit",
+              "amount": 5000
+            },
+            {
+              "account_id": "a401",
+              "side": "credit",
+              "amount": 5000
+            }
+          ]
+        },
+        {
+          "date": "2026-08-01",
+          "kind": "opening",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a102",
+              "side": "debit",
+              "amount": 100000
+            },
+            {
+              "account_id": "a301",
+              "side": "credit",
+              "amount": 100000
+            }
+          ]
+        },
+        {
+          "date": "2026-08-05",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 200
+            },
+            {
+              "account_id": "a102",
+              "side": "credit",
+              "amount": 200
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": true,
+        "rows": [
+          {
+            "account_id": "a102",
+            "code": "102",
+            "name": "普通預金",
+            "type": "asset",
+            "carried": 100000,
+            "debit": 0,
+            "credit": 200,
+            "closing": 99800
+          },
+          {
+            "account_id": "a301",
+            "code": "301",
+            "name": "資本金",
+            "type": "equity",
+            "carried": 100000,
+            "debit": 0,
+            "credit": 0,
+            "closing": 100000
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 200,
+            "credit": 0,
+            "closing": 200
+          }
+        ],
+        "debit_total": 200,
+        "credit_total": 200,
+        "balanced": true,
+        "problem": null
+      }
+    },
+    {
+      "name": "科目コードは文字として並べる（1100 は 505 より前）",
+      "month": "2026-09",
+      "fiscal_year_end_month": 7,
+      "entries": [
+        {
+          "date": "2026-09-10",
+          "kind": "normal",
+          "status": "confirmed",
+          "lines": [
+            {
+              "account_id": "a505",
+              "side": "debit",
+              "amount": 300
+            },
+            {
+              "account_id": "a1100",
+              "side": "credit",
+              "amount": 300
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fiscal_year_start": "2026-08-01",
+        "has_opening": false,
+        "rows": [
+          {
+            "account_id": "a1100",
+            "code": "1100",
+            "name": "仮払金",
+            "type": "asset",
+            "carried": 0,
+            "debit": 0,
+            "credit": 300,
+            "closing": -300
+          },
+          {
+            "account_id": "a505",
+            "code": "505",
+            "name": "消耗品費",
+            "type": "expense",
+            "carried": 0,
+            "debit": 300,
+            "credit": 0,
+            "closing": 300
+          }
+        ],
+        "debit_total": 300,
+        "credit_total": 300,
+        "balanced": true,
+        "problem": null
+      }
+    }
+  ]
+}

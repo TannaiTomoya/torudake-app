@@ -31,7 +31,10 @@
 | 会社設定 | 許可 | 許可 | 403 | 403 | 403 | 403 |
 | 帳票の取り込み（`/c/{company}/reports`） | 許可 | 許可 | 403 | 403 | 403 | 403 |
 | 通帳の残高を入れる・取り消す（`/c/{company}/balances`） | 許可 | 許可 | 403 | 許可 | 403 | 403 |
+| 試算表を見る・試算表の Excel（`/c/{company}/trial-balance`） | 許可 | 許可 | 403 | 許可 | 403 | 403 |
+| 開始仕訳を入れる・直す（`/c/{company}/opening`） | 許可 | 403 | 403 | 許可 | 403 | 403 |
 
+- 試算表・開始仕訳（#65）：`CompanyPolicy::viewTrialBalance`・`enterOpeningEntry`。試算表の Excel は、閲覧のみの人も落とせる帳簿（`workbook.xlsx`）には混ぜず、別のファイルにする。開始仕訳は `Company::journalEntries()`（通常の仕訳だけ）から外れるので、仕訳の一覧・詳細・社長の画面・戻す・帳簿の Excel・分析用の書き出しには出ない（開けば404）。
 - 通帳の残高（#66）：`CompanyPolicy::enterBankBalance`。画面を開く・保存・取り消しのたびに確かめる。口座と残高は会社から引き、他社は404。入れられる口座は種類が銀行のものだけ。
 
 - 同じ写真の重複通知（#52）：元の原資料を読める人（`viewSource`）にだけ日付と店名を出す。送るだけの人は自分が送った分だけで、他の人が送った写真と同じ中身を送っても、日付・店名・ID・画像の道は返さず「すでに受け付けた写真です」とだけ出す。hash の一致だけで閲覧権限は増えない。会社が違えば独立して受け付ける。
@@ -68,3 +71,4 @@ owner/admin だけ（`CompanyPolicy::importReports` は社長の画面と同じ�
 | 2026-11-08 | 読み取りの確認（日付の「この日付でよい」・確認の記録）は、既存の `editDraft` の範囲で行う。新しい権限は作らない。確認の記録は会社から引き、他社は404・送るだけは403 | 本人の決定（#51）。`ReadingReviewTest` |
 | 2026-11-08 | 二重計上の候補の判断（別の取引・対象外・保留）は既存の `editDraft` と同じ範囲。送るだけの人は候補一覧を見られない。候補は会社から引き、他社は404。確定した原資料は判断できない | 本人の決定（#53）。`DuplicateCandidateTest` |
 | 2026-11-09 | 通帳の残高の入力・取り消しは owner・admin・editor。approver・viewer・送るだけは403 | 本人の決定（#63 の権限表）。approver は版3.0 の名残で新しい権限を与えない。`BankBalanceTest`（ガード除去で赤） |
+| 2026-11-09 | 開始仕訳を入れる・直すのは owner・editor（admin は403）。試算表（画面と Excel）を見るのは owner・admin・editor。approver・viewer・送るだけは403 | 本人の決定（#65 で質問に回答）。`TrialBalanceTest`・`OpeningEntryTest`（ガード除去で赤） |

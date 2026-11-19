@@ -64,6 +64,18 @@ enum Role: string
         return in_array($this, [self::Owner, self::Admin, self::Editor], true);
     }
 
+    /** 試算表（画面と Excel）を見る（#65 の決定） */
+    public function canViewTrialBalance(): bool
+    {
+        return in_array($this, [self::Owner, self::Admin, self::Editor], true);
+    }
+
+    /** 開始仕訳を入れる・直す（#65 の決定）。admin には与えない */
+    public function canEnterOpeningEntry(): bool
+    {
+        return in_array($this, [self::Owner, self::Editor], true);
+    }
+
     public function canManageSettings(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);

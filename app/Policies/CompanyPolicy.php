@@ -151,6 +151,28 @@ class CompanyPolicy
         return $membership->role->canEnterBankBalance();
     }
 
+    public function viewTrialBalance(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canViewTrialBalance();
+    }
+
+    public function enterOpeningEntry(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canEnterOpeningEntry();
+    }
+
     public function manageSettings(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);
