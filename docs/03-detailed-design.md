@@ -122,6 +122,17 @@ UNIQUE(company_id, year_month, metric)。同じ月を取り込み直したら上
 | pending_hash / pending_at | | 作り直しを頼んだ入力のハッシュと時刻（「更新中」） |
 | error | text null | 作り直せなかった理由（前回の output は残す） |
 
+#### bank_balances（通帳の残高。#66・移行 `2026_11_09_120000`）
+| 列 | 型 | 内容 |
+|---|---|---|
+| id / company_id | | |
+| bank_account_id | FK bank_accounts | 種類が `bank` で使用中の口座だけ（会社から引く。他社は404） |
+| balance_date | date | その日の終わりの残高。先の日付は入れない |
+| balance_yen | bigint | マイナスもある（当座借越）。±1兆円まで |
+| source | string | manual（手入力）／statement（明細CSV。E01 で足す） |
+| entered_by | FK users | 最後に入れた人 |
+UNIQUE(bank_account_id, balance_date)。同じ日に入れ直したら上書きし、監査 `bank_balance.update` に前後の値を残す（入れる `bank_balance.enter`・取り消す `bank_balance.delete`）。入れるのは `BankBalanceService` だけで、口座の行を `lockForUpdate()` してから確かめる。分析用の書き出し（docs/12）には入れない。AI は使わない。
+
 #### notifications（Laravel 標準）
 `php artisan make:notifications-table`。社長への通知（§4.8）。
 
@@ -310,6 +321,7 @@ Route::livewire('reports', 'pages::company.reports.index')->name('reports.index'
 Route::livewire('reports/{report}', 'pages::company.reports.show')->name('reports.show'); // 読んだ表を確かめる
 Route::get('workbook.xlsx', WorkbookDownloadController::class)->name('workbook');  // Excel の1冊
 Route::livewire('notifications', 'pages::company.notifications')->name('notifications');
+Route::livewire('balances', 'pages::company.balances')->can('enterBankBalance', 'company')->name('balances'); // 通帳の残高（#66）
 ```
 `close/{month}` と `exports/{month}.xlsx` はなくす（`workbook.xlsx` に置き換え）。
 
@@ -323,6 +335,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | 社長の画面 `⚡owner` | 上から3段：①ひとこと ②数字3つ ③三期比較のグラフ。表と「くわしく見る」はたたむ（§7.3） |
 | 帳票の取り込み `reports/⚡index`・`⚡show` | 種類を選んで撮る → AIが読んだ表 → 直して保存 |
 | 通知 `⚡notifications` | ベルを押すと一覧 |
+| 通帳の残高 `⚡balances` | 銀行の口座・日付・残高（マイナスは先頭に -）を入れて保存。同じ日は上書き。下に入れた残高の一覧（新しい日から60件）と「取り消す」。owner・admin・editor だけ（#66） |
 | ライブ画面 `⚡live` | 1920×1080、サイドバーなし（`layouts::live`）、0.5秒ごとに読み直す。左に今の1件（写真・店名→日付→合計→分類→支払い元が0.4秒ずつ出る・覚えています・理由・仕訳）、右は全期間の「あと n 件」と前月以前の未処理件数、流れ（直近3件）（AIの処理時間は左の「AIが読み取りました（○秒）」で出す）。今の1件＝最新のまとめて送った回のまだ確定していない一番古い写真、その回が済んだらまだのものの一番新しい1件。**E 直す**はライブ画面の上で分類・合計・支払い元・理由を直す（画面を移らない）。**S 保存（確定）して次へ**は AI の値のまま確定（金額がないときは押せず「E で金額を入れると保存できます」）。読み取り中は秒数、15秒で「少し時間がかかっています」、30秒で「時間がかかっています。E で手で入れられます」（表示だけ。ジョブは続ける）。未処理が0件で全面に「未処理の帳簿ができました」。キー 3 Excel・4 AIの記録・5 社長の画面・Esc ホーム（直している最中の Esc はやめるだけ）。左上の「撮って送るだけ帳簿」もホームへ。下の一文は「確定は人が保存します。写真は30日で消え、AIの学習には使われません。」。名前・メールは出さない |
 | ホーム `⚡home` | owner は「社長の画面」を一番上に。admin・approver・editor は「未処理 あと n 件」と「直して保存」を優先し、前月以前の日付の未処理件数も添える。0件なら送信を案内する。admin の社長画面・AI記録は補助リンクからも開ける。表示は現在の会社のロールで決め、アクセス許可は既存 Policy で判定する |
 
@@ -404,6 +417,7 @@ Route::livewire('notifications', 'pages::company.notifications')->name('notifica
 | T47 | 履歴からの推薦：履歴0・1・複数、100件より前の同じ店、現金と立替の混在・直近の変化、古い・分類廃止・戻し中・他社だけ、改名はIDで追従、後日請求と記憶の衝突、下書きに元のAI案・候補・当てたかを分けて残す、候補は確定にならず採用・別を選ぶ・保留・失効が初回確定の記録に残る、AIが止まっても履歴か手入力で進める、候補の操作は editDraft（表示後のロール失効で403、他社404） | 済み（`EntryRecommendationTest`） |
 | T48 | 分析用 CLI（`tools/analysis`、#33）：修正の項目数と仕訳数を分けて手計算どおりに数える・率の母数と丸めが PHP と同じ・貸借の共通ベクトル（`tests/fixtures/balance_vectors.json`）が PHP と Python で同じ答え・空行・不正な金額・範囲外・0件・欠損・重複ID・月またぎ・再試行・実AI以外の除外・prompt_version 別・2回実行して同じ結果・ネットワークなしで動く・壊れた行の値を出さない | 済み（`tools/analysis/tests`、PHP 側は `JournalBalanceCheckerTest`。CI の `python` ジョブ） |
 | T49 | 向きの判定（#30）：5要素×増減の10通りと不明、実際の組み立てで作った現金購入・カード払い・社長の立替・売上の入金は警告なし、わざと逆にした行だけを検出、返金・借入返済・振替は意味を指定すれば判定・分からなければ保留、複合仕訳、同じ行でも取引の意味で答えが変わる（逆算しない）、行なし・不正な借貸や勘定の種類は無効、貸借の一致×向きの一致の4通りと保留・未入力・無効が独立 | 済み（`AccountSideRuleTest`） |
+| T50 | 通帳の残高（#66）：入れると口座×日付で1件と監査、マイナスも入る、同じ日は上書きで監査に前後、取り消しも監査（二度目は案内だけ）、△ のマイナスも読む、銀行以外・使っていない口座・先の日付・範囲外・数字以外は拒む、他社の口座・残高・画面は404（画面から他社のIDを渡しても他社の行は変わらない）、owner・admin・editor だけ（approver・viewer・送るだけは403）、開いたあとで viewer・送るだけになったら保存・取り消しとも403、サイドバーは入れられる人だけ | 済み（`BankBalanceTest`） |
 
 ## 9. 初期データ
 - 開発：版2.0 のまま。**2段階認証の鍵は16文字以上の固定値に直す**（ブラウザでログインできるように）。社長・経理・送るだけ・他社の4人

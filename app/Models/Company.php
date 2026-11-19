@@ -103,6 +103,14 @@ class Company extends Model
     }
 
     /**
+     * @return HasMany<BankBalance, $this>
+     */
+    public function bankBalances(): HasMany
+    {
+        return $this->hasMany(BankBalance::class);
+    }
+
+    /**
      * @return HasMany<AuditLog, $this>
      */
     public function auditLogs(): HasMany

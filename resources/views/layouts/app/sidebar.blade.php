@@ -59,6 +59,11 @@
                             仕訳の一覧
                         </flux:sidebar.item>
                     @endcan
+                    @can('enterBankBalance', $navCompany)
+                        <flux:sidebar.item icon="banknotes" :href="route('company.balances', $navCompany)" :current="request()->routeIs('company.balances')" wire:navigate data-test="sidebar-balances">
+                            通帳の残高
+                        </flux:sidebar.item>
+                    @endcan
                     @can('exportExcel', $navCompany)
                         <flux:sidebar.item icon="table-cells" :href="route('company.workbook', $navCompany)" data-test="sidebar-workbook">
                             Excel

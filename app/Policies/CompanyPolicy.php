@@ -140,6 +140,17 @@ class CompanyPolicy
         return $this->viewOwner($user, $company);
     }
 
+    public function enterBankBalance(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canEnterBankBalance();
+    }
+
     public function manageSettings(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);

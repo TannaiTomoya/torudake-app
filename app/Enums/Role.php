@@ -58,6 +58,12 @@ enum Role: string
         return in_array($this, [self::Owner, self::Admin], true);
     }
 
+    /** 通帳の残高の入力・取り消し（#66・#63 の決定）。approver は版3.0 の名残で、新しい権限は与えない */
+    public function canEnterBankBalance(): bool
+    {
+        return in_array($this, [self::Owner, self::Admin, self::Editor], true);
+    }
+
     public function canManageSettings(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);
