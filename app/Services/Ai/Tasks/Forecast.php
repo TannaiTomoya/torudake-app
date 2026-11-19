@@ -9,11 +9,11 @@ use App\Services\Ai\AiRequest;
 use App\Services\Ai\AiTaskRunner;
 
 /**
- * 来月の見込み：売上と経費の中央値と8割の範囲。過去の月の実績・忙しい月の印・3期の平均から（docs/03 §4.7）。
+ * 来月の見込み（AI の参考）：売上と経費のだいたいの見込みと幅。社長の画面の主は規則の見込み（SalesForecastRule）。過去の月の実績・忙しい月の印・3期の平均から（docs/03 §4.7）。
  */
 class Forecast
 {
-    public const PROMPT_VERSION = 'forecast.v2';
+    public const PROMPT_VERSION = 'forecast.v3';
 
     public function __construct(private readonly AiTaskRunner $runner) {}
 

@@ -145,5 +145,5 @@ test('来月の経費は、確定した経費が2か月分ないうちは「ま�
     putEntry($company, '2026-10-10', '燃料', 170_000);
 
     $this->actingAs($owner)->get(route('company.owner', $company))
-        ->assertSeeInOrder(['11月の経費', 'だいたい 16万円', '8割の確からしさで 14万円〜18万円']);
+        ->assertSeeInOrder(['11月の経費', 'だいたい 16万円', '幅 14万円〜18万円']);
 });

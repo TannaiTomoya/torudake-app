@@ -39,6 +39,9 @@ python3 tools/analysis/analyze.py 書き出しのフォルダか.zip [別の月 
 ### 試算表の規則（PHP と共通。#65）
 `trial_balance.py` の `compute` は `App\Support\TrialBalance` と同じ規則（確定だけ・開始仕訳は前月まで・収益費用は期の初めから・整数のみ）。共通の架空ベクトル `tests/fixtures/trial_balance_vectors.json` を、PHP（`TrialBalanceTest`）と Python（`tests/test_trial_balance.py`）の両方が読む。
 
+### 来月の売上の見込み（PHP と共通。#70）
+`sales_forecast.py` の `compute` は `App\Support\SalesForecastRule` と同じ規則（同じ月の過去3期・欠けた年は数えない・幅と真ん中）。共通の架空ベクトル `tests/fixtures/forecast_vectors.json` を、PHP（`SalesForecastTest`）と Python（`tests/test_sales_forecast.py`）の両方が読む。5期以上たまったら、範囲の出し方を見直す。
+
 ## テスト
 ```bash
 cd tools/analysis && python3 -m unittest discover -s tests -t .

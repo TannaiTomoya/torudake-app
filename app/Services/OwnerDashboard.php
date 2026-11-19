@@ -10,6 +10,7 @@ use App\Models\ExternalCustomerSale;
 use App\Models\JournalEntry;
 use App\Support\FiscalYear;
 use App\Support\OwnerConcerns;
+use App\Support\SalesForecastRule;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -40,6 +41,9 @@ use Illuminate\Support\Collection;
  *     reference_diff: int|null,
  * }
  * @phpstan-type Customer array{label: string, amount_yen: int, share_pct: int}
+ *
+ * @phpstan-import-type Forecast from SalesForecastRule as SalesForecast
+ *
  * @phpstan-type Dashboard array{
  *     periods: array{current: string, previous: string, before: string},
  *     months: list<MonthRow>,
@@ -58,6 +62,7 @@ use Illuminate\Support\Collection;
  *     expense_info: array{period_from: string, period_to: string, confirmed_count: int, draft_count: int, returned_count: int, last_confirmed_at: string|null, as_of: string},
  *     concerns: Collection<int, JournalEntry>,
  *     customers: array{period_from: string, period_to: string, top: list<Customer>}|null,
+ *     sales_forecast: SalesForecast,
  * }
  */
 class OwnerDashboard
@@ -136,7 +141,28 @@ class OwnerDashboard
             'expense_info' => $expenses['info'],
             'concerns' => $this->concerns($company),
             'customers' => $this->customers($company),
+            'sales_forecast' => $this->salesForecast($company, $today ?? now()),
         ];
+    }
+
+    /**
+     * 来月の売上の見込み（規則。#70）。同じ月の過去3期の売上だけを使う。
+     *
+     * @return SalesForecast
+     */
+    private function salesForecast(Company $company, CarbonInterface $today): array
+    {
+        $target = CarbonImmutable::instance($today)->startOfMonth()->addMonthNoOverflow();
+        $yearMonths = array_map(fn (int $back): string => $target->subYears($back)->format('Y-m'), range(1, SalesForecastRule::YEARS));
+
+        $sales = $company->externalMonthlyFigures()
+            ->where('metric', FigureMetric::Sales)
+            ->whereIn('year_month', $yearMonths)
+            ->pluck('amount_yen', 'year_month')
+            ->map(fn ($amount): int => (int) $amount)
+            ->all();
+
+        return SalesForecastRule::compute($target->format('Y-m'), $sales, $company->isBusyMonth($target->month));
     }
 
     private function periodLabel(FiscalYear $year): string

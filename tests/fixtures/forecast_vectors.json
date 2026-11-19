@@ -1,0 +1,381 @@
+{
+  "description": "来月の売上の見込み（#70）の共通ベクトル。PHP（App\\Support\\SalesForecastRule・SalesForecastTest）と Python（tools/analysis/sales_forecast.py）の両方が読む。数字はすべて架空。",
+  "cases": [
+    {
+      "name": "3期そろう：真ん中の年",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2023-11": 4000000,
+        "2024-11": 4600000,
+        "2025-11": 5000000
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": 4000000
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": 4600000
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 5000000
+          }
+        ],
+        "known_years": 3,
+        "low_yen": 4000000,
+        "low_year_month": "2023-11",
+        "high_yen": 5000000,
+        "high_year_month": "2025-11",
+        "middle_yen": 4600000,
+        "middle_year_month": "2024-11"
+      }
+    },
+    {
+      "name": "2期だけ：2つの平均・忙しい月の印はそのまま返す",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2024-11": 4600000,
+        "2025-11": 5000000
+      },
+      "busy": true,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": true,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": 4600000
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 5000000
+          }
+        ],
+        "known_years": 2,
+        "low_yen": 4600000,
+        "low_year_month": "2024-11",
+        "high_yen": 5000000,
+        "high_year_month": "2025-11",
+        "middle_yen": 4800000,
+        "middle_year_month": null
+      }
+    },
+    {
+      "name": "2期の平均の .5 は0から遠いほうへ",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2024-11": 1,
+        "2025-11": 2
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": 1
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 2
+          }
+        ],
+        "known_years": 2,
+        "low_yen": 1,
+        "low_year_month": "2024-11",
+        "high_yen": 2,
+        "high_year_month": "2025-11",
+        "middle_yen": 2,
+        "middle_year_month": null
+      }
+    },
+    {
+      "name": "1期だけ",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2025-11": 3000000
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 3000000
+          }
+        ],
+        "known_years": 1,
+        "low_yen": 3000000,
+        "low_year_month": "2025-11",
+        "high_yen": 3000000,
+        "high_year_month": "2025-11",
+        "middle_yen": 3000000,
+        "middle_year_month": "2025-11"
+      }
+    },
+    {
+      "name": "数字がない",
+      "target_year_month": "2026-11",
+      "sales": {},
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": null
+          }
+        ],
+        "known_years": 0,
+        "low_yen": null,
+        "low_year_month": null,
+        "high_yen": null,
+        "high_year_month": null,
+        "middle_yen": null,
+        "middle_year_month": null
+      }
+    },
+    {
+      "name": "実際の0円は数える",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2023-11": 0,
+        "2024-11": 100,
+        "2025-11": 200
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": 0
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": 100
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 200
+          }
+        ],
+        "known_years": 3,
+        "low_yen": 0,
+        "low_year_month": "2023-11",
+        "high_yen": 200,
+        "high_year_month": "2025-11",
+        "middle_yen": 100,
+        "middle_year_month": "2024-11"
+      }
+    },
+    {
+      "name": "同じ金額は古い年が先",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2023-11": 500,
+        "2024-11": 500,
+        "2025-11": 300
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": 500
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": 500
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 300
+          }
+        ],
+        "known_years": 3,
+        "low_yen": 300,
+        "low_year_month": "2025-11",
+        "high_yen": 500,
+        "high_year_month": "2024-11",
+        "middle_yen": 500,
+        "middle_year_month": "2023-11"
+      }
+    },
+    {
+      "name": "4年前と今年の同じ月は使わない",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2022-11": 9999999,
+        "2026-11": 8888888,
+        "2025-11": 1000
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 1000
+          }
+        ],
+        "known_years": 1,
+        "low_yen": 1000,
+        "low_year_month": "2025-11",
+        "high_yen": 1000,
+        "high_year_month": "2025-11",
+        "middle_yen": 1000,
+        "middle_year_month": "2025-11"
+      }
+    },
+    {
+      "name": "1月は年をまたいで数える",
+      "target_year_month": "2027-01",
+      "sales": {
+        "2025-01": 500,
+        "2026-01": 700,
+        "2026-12": 999
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2027-01",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2024-01",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2025-01",
+            "amount_yen": 500
+          },
+          {
+            "year_month": "2026-01",
+            "amount_yen": 700
+          }
+        ],
+        "known_years": 2,
+        "low_yen": 500,
+        "low_year_month": "2025-01",
+        "high_yen": 700,
+        "high_year_month": "2026-01",
+        "middle_yen": 600,
+        "middle_year_month": null
+      }
+    },
+    {
+      "name": "整数でない値は数えない",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2025-11": "100",
+        "2024-11": 200,
+        "2023-11": true
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": 200
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": null
+          }
+        ],
+        "known_years": 1,
+        "low_yen": 200,
+        "low_year_month": "2024-11",
+        "high_yen": 200,
+        "high_year_month": "2024-11",
+        "middle_yen": 200,
+        "middle_year_month": "2024-11"
+      }
+    },
+    {
+      "name": "マイナスの2期の平均も0から遠いほうへ",
+      "target_year_month": "2026-11",
+      "sales": {
+        "2024-11": -3,
+        "2025-11": 0
+      },
+      "busy": false,
+      "expected": {
+        "target_year_month": "2026-11",
+        "busy": false,
+        "history": [
+          {
+            "year_month": "2023-11",
+            "amount_yen": null
+          },
+          {
+            "year_month": "2024-11",
+            "amount_yen": -3
+          },
+          {
+            "year_month": "2025-11",
+            "amount_yen": 0
+          }
+        ],
+        "known_years": 2,
+        "low_yen": -3,
+        "low_year_month": "2024-11",
+        "high_yen": 0,
+        "high_year_month": "2025-11",
+        "middle_yen": -2,
+        "middle_year_month": null
+      }
+    }
+  ]
+}

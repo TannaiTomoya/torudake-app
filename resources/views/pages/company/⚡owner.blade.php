@@ -8,6 +8,8 @@ use App\Services\OwnerDashboard;
 use App\Services\OwnerInsights;
 use App\Services\OwnerReviewService;
 use App\Support\OwnerConcerns;
+use App\Support\SalesForecastRule;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
@@ -237,23 +239,45 @@ new class extends Component {
             @endif
         </div>
 
+        @php($rule = $dashboard['sales_forecast'])
         <div class="rounded-2xl border border-line bg-panel p-5" data-test="owner-forecast-sales">
             <p class="text-note text-ink-sub">
-                {{ is_array($f) ? ($f['month'] ?? '').'月の売上' : '来月の売上' }}の見込み（AI）
+                {{ (int) substr($rule['target_year_month'], 5, 2) }}月の売上の見込み（過去{{ SalesForecastRule::YEARS }}期の同じ月から）
+                @if ($rule['busy'])
+                    <span class="ml-1 rounded bg-warn-soft px-2 py-0.5 font-bold text-warn" data-test="owner-forecast-busy">忙しい月</span>
+                @endif
+            </p>
+            @if ($rule['known_years'] > 0)
+                <p class="whitespace-nowrap text-2xl font-bold tabular-nums" data-test="owner-forecast-rule-range">
+                    @if ($rule['low_yen'] === $rule['high_yen'])
+                        {{ $this->man($rule['low_yen']) }}
+                    @else
+                        {{ $this->man($rule['low_yen']) }}〜{{ $this->man($rule['high_yen']) }}
+                    @endif
+                </p>
+                <p class="tabular-nums text-ink-sub" data-test="owner-forecast-rule-middle">
+                    真ん中 {{ $this->man($rule['middle_yen']) }}（{{ $rule['middle_year_month'] !== null ? CarbonImmutable::createFromFormat('!Y-m', $rule['middle_year_month'])?->isoFormat('YYYY年M月') : '2期の平均' }}）
+                </p>
+                <p class="text-note text-ink-sub" data-test="owner-forecast-rule-note">{{ $rule['known_years'] }}期分しかないため目安です</p>
+            @else
+                <p class="text-ink-sub" data-test="owner-forecast-rule-range">過去の同じ月の売上がまだありません</p>
+            @endif
+
+            <p class="mt-3 border-t border-line pt-2 text-note text-ink-sub" data-test="owner-forecast-ai">
+                AIの参考：
+                @if (is_int($salesForecast['median_yen'] ?? null))
+                    <span class="tabular-nums">だいたい {{ $this->man($salesForecast['median_yen']) }}（幅 {{ $this->man($salesForecast['low_yen'] ?? null) }}〜{{ $this->man($salesForecast['high_yen'] ?? null) }}）</span>
+                @elseif ($forecast->isUpdating())
+                    出しています…
+                @elseif (is_array($f))
+                    数字が足りないため、まだ出せません
+                @else
+                    出せませんでした。{{ $forecast->error }}
+                @endif
                 @if ($forecast->isUpdating())
                     <span class="ml-1 rounded bg-brand-soft px-2 py-0.5 font-bold text-brand-ink" data-test="owner-forecast-updating">更新中</span>
                 @endif
             </p>
-            @if (is_int($salesForecast['median_yen'] ?? null))
-                <p class="whitespace-nowrap text-2xl font-bold tabular-nums">だいたい {{ $this->man($salesForecast['median_yen']) }}</p>
-                <p class="tabular-nums text-ink-sub">8割の確からしさで <span class="whitespace-nowrap">{{ $this->man($salesForecast['low_yen'] ?? null) }}〜{{ $this->man($salesForecast['high_yen'] ?? null) }}</span></p>
-            @elseif ($forecast->isUpdating())
-                <p class="text-ink-sub">AIが見込みを出しています…</p>
-            @elseif (is_array($f))
-                <p class="text-ink-sub">数字が足りないため、まだ出せません</p>
-            @else
-                <p class="text-ink-sub">見込みを出せませんでした。{{ $forecast->error }}</p>
-            @endif
         </div>
 
         @if ($concernCount > 0)
@@ -441,7 +465,7 @@ new class extends Component {
                 <section class="space-y-2" data-test="owner-forecast-expense">
                     <h2 class="text-xl font-bold">{{ $f['month'] ?? '' }}月の経費の見込み（AI）</h2>
                     @if (is_int($expenseForecast['median_yen'] ?? null))
-                        <p class="tabular-nums"><span class="font-bold">だいたい {{ $this->man($expenseForecast['median_yen']) }}</span>　8割の確からしさで {{ $this->man($expenseForecast['low_yen'] ?? null) }}〜{{ $this->man($expenseForecast['high_yen'] ?? null) }}</p>
+                        <p class="tabular-nums"><span class="font-bold">だいたい {{ $this->man($expenseForecast['median_yen']) }}</span>　幅 {{ $this->man($expenseForecast['low_yen'] ?? null) }}〜{{ $this->man($expenseForecast['high_yen'] ?? null) }}</p>
                     @else
                         <p class="text-ink-sub">数字が足りないため、まだ出せません</p>
                     @endif
