@@ -25,6 +25,7 @@ DEPLOY_USER="${DEPLOY_USER:-${SUDO_USER:-$(whoami)}}"   # アプリのファイ�
 ADMIN_EMAIL="${ADMIN_EMAIL:?ADMIN_EMAIL=証明書の連絡先メール を付けて実行してください}"
 PHP_MIN="8.3"        # Laravel 13 の最低。OS に入っている PHP（8.3 以上）をそのまま使う
 NODE_MAJOR="22"
+NPM_MIN_MAJOR="10"   # OS 標準の npm 9 は package.json の overrides（npm: の別名）を読めず、npm ci が失敗する
 SWAP_SIZE="2G"
 
 REMOVE_DEFAULT_SITE="${REMOVE_DEFAULT_SITE:-0}"   # 1 のときだけ nginx の default のサイトを外す
@@ -90,11 +91,21 @@ node_ok || apt-get install -y -qq nodejs npm >/dev/null   # Ubuntu 26.04 の標�
 if ! node_ok; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null && apt-get install -y -qq nodejs >/dev/null
 fi
+have npm || apt-get install -y -qq npm >/dev/null
+# npm が古いときは npm だけ新しくする（Node はそのまま。/usr/local に入り、OS の npm より先に使われる）
+npm_major() { npm -v 2>/dev/null | cut -d. -f1; }
+if [ "$(npm_major)" -lt "$NPM_MIN_MAJOR" ]; then
+  npm install -g "npm@${NPM_MIN_MAJOR}" --loglevel=error >/dev/null
+  hash -r
+fi
+if [ "$(npm_major)" -lt "$NPM_MIN_MAJOR" ]; then
+  echo "npm $(npm -v) は古い（${NPM_MIN_MAJOR} 以上が必要）。sudo npm install -g npm@${NPM_MIN_MAJOR} を試してください"; exit 1
+fi
 if ! have composer; then
   curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
   php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer --quiet && rm /tmp/composer-setup.php
 fi
-echo "PHP: $(php -v | head -1 | cut -d' ' -f1-2) / Node: $(node -v) / Composer: $(composer --version 2>/dev/null | cut -d' ' -f3)"
+echo "PHP: $(php -v | head -1 | cut -d' ' -f1-2) / Node: $(node -v) / npm: $(npm -v) / Composer: $(composer --version 2>/dev/null | cut -d' ' -f3)"
 
 step "3/10 PHP の上限（写真は10MBまで）"
 cat > "/etc/php/${PHP_VERSION}/fpm/conf.d/99-torudake.ini" <<'INI'
@@ -151,7 +162,8 @@ step "7/10 依存を入れて組み立てる"
 cd "$APP_DIR"
 sudo -u "$DEPLOY_USER" composer install --no-dev --optimize-autoloader --no-interaction --quiet
 grep -q '^APP_KEY=base64' .env || sudo -u "$DEPLOY_USER" php artisan key:generate --force
-sudo -u "$DEPLOY_USER" npm ci --silent
+# --silent は付けない（失敗の理由まで隠れて、何も出ずに止まるため）
+sudo -u "$DEPLOY_USER" npm ci --no-audit --no-fund --loglevel=error
 sudo -u "$DEPLOY_USER" npm run build --silent
 sudo -u "$DEPLOY_USER" php artisan migrate --force
 sudo -u "$DEPLOY_USER" php artisan optimize

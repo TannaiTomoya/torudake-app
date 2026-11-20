@@ -287,6 +287,7 @@ MySQL のユーザー名は ticket-app の `.env`（`~/backups/ticket-app/env-20
 
 ## 5. サーバーの版（10/24 に前のサーバーで確認。今のサーバーも Ubuntu 26.04）
 - OS：Ubuntu 26.04.1 LTS。PHP は OS 標準の **8.5**、Node は **22**、MySQL は **8.4**（外部の PPA は使わない）
+- npm は **10 以上**。OS 標準の npm 9.2 は `package.json` の `overrides`（`npm:` の別名）を読めず、`npm ci` が「package-lock.json が無い」という的外れな文面で失敗する（11/20 に発覚）。`setup-torudake.sh` が npm だけ新しくする（`/usr/local` に入る。Node はそのまま）
 - CI（`tests.yml`）も本番に合わせて PHP 8.5 で回す。開発の Sail は 8.4（あとで 8.5 にそろえる）
 
 ### PHP が古いとき
