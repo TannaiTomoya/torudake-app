@@ -13,6 +13,8 @@
 #   RESTORE_OVERWRITE=1     戻す先の DB に表がすでにあるとき（今ある表をすべて消してから戻す）
 #   RESTORE_EVIDENCES=1     写真も戻す（省略すると DB だけ）
 #   RESTORE_TO_PRODUCTION=1 本番の設定（APP_ENV=production・本物の AI・本物のメール）の環境に戻すとき
+#   RESTORE_USE_BACKUP_KEY=1 練習・試しのときだけ。確かめるあいだ、束の中のアプリの鍵（APP_KEY）を使う（.env は変えず、
+#                           束の .env も残さない）。本番の束を手元で試すと、手元の鍵は本番と違うので、これが要る
 #   DB_DATABASE             練習のときだけ、.env と違う DB に戻す
 set -euo pipefail
 umask 077
@@ -55,6 +57,11 @@ if [ "${RESTORE_TO_PRODUCTION:-0}" != "1" ]; then
   esac
 fi
 
+if [ "${RESTORE_USE_BACKUP_KEY:-0}" = "1" ]; then
+  [ "${RESTORE_TO_PRODUCTION:-0}" != "1" ] || fail "RESTORE_USE_BACKUP_KEY は練習・試し用です。本番では、束の APP_KEY を .env に写してください（docs/runbook.md §3.4）"
+  [ ! -f bootstrap/cache/config.php ] || fail "設定のキャッシュがあります。php artisan config:clear のあとでやり直してください"
+fi
+
 mysql_do() { MYSQL_PWD="$DB_PASSWORD" mysql -h "${DB_HOST:-127.0.0.1}" -P "${DB_PORT:-3306}" -u "$DB_USERNAME" "$@"; }
 TABLES="$(mysql_do -N -B -e "select count(*) from information_schema.tables where table_schema = '$DB_DATABASE'")"
 
@@ -78,6 +85,11 @@ trap 'rm -rf "$WORK"' EXIT
 echo "==> 開ける"
 age -d -i "$IDENTITY" "$BUNDLE" | tar -xz -C "$WORK" || fail "束を開けられません（秘密鍵が違うか、ファイルが壊れています）"
 [ -f "$WORK/db.sql" ] && [ -f "$WORK/manifest.json" ] || fail "束の中に db.sql か manifest.json がありません"
+if [ -d "$WORK/evidences" ]; then
+  echo "    束の中の写真：$(find "$WORK/evidences" -type f | wc -l | tr -d ' ') 個"
+else
+  echo "    束の中の写真：なし"
+fi
 
 if [ "$TABLES" != "0" ]; then
   # 今ある表をすべて消してから戻す（バックアップにない表が残ると、あとの移行が「表がすでにある」で止まる）
@@ -102,7 +114,13 @@ if [ "${RESTORE_EVIDENCES:-0}" = "1" ] && [ -d "$WORK/evidences" ]; then
 fi
 
 # アプリの鍵が違うと、2段階認証の秘密を読めずにログインできない。値は表示せず、同じかどうかだけ見る
-if [ -f "$WORK/env" ]; then
+if [ "${RESTORE_USE_BACKUP_KEY:-0}" = "1" ]; then
+  [ -f "$WORK/env" ] || fail "束の中に .env がありません"
+  APP_KEY="$(grep '^APP_KEY=' "$WORK/env" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')"
+  [ -n "$APP_KEY" ] || fail "束の中の .env に APP_KEY がありません"
+  export APP_KEY
+  echo "    アプリの鍵：確かめるあいだだけ、束の中のものを使います（.env は変えません。束の .env は残しません）"
+elif [ -f "$WORK/env" ]; then
   KEPT="$HOME/torudake-restored-env-$(date -u +%Y%m%dT%H%M%SZ)"
   cp "$WORK/env" "$KEPT" && chmod 600 "$KEPT"
   if [ "$(grep '^APP_KEY=' "$WORK/env" | sha256sum)" != "$(grep '^APP_KEY=' .env | sha256sum)" ]; then

@@ -78,6 +78,36 @@ BUNDLE="$(find "$WORK/remote" -name 'torudake-*.tar.gz.age' | head -1)"
 [ -n "$BUNDLE" ] || fail "保管先に束がありません"
 RESULT+=("取る・暗号化・送る：成功（$(basename "$BUNDLE")、$(stat -c %s "$BUNDLE") バイト）")
 
+step "日本時間の指定：その時だけ動く（サーバーの時計が UTC でも）"
+JST_NOW="$(TZ=JST-9 date +%H)"
+[ "$JST_NOW" = "$(date -u -d '+9 hours' +%H)" ] || fail "JST-9 が日本時間（UTC+9）になっていません"
+JST_OTHER="$(printf '%02d' $(( (10#$JST_NOW + 5) % 24 )))"
+OUT="$(BACKUP_CONFIG="$WORK/backup.env" bash docs/server/backup-torudake.sh --jst-hour "$JST_OTHER" 2>&1)" || fail "指定と違う時刻で、失敗として終わりました"
+[ -z "$OUT" ] || fail "指定と違う時刻なのに、何か動きました：$OUT"
+[ "$(find "$WORK/remote" -name 'torudake-*.tar.gz.age' | wc -l | tr -d ' ')" = "1" ] || fail "指定と違う時刻なのに、束が増えました"
+OUT="$(BACKUP_CONFIG="$WORK/backup.env" bash docs/server/backup-torudake.sh --jst-hour "$JST_NOW" --check 2>&1)" || fail "指定の時刻なのに動きません"
+printf '%s' "$OUT" | grep -q 'OK 保管先の確認' || fail "指定の時刻なのに、確認が動いていません"
+printf '%s' "$OUT" | grep -q '大きさ：合計' || fail "大きさが表示されていません"
+for bad in 3 24 ab; do
+  if BACKUP_CONFIG="$WORK/backup.env" bash docs/server/backup-torudake.sh --jst-hour "$bad" >/dev/null 2>&1; then
+    fail "--jst-hour $bad を受け付けてしまいました"
+  fi
+done
+RESULT+=("日本時間の指定：今（日本時間 ${JST_NOW} 時、コンテナの時計は $(date +%Z)）は動き、${JST_OTHER} 時の指定では何もしない。2桁でない指定は止まる")
+
+step "大きさの見込み：1日に増える大きさから出し、目安の8割を超えると注意が出る"
+mkdir -p "$WORK/remote-size"
+head -c 1048576 /dev/zero > "$WORK/remote-size/torudake-$(date -u -d '3 days ago' +%Y%m%dT%H%M%SZ).tar.gz.age"
+head -c 4194304 /dev/zero > "$WORK/remote-size/torudake-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
+printf 'BACKUP_REMOTE=%s\nBACKUP_AGE_RECIPIENT=%s\n' "$WORK/remote-size" "$RECIPIENT" > "$WORK/size.env"
+OUT="$(BACKUP_CONFIG="$WORK/size.env" bash docs/server/backup-torudake.sh --check 2>&1)" || fail "大きさの確認が失敗しました"
+printf '%s' "$OUT" | grep -q '合計 5 MB／最新 4 MB／1日に約 1 MB ずつ増加／このままだと 30 日分で約 930 MB（目安 10240 MB）' || fail "大きさの見込みが手計算と違います：$OUT"
+if printf '%s' "$OUT" | grep -q '注意'; then fail "目安の中なのに注意が出ました"; fi
+printf 'BACKUP_QUOTA_MB=1000\n' >> "$WORK/size.env"
+OUT="$(BACKUP_CONFIG="$WORK/size.env" bash docs/server/backup-torudake.sh --check 2>&1)" || fail "注意は失敗にしないはずです"
+printf '%s' "$OUT" | grep -q '注意：このまま増えると' || fail "目安の8割を超えるのに注意が出ません"
+RESULT+=("大きさの見込み：3日で 1MB→4MB なら「1日に約1MB、30日分で約930MB」（手計算どおり）。目安を 1000MB にすると注意が出る（失敗にはしない）")
+
 step "束は暗号化されている（中に DB の文字が見えない）・違う鍵では開かない"
 if grep -q -a 'CREATE TABLE' "$BUNDLE"; then fail "束の中に DB の文字がそのまま見えます"; fi
 if age -d -i "$WORK/wrong-key.txt" "$BUNDLE" >/dev/null 2>&1; then fail "違う鍵で開いてしまいました"; fi
@@ -170,6 +200,38 @@ if BACKUP_CONFIG="$WORK/bad.env" bash docs/server/backup-torudake.sh --check >/d
   fail "秘密鍵を公開鍵の欄に入れたのに進みました"
 fi
 RESULT+=("設定の守り：読める人が多い設定・秘密鍵の置き間違いで止まる")
+
+step "本番の束を手元で試す道具（restore-trial.sh）：アプリの鍵が手元と違う束でも、束の中の鍵で確かめられる"
+OTHER_KEY="base64:$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
+APP_KEY="$OTHER_KEY" DB_DATABASE="$SRC" php artisan migrate:fresh --force --seed --seeder='Database\Seeders\RestoreDrillSeeder' >/dev/null
+{ grep -v '^APP_KEY=' .env; printf 'APP_KEY=%s\n' "$OTHER_KEY"; } > "$WORK/other.env"
+mkdir -p "$WORK/remote-other"
+printf 'BACKUP_REMOTE=%s\nBACKUP_AGE_RECIPIENT=%s\n' "$WORK/remote-other" "$RECIPIENT" > "$WORK/other-backup.env"
+APP_DIR="$APP_DIR" BACKUP_CONFIG="$WORK/other-backup.env" BACKUP_ENV_FILE="$WORK/other.env" DB_DATABASE="$SRC" EVIDENCE_DIR="$WORK/photos" \
+  bash docs/server/backup-torudake.sh >/dev/null
+OTHER_BUNDLE="$(find "$WORK/remote-other" -name 'torudake-*.tar.gz.age' | head -1)"
+DB_DATABASE="$DST" php artisan db:wipe --force >/dev/null
+# ふつうに戻すと、手元の鍵では2段階認証の秘密を読めないので、確認が失敗する
+if APP_DIR="$APP_DIR" DB_DATABASE="$DST" RESTORE_CONFIRM="$DST" bash docs/server/restore-torudake.sh "$OTHER_BUNDLE" "$WORK/key.txt" > "$WORK/other.log" 2>&1; then
+  fail "アプリの鍵が違うのに、確認が通ってしまいました"
+fi
+grep -q 'NG アプリの鍵' "$WORK/other.log" || fail "アプリの鍵が違うことが表示されていません"
+find "$HOME" -name 'torudake-restored-env-*' -delete
+cp "$OTHER_BUNDLE" "$WORK/trial-copy.tar.gz.age"
+cp "$WORK/key.txt" "$WORK/trial-copy-key.txt"
+bash docs/server/restore-trial.sh "$WORK/trial-copy.tar.gz.age" "$WORK/trial-copy-key.txt" > "$WORK/trial.log" 2>&1 \
+  || { cat "$WORK/trial.log" >&2; fail "restore-trial.sh が通りません"; }
+[ ! -e "$WORK/trial-copy.tar.gz.age" ] && [ ! -e "$WORK/trial-copy-key.txt" ] || fail "restore-trial.sh のあとに、写した束か鍵が残っています"
+grep -q 'OK アプリの鍵' "$WORK/trial.log" && grep -q 'OK Excel の作り直し' "$WORK/trial.log" && grep -q '束の中の写真：2 個' "$WORK/trial.log" \
+  || { cat "$WORK/trial.log" >&2; fail "restore-trial.sh の記録が足りません"; }
+if grep -q -E '396,?560|example\.com' "$WORK/trial.log"; then fail "restore-trial.sh の表示に、金額かメールが出ています"; fi
+[ "$(DB_DATABASE="$DST" php artisan tinker --execute='echo Illuminate\Support\Facades\Schema::hasTable("users") ? "left" : "gone";' | tail -1 | tr -d '[:space:]')" = "gone" ] \
+  || fail "restore-trial.sh のあとに、戻した中身が残っています"
+[ -z "$(find "$WORK/home" -name 'torudake-restored-env-*')" ] || fail "restore-trial.sh のあとに、束の .env が残っています"
+if RESTORE_TRIAL_KEEP_FILES=1 bash docs/server/restore-trial.sh "$OTHER_BUNDLE" "$WORK/wrong-key.txt" > "$WORK/trial-wrong.log" 2>&1; then
+  fail "違う秘密鍵で restore-trial.sh が通ってしまいました"
+fi
+RESULT+=("手元での試し（restore-trial.sh）：アプリの鍵が手元と違う束は、ふつうの復元では確認が失敗し、試しの道具では束の中の鍵で通る。金額やメールは表示されず、終わると、戻した中身・束の .env・写した束と鍵は残らない。違う秘密鍵では通らない")
 
 step "後片付け（練習用の DB を空にする）"
 DB_DATABASE="$SRC" php artisan db:wipe --force >/dev/null

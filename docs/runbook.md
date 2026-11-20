@@ -92,11 +92,12 @@ GitHub の Settings → Environments に `production` ができる。デプロ�
 ### 1.4 サーバーの外へのバックアップを設定する（1回だけ。#35）
 デプロイのときのバックアップは同じサーバーの中にあるので、サーバーごと失うと一緒になくなる（10/25 に実際に起きた）。毎日1回、DB・写真・`.env` を1つに束ねて暗号化し、サーバーの外（Cloudflare R2）へ送る。
 
-| 決めること | 値（11/20 の案。本人が決めたらここを直す） |
+| 決めること | 値（11/21 に本人が決めた） |
 |---|---|
-| 保管先 | Cloudflare R2（11/20 に本人が決めた） |
-| 頻度 | 毎日1回（3:30）。失うのは最大で前の日の 3:30 から後に入れた分 |
+| 保管先 | Cloudflare R2 |
+| 頻度 | 毎日1回、**日本時間の 3:30**（サーバーの時計が UTC でも、日本時間で動く）。失うのは最大で前の日の 3:30 から後に入れた分 |
 | 残す期間 | 30日（R2 の自動削除）。アプリが30日で消した写真も、バックアップの中には最長でさらに30日残る |
+| 大きさ | R2 の無料の範囲は 10GB。写真が多いと超えうるので、最初の数日で大きさを見る（下の 7） |
 | 失敗に気づく方法 | 26時間たっても成功の印がないと `/health` が 503 になり、15分おきの見張り（monitor.yml）が Issue を立てる |
 | 戻すまでの目安 | 半日（新しいサーバーの準備 §1.1 → 下の §3.4） |
 
@@ -141,9 +142,13 @@ chmod 600 ~/.config/torudake-backup.env
 bash /var/www/torudake/docs/server/backup-torudake.sh
 ```
 
-5. **毎日取るようにする（VPS で）**
+5. **毎日、日本時間の 3:30 に取るようにする（VPS で）**。cron は毎時30分に呼ぶが、スクリプトが「日本時間の3時台」のときだけ動く（`--jst-hour 03`）。サーバーの時計が UTC でも日本時間でも、同じ1行でよい。
 ```bash
-( crontab -l 2>/dev/null | grep -v backup-torudake.sh; echo '30 3 * * * bash /var/www/torudake/docs/server/backup-torudake.sh >> $HOME/backups/torudake/offsite.log 2>&1' ) | crontab -
+( crontab -l 2>/dev/null | grep -v backup-torudake.sh; echo '30 * * * * bash /var/www/torudake/docs/server/backup-torudake.sh --jst-hour 03 >> $HOME/backups/torudake/offsite.log 2>&1' ) | crontab -
+```
+次の朝、`offsite.log` に「バックアップ完了」が1回だけ増えていることを見る。
+```bash
+grep -c 'バックアップ完了' ~/backups/torudake/offsite.log; tail -4 ~/backups/torudake/offsite.log
 ```
 
 6. **失敗に気づけるようにする（VPS で）**。4 が成功したあとで、`.env` に `BACKUP_MAX_AGE_HOURS=26` を足して読み直す（先に足すと、成功の印がまだないので `/health` が 503 になる）。
@@ -151,13 +156,39 @@ bash /var/www/torudake/docs/server/backup-torudake.sh
 cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
 ```
 
-7. **開けられることを確かめる（Mac で）**。Cloudflare の画面から束を1つダウンロードし、手元の秘密鍵で開く。`manifest.json`・`db.sql`・`env`・`evidences/` が並べば、鍵と束が合っている。確かめたら、ダウンロードした束は消す（開けた中身はディスクに書いていない）。
+7. **最初の3日間、大きさを見る（VPS で）**。束には毎回「その時点の写真の全部」が入る（写真は縮めずに保存していて、1枚は最大 10MB）。写真はアプリが30日で消すので、束は「30日分の写真」で頭打ちになり、保管先にはそれが30日分並ぶ。つまり、合計はおよそ「1か月分の写真の大きさ × 30」。10GB に収まるのは、1か月分の写真が 340MB くらいまで（1枚 3MB なら月に110枚ほど）。
 ```bash
-age -d -i ~/torudake-backup-key.txt ~/Downloads/torudake-（日時）.tar.gz.age | tar -tz | head
+grep '大きさ' ~/backups/torudake/offsite.log | tail -5
 ```
+2日分たまると「1日に約 n MB ずつ増加／このままだと 30 日分で約 m MB（目安 10240 MB）」と出る。見込みが目安の8割を超えると「注意」の行が出る（バックアップは止めない）。見込みは、写真を送る量が今のままという仮定の粗い数字。
+
+8. **復元を1回試す（Mac で）**。取れているだけでは足りないので、本物の束を、Mac に置いた本物の秘密鍵で開けて、開発の Sail の練習用の DB に戻して確かめる。本番にも、ふだんの開発の DB にも触らない。件数や金額は表示しない。終わると、戻した中身・作り直した Excel・コンテナに写した束と鍵は消える。
+   - 道具と練習用の DB を用意する（初めてのときだけ）
+```bash
+vendor/bin/sail up -d && docker compose exec -T -u root laravel.test bash -c "apt-get update -qq && apt-get install -y -qq age rclone"
+```
+```bash
+docker compose exec -T mysql bash -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS torudake_drill_src; CREATE DATABASE IF NOT EXISTS torudake_drill_dst; GRANT ALL ON \`torudake\_drill\_%\`.* TO \"$MYSQL_USER\"@\"%\";"'
+```
+   - Cloudflare の画面から、いちばん新しい束を Mac にダウンロードし、束と秘密鍵をコンテナの `/tmp` に写す（作業フォルダには置かない。リポジトリは公開なので）
+```bash
+docker compose cp ~/Downloads/torudake-（日時）.tar.gz.age laravel.test:/tmp/trial.tar.gz.age
+```
+```bash
+docker compose cp ~/torudake-backup-key.txt laravel.test:/tmp/trial-key.txt
+```
+   - 試す
+```bash
+vendor/bin/sail bash docs/server/restore-trial.sh /tmp/trial.tar.gz.age /tmp/trial-key.txt
+```
+   - 「すべて通りました」と出れば、束が開く・DB が戻る・件数と貸借の合計が控えと同じ・アプリの鍵が合う・Excel を作り直せる、まで確かめられた。#35 には**日付と「通った」だけ**を書く（件数や金額は書かない）。`~/Downloads` の束は消す
+   - 通らなかったら、表示された「NG」の行を見る。「束を開けられません」は鍵が違う（公開鍵と秘密鍵の組が合っていない）。そのままにせず、鍵を作り直して 1 からやり直す
+   - この試しで確かめないこと：写真を戻すこと（束に入っている数だけ表示する）、画面を開いての操作、新しいサーバーを一から用意する時間（§3.4）
 
 知っておくこと：
-- 保管先の確認だけ：`bash /var/www/torudake/docs/server/backup-torudake.sh --check`（最新が26時間以内か・32日を過ぎたものが残っていないか）
+- 保管先の確認だけ：`bash /var/www/torudake/docs/server/backup-torudake.sh --check`（最新が26時間以内か・32日を過ぎたものが残っていないか・大きさ）
+- **大きさが目安を超えそうなとき**（どれかを選ぶ）：(a) 残す期間を短くする（R2 の自動削除と、設定の `BACKUP_RETENTION_DAYS` を同じ日数にする。例：14）。(b) 超えた分を払う（10GB を超えた分は 1GB あたり月 0.015 ドルほど。料金は Cloudflare の画面で確かめる）。(c) 写真を束から分けて、増えた分だけ送るように作り替える（まだ作っていない。要るなら issue を立てる）
+- 復元の試し（8）は、鍵を作り直したとき・サーバーを移したとき・半年に1回、もう一度行う
 - 成功の印はキャッシュにある。`php artisan cache:clear` を実行すると印が消えて `/health` が 503 になるので、バックアップを1回取り直す
 - R2 のトークンは「書ける」と「消せる」が分かれていない。サーバーを乗っ取られると、保管先のバックアップも消されうる（中身は読まれない。開ける鍵がサーバーにないため）
 - Cloudflare のアカウントが止まると、ドメインとバックアップが同時に使えなくなる（どちらも Cloudflare）。気になるなら、月に1回、束を1つ Mac に落としておく
@@ -371,7 +402,7 @@ cd /var/www/torudake && php artisan config:cache
 ```bash
 cd /var/www/torudake && sudo systemctl start 'torudake-queue@*' && php artisan up
 ```
-7. 片付ける：サーバーに置いた秘密鍵・束・`~/torudake-restored-env-*` を消す。ログインして「本番の最小確認」（§2）を通す。§1.4 の 3〜6（外へのバックアップ）を新しいサーバーにも設定する
+7. 片付ける：サーバーに置いた秘密鍵・束・`~/torudake-restored-env-*` を消す。ログインして「本番の最小確認」（§2）を通す。§1.4 の 3〜8（外へのバックアップ）を新しいサーバーにも設定する
 ```bash
 rm ~/torudake-backup-key.txt ~/torudake-*.tar.gz.age ~/torudake-restored-env-*
 ```
@@ -381,15 +412,18 @@ rm ~/torudake-backup-key.txt ~/torudake-*.tar.gz.age ~/torudake-restored-env-*
 ```bash
 vendor/bin/sail bash docs/server/restore-drill.sh
 ```
-**11/20 の記録（すべて通った）**
+**11/21 の記録（すべて通った）**
 - 取る・暗号化・送る：成功。束の中に DB の文字は見えず、違う鍵では開かない
 - 戻す：件数と貸借の合計が控えと同じ（人4・会社2・役割 owner 2／editor 2・仕訳8〔確定6・下書き1・戻し1〕・確定の借方と貸方がどちらも 396,560円）、アプリの鍵で2段階認証の秘密を読める、Excel を DB から作り直すと2社とも確定の件数と同じ行数
 - 写真：2枚とも同じ中身で戻った
 - 戻した環境で通す（処理を直接呼ぶ）：ログイン（パスワードと2段階認証のコード）、権限（自社だけ・送るだけの人は一覧を見られない）、送る → AI の下書き → 経理の保存で確定 → Excel に1行
 - 気づけること：戻したあとに1件変わると件数と合計の違いとして出る、壊れた Excel、違う鍵、期限切れ（40日前）が残っている、最新が古い（2日前）、確認の指定なし・上書きの指定なし、ほかの人が読める設定、秘密鍵の置き間違い
 - 上書き：中身が変わった DB に上書きで戻すと、控えと同じに戻る（控えにない表も消える）
+- 日本時間の指定：時計が UTC のコンテナで、日本時間の今の時は動き、ほかの時の指定では何もしない
+- 大きさの見込み：3日で 1MB から 4MB に増えた保管先で「1日に約 1MB、30日分で約 930MB」（手計算どおり）。目安の8割を超えると注意が出る
+- 手元での試しの道具（`restore-trial.sh`、§1.4 の 8）：アプリの鍵が手元と違う束は、ふつうの復元では確認が失敗し、この道具では束の中の鍵で通る。金額やメールは表示されず、終わると、戻した中身・束の `.env`・写した束と鍵は残らない
 
-**練習で確かめていないこと**（本人が §1.4 で確かめる）：本物の R2 への送受信と自動削除（練習は一時フォルダ）、本番のサーバーでの cron、画面を開いての操作（練習は処理を直接呼ぶ）、本物の Mac の秘密鍵で開けること（§1.4 の 7）。
+**練習で確かめていないこと**（本人が §1.4 で確かめる）：本物の R2 への送受信と自動削除（練習は一時フォルダ）、本番のサーバーでの cron（5 の次の朝）、本物の束を Mac の本物の秘密鍵で開けて戻すこと（8）、画面を開いての操作（練習は処理を直接呼ぶ）。
 
 ---
 

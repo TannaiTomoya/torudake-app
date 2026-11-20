@@ -6,7 +6,10 @@
 #
 # 使い方（VPS で本人が設定する。AI は本番に SSH しない。手順は docs/runbook.md の「サーバーの外へのバックアップ」）:
 #   bash /var/www/torudake/docs/server/backup-torudake.sh           取って、送って、確かめる
-#   bash /var/www/torudake/docs/server/backup-torudake.sh --check   保管先の中身だけ確かめる（最新が新しいか・期限切れが消えているか）
+#   bash /var/www/torudake/docs/server/backup-torudake.sh --check   保管先の中身だけ確かめる（最新が新しいか・期限切れが消えているか・大きさ）
+#   bash /var/www/torudake/docs/server/backup-torudake.sh --jst-hour 03
+#       日本時間の3時台のときだけ取る（それ以外の時刻は何もせずに終わる）。cron で毎時30分に呼ぶと、
+#       サーバーの時計がどの時刻帯でも、日本時間の 3:30 に1回だけ動く
 #
 # 設定は ~/.config/torudake-backup.env に書く（持ち主だけが読める 600。値はリポジトリ・issue・チャットに貼らない）:
 #   BACKUP_REMOTE=r2:バケット名/torudake        rclone の「保管先:場所」
@@ -18,6 +21,7 @@
 #   RCLONE_CONFIG_R2_ENDPOINT=https://（アカウントID）.r2.cloudflarestorage.com
 #   BACKUP_RETENTION_DAYS=30                    保管先の自動削除（ライフサイクル）と同じ日数。省略すると 30
 #   BACKUP_MAX_AGE_HOURS=26                     最新がこれより古いと --check が失敗する。省略すると 26
+#   BACKUP_QUOTA_MB=10240                       保管先の大きさの目安（R2 の無料の範囲は 10GB）。見込みが8割を超えると注意を出す。省略すると 10240
 #
 # 古いバックアップを消すのは保管先の自動削除（ライフサイクル）で、このスクリプトは消さない。
 set -euo pipefail
@@ -30,6 +34,17 @@ SUFFIX=".tar.gz.age"
 
 fail() { echo "NG $*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "$1 が入っていません（sudo apt install $2）"; }
+
+# 日本時間の指定した時だけ進む。JST-9 は「UTC より9時間進んだ JST」という書き方で、サーバーに時刻帯のデータがなくても働く
+if [ "${1:-}" = "--jst-hour" ]; then
+  WANT_HOUR="${2:-}"
+  case "$WANT_HOUR" in
+    [01][0-9]|2[0-3]) ;;
+    *) fail "--jst-hour には 00〜23 の2桁を指定してください（例：--jst-hour 03）" ;;
+  esac
+  [ "$(TZ=JST-9 date +%H)" = "$WANT_HOUR" ] || exit 0
+  shift 2
+fi
 
 [ -f "$CONFIG" ] || fail "設定がありません：$CONFIG（docs/runbook.md の「サーバーの外へのバックアップ」）"
 PERM="$(stat -c %a "$CONFIG")"
@@ -46,6 +61,7 @@ set +a
 : "${BACKUP_AGE_RECIPIENT:?設定に BACKUP_AGE_RECIPIENT がありません}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 MAX_AGE_HOURS="${BACKUP_MAX_AGE_HOURS:-26}"
+QUOTA_MB="${BACKUP_QUOTA_MB:-10240}"
 
 case "$BACKUP_AGE_RECIPIENT" in
   age1*) ;;
@@ -65,10 +81,39 @@ stamp_seconds() {
   date -u -d "${stamp:0:4}-${stamp:4:2}-${stamp:6:2} ${stamp:9:2}:${stamp:11:2}:${stamp:13:2}" +%s
 }
 
+mb() { echo $(( ($1 + 524288) / 1048576 )); }
+
+# 保管先の大きさと、このまま増えたときの見込み。失敗にはしない（注意を出すだけ）。
+# 束には毎回「その時点の写真の全部」が入る。写真はアプリが30日で消すので、束は30日分の写真で頭打ちになり、
+# 保管先にはそれが保管の日数ぶん並ぶ。見込み＝（いちばん小さい束＋1日に増える大きさ×30）×保管の日数
+report_size() {
+  local listing="$1" span_days="$2" total newest_size smallest growth steady projected
+  total="$(printf '%s\n' "$listing" | awk -F';' '{ s += $2 } END { printf "%d", s }')"
+  newest_size="$(printf '%s\n' "$listing" | tail -1 | cut -d';' -f2)"
+  smallest="$(printf '%s\n' "$listing" | awk -F';' 'NR == 1 || $2 < m { m = $2 } END { printf "%d", m }')"
+
+  if [ "$span_days" -lt 1 ]; then
+    echo "大きさ：合計 $(mb "$total") MB／最新 $(mb "$newest_size") MB（見込みは、2日分たまってから出ます）"
+    return 0
+  fi
+
+  growth=$(( (newest_size - $(printf '%s\n' "$listing" | head -1 | cut -d';' -f2)) / span_days ))
+  [ "$growth" -gt 0 ] || growth=0
+  steady=$(( smallest + growth * 30 ))
+  [ "$steady" -ge "$newest_size" ] || steady="$newest_size"
+  projected=$(( steady * RETENTION_DAYS ))
+
+  echo "大きさ：合計 $(mb "$total") MB／最新 $(mb "$newest_size") MB／1日に約 $(mb "$growth") MB ずつ増加／このままだと ${RETENTION_DAYS} 日分で約 $(mb "$projected") MB（目安 ${QUOTA_MB} MB）"
+  if [ "$(mb "$projected")" -gt $(( QUOTA_MB * 8 / 10 )) ]; then
+    echo "注意：このまま増えると、保管先の目安（${QUOTA_MB} MB）の8割を超えます。docs/runbook.md §1.4 の「大きさが目安を超えそうなとき」を見てください"
+  fi
+}
+
 # 保管先の中身を確かめる：1つ以上ある・最新が新しい・期限切れが消えている
 check_remote() {
-  local names newest oldest now newest_age_hours oldest_age_days count
-  names="$(rclone lsf "$BACKUP_REMOTE" --files-only --include "${PREFIX}*${SUFFIX}" | sort)"
+  local listing names newest oldest now newest_age_hours oldest_age_days count
+  listing="$(rclone lsf "$BACKUP_REMOTE" --files-only --format ps --separator ';' --include "${PREFIX}*${SUFFIX}" | sort)"
+  names="$(printf '%s\n' "$listing" | cut -d';' -f1)"
   [ -n "$names" ] || fail "保管先にバックアップが1つもありません"
 
   count="$(printf '%s\n' "$names" | wc -l | tr -d ' ')"
@@ -79,6 +124,7 @@ check_remote() {
   oldest_age_days=$(( (now - $(stamp_seconds "$oldest")) / 86400 ))
 
   echo "保管先：${count} 個／最新 ${newest}（${newest_age_hours} 時間前）／最古 ${oldest}（${oldest_age_days} 日前）"
+  report_size "$listing" $(( ($(stamp_seconds "$newest") - $(stamp_seconds "$oldest")) / 86400 ))
 
   [ "$newest_age_hours" -le "$MAX_AGE_HOURS" ] || fail "最新のバックアップが ${newest_age_hours} 時間前です（${MAX_AGE_HOURS} 時間以内のはず）"
   # 自動削除は1日に1回なので、2日の余裕を見る
@@ -118,7 +164,7 @@ MYSQL_PWD="$DB_PASSWORD" mysqldump --no-tablespaces --single-transaction \
   -h "${DB_HOST:-127.0.0.1}" -P "${DB_PORT:-3306}" -u "$DB_USERNAME" "$DB_DATABASE" > "$WORK/db.sql"
 
 echo "==> 設定（.env。アプリの鍵が入っている）"
-cp .env "$WORK/env"
+cp "${BACKUP_ENV_FILE:-.env}" "$WORK/env"   # 復元の練習のときだけ、外から別のファイルを指定できる
 
 echo "==> 束ねて暗号化（写真を含む）"
 tar -C "$WORK" -cf "$WORK/bundle.tar" manifest.json db.sql env
