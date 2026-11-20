@@ -2,7 +2,7 @@
 
 本番：https://torudake-app.com（Xserver の VPS `153.115.51.65`、Ubuntu 26.04、8GB・100GB。**ほかのアプリと同居**）
 決まり：**VPS の操作は本人が行う。AI は本番に SSH しない。** AI はスクリプトとコマンドを用意するだけ。
-経緯：前の ABLENET VPS（`138.248.65.29`）は 10/25 以降つながらなくなり、11/20 に今のサーバーへ移すことにした（#57）。前のサーバーの DB と写真は取り出せていないので、空から始める。サーバーの外へのバックアップは #35。
+経緯：前の ABLENET VPS（`138.248.65.29`）は 10/25 以降つながらなくなり、11/20 に今のサーバーへ移した（#57）。前のサーバーの DB と写真は取り出せなかったので、空から始めた。サーバーの外へのバックアップは #35。
 
 | 項目 | 値 |
 |---|---|
@@ -54,6 +54,17 @@ cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
 工程2でコマンドを足したあとに行う。
 ```bash
 cd /var/www/torudake && php artisan torudake:create-company "丹内建機サービス" --fiscal-year-end=7
+```
+自分を owner（社長・責任者）として入れる。
+```bash
+php artisan torudake:add-member "丹内建機サービス" 自分のメール owner --name=表示名
+```
+パスワードを決めるリンクを作る（下の「パスワードを決めるリンク」）。開いてパスワードを決め、ログインして2段階認証を設定する。
+
+### パスワードを決めるリンク（メールを送らない間）
+メールは当面 `log` で、本番のログは「警告以上だけ」（`LOG_LEVEL=warning`）なので、**再設定のリンクはログに残らない**（11/20 に発覚。ログから grep する前の手順は働かない）。リンクはコマンドで作る。前のリンクは使えなくなり、有効なのは60分。リンクはパスワードと同じ扱いにして、チャットや issue に貼らない。
+```bash
+cd /var/www/torudake && php artisan tinker --execute='$u = App\Models\User::where("email", "その人のメール")->firstOrFail(); echo route("password.reset", ["token" => Illuminate\Support\Facades\Password::broker()->createToken($u), "email" => $u->email]), PHP_EOL;'
 ```
 
 ### 1.3 自動デプロイを有効にする（Mac で）
@@ -227,10 +238,7 @@ php artisan torudake:add-member 練習用のID PCのメール admin --name=経�
 ```bash
 php artisan torudake:add-member 練習用のID スマホのメール editor --name=現場 --submit-only
 ```
-5. パスワードを決める。メールは今 `log` なので、再設定のリンクはログに出る。**メールアドレスごとに一番下のリンク**を使う（前のリンクは使えなくなる。有効なのは60分）。
-```bash
-grep -ho 'https://torudake-app.com/reset-password/[^" ]*' storage/logs/*.log | tail -8
-```
+5. パスワードを決める。メールアドレスごとに、§1.2 の「パスワードを決めるリンク」のコマンドでリンクを作る（ログには残らない。有効なのは60分）。
 6. スマホと PC でそれぞれリンクを開いてパスワードを決め、ログインすると2段階認証の設定画面に移るので、認証アプリで設定する。復旧コードは紙に控える。
 7. ブックマークする（練習用は ID を入れた URL を直接開く）。
    - PC：`https://torudake-app.com/c/本番用のID/live`・`/c/練習用のID/live`
@@ -269,7 +277,7 @@ gunzip -c ~/backups/torudake/db-（日時）.sql.gz | mysql -u torudake -p torud
 ---
 
 ## 4. ticket-app の片付け（前のサーバーの話。今のサーバーでは対象外）
-前の ABLENET VPS にあったもの。本番は今のサーバーへ移すので、下のコマンドは**今のサーバーでは実行しない**（ticket-app は載っていない）。残っているのは、GitHub の ticket-app の Deploy key を画面から消すことだけ。以下は記録として残す。
+前の ABLENET VPS にあったもの。本番は今のサーバーへ移したので、下のコマンドは**今のサーバーでは実行しない**（ticket-app は載っていない）。残っているのは、GitHub の ticket-app の Deploy key を画面から消すことだけ。以下は記録として残す。
 
 10/24 に止めた（nginx のリンクを外した）。1週間問題がなければ消す。**消す前にバックアップがあることを確かめる。**
 ```bash

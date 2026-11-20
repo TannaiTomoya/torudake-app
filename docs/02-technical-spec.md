@@ -23,7 +23,7 @@
 | グラフ | Chart.js（npm で入れ、Vite で組み立てる）。社長の画面の三期比較 | これから |
 | テスト・品質 | **Pest 5**、Larastan（PHPStan レベル7）、Pint | 実装済み。テスト34件 |
 | 開発環境 | **Laravel Sail**：PHP 8.4・MySQL 8.4・Mailpit | 実装済み |
-| 本番 | Xserver の VPS（8GB・100GB、ほかのアプリと同居）、**Ubuntu 26.04**・nginx・PHP-FPM 8.5・Node 22 以上・Let's Encrypt。前の ABLENET VPS は 10/25 以降つながらず、11/20 に移す | 移行中 https://torudake-app.com（手順は runbook §1） |
+| 本番 | Xserver の VPS（8GB・100GB、ほかのアプリと同居）、**Ubuntu 26.04**・nginx・PHP-FPM 8.5・Node 22 以上・Let's Encrypt。前の ABLENET VPS は 10/25 以降つながらず、11/20 に移した | 稼働中 https://torudake-app.com（手順は runbook §1） |
 | CI/CD | GitHub Actions：`tests.yml` → `deploy.yml` | 稼働中 |
 
 リポジトリ：https://github.com/TannaiTomoya/torudake-app （公開、ブランチは main）
@@ -162,11 +162,11 @@ vendor/bin/sail composer test
 | 初期データでのログイン | 2段階認証の鍵は16文字以上の固定の値にする（`secret` では短すぎて6桁のコードが作れない。10/24 に発覚）。開発用の鍵と復旧コードは README に書く |
 | 注意 | フォルダ名が日本語なので `.env` の `COMPOSE_PROJECT_NAME=torudake` が必要。`node_modules` はコンテナで入れたので、**Mac で `npm run dev` は動かない**（Sail の中で動かす） |
 
-### 8.3 本番（11/20 に Xserver の VPS へ移行中。ほかのアプリと同居）
+### 8.3 本番（稼働中。11/20 に Xserver の VPS へ移した。ほかのアプリと同居）
 | 項目 | 値 |
 |---|---|
 | URL | https://torudake-app.com（Cloudflare DNS、A `@` → 153.115.51.65、**DNS only**） |
-| 証明書 | Let's Encrypt（移した先で取り直す）、certbot が自動更新 |
+| 証明書 | Let's Encrypt、期限 2027-02-18、certbot が自動更新 |
 | 置き場所 | `/var/www/torudake`（持ち主 `ubuntu`、グループ `www-data`） |
 | DB | `torudake`（ユーザー `torudake`、パスワードは VPS の `/root/.torudake-db-password` と `.env` だけ） |
 | 定期実行 | cron `* * * * * php artisan schedule:run`（ubuntu） |
