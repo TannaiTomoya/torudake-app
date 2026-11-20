@@ -158,8 +158,8 @@ effort は L1・L3 を `low`、L2・L4・L5 を `medium` にして、思考の�
 
 #### 取ったあとの手順
 1. Cloudflare：Domain Registration → Register Domains → 検索 → 購入。**自動更新を ON**、Cloudflare のアカウントは**2段階認証を ON**（ドメインを乗っ取られないように）
-2. DNS：種類 `A`、名前 `@`、値 `138.248.65.29`、**プロキシは「DNS のみ」（灰色の雲）**。最初は灰色にして、VPS で Let's Encrypt の証明書を取る
-3. 数分待って、`dig +short A （ドメイン）` が `138.248.65.29` を返すのを確かめる
+2. DNS：種類 `A`、名前 `@`、値 `153.115.51.65`（11/20 に Xserver の VPS へ移す。前は ABLENET の `138.248.65.29`）、**プロキシは「DNS のみ」（灰色の雲）**。最初は灰色にして、VPS で Let's Encrypt の証明書を取る
+3. 数分待って、`dig +short A （ドメイン）` が `153.115.51.65` を返すのを確かめる
 4. `docs/server/setup-torudake.sh` の `DOMAIN=` に書き、VPS で実行する（工程1）
 
 ## 6. dlab の知見の当て方

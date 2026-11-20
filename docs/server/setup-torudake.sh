@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 撮って送るだけ帳簿：本番サーバー（ABLENET VPS・Ubuntu）の初回の準備
+# 撮って送るだけ帳簿：本番サーバー（Ubuntu の VPS）の初回の準備
 #
 # 使い方（VPS で本人が実行する。AI は本番に SSH しない）:
 #   curl -fsSL https://raw.githubusercontent.com/TannaiTomoya/torudake-app/main/docs/server/setup-torudake.sh -o setup-torudake.sh
@@ -7,6 +7,12 @@
 #
 # 何度実行しても壊れないように、入っているものは飛ばす。
 # 途中で止まったら、表示された原因を直してもう一度実行すればよい。
+#
+# ほかのアプリと同じサーバーに置いてもよいように、同居のアプリが使うものには触らない:
+#   - 入っている nginx・certbot は更新しない（無いときだけ入れる）
+#   - nginx の default のサイトは消さない（消すときだけ REMOVE_DEFAULT_SITE=1）
+#   - 古い Node が入っていたら、入れ替えずに止まる（入れ替えるときだけ ALLOW_NODE_REPLACE=1）
+#   - 更新のあとにほかのサービスを自動で再起動しない
 set -euo pipefail
 
 # ==== 設定（ここだけ見ればよい） ====
@@ -21,8 +27,12 @@ PHP_MIN="8.3"        # Laravel 13 の最低。OS に入っている PHP（8.3 �
 NODE_MAJOR="22"
 SWAP_SIZE="2G"
 
-# 途中で質問を出さずに、既定の答えで進む（出力を隠しているので、質問が出ると見えずに止まるため）
-export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a COMPOSER_ALLOW_SUPERUSER=1
+REMOVE_DEFAULT_SITE="${REMOVE_DEFAULT_SITE:-0}"   # 1 のときだけ nginx の default のサイトを外す
+ALLOW_NODE_REPLACE="${ALLOW_NODE_REPLACE:-0}"     # 1 のときだけ、古い Node を新しいものに入れ替える
+
+# 途中で質問を出さずに進む（出力を隠しているので、質問が出ると見えずに止まるため）。
+# NEEDRESTART_MODE=l：再起動が要るサービスは一覧に出すだけで、自動では再起動しない（同居のアプリを止めない）
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l COMPOSER_ALLOW_SUPERUSER=1
 
 step() { echo; echo "==> $*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -30,12 +40,22 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # 本番の VPS（Ubuntu）以外では何もせずに止まる（Mac などで動かしてしまったときの守り）
 if [ ! -f /etc/os-release ] || ! grep -q '^ID=ubuntu' /etc/os-release; then
   echo "このスクリプトは本番の VPS（Ubuntu）専用です。ここでは何もせずに終わります。"
-  echo "VPS に入ってから（行の頭が ubuntu@camp-vps:~$ になってから）実行してください。"
+  echo "VPS に SSH で入ってから実行してください。"
   exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then echo "sudo を付けて実行してください"; exit 1; fi
 
-step "1/10 スワップ（メモリ1.6GBなので、composer と npm の途中で止まらないように ${SWAP_SIZE} 足す）"
+node_ok() { have node && [ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -ge "$NODE_MAJOR" ]; }
+
+# 何かを入れる前に確かめる：古い Node は同居のアプリが使っているかもしれないので、勝手に入れ替えない
+if have node && ! node_ok && [ "$ALLOW_NODE_REPLACE" != "1" ]; then
+  echo "Node $(node -v) がすでに入っていますが、${NODE_MAJOR} 以上が必要です。"
+  echo "同居のアプリが使っているかもしれないので、入れ替えずに止まります（まだ何も変えていません）。"
+  echo "入れ替えてよければ、ALLOW_NODE_REPLACE=1 を付けてもう一度実行してください。"
+  exit 1
+fi
+
+step "1/10 スワップ（composer と npm の途中でメモリが足りなくならないように。無いときだけ ${SWAP_SIZE} 足す）"
 if swapon --show | grep -q .; then
   echo "スワップはすでにある：$(swapon --show --noheadings | awk '{print $1, $3}')"
 else
@@ -48,8 +68,16 @@ step "2/10 必要なソフト（足りないものだけ入れる）"
 apt-get update -qq
 apt-get install -y -qq software-properties-common curl git unzip ca-certificates >/dev/null
 # 外部の PPA は使わない（新しい Ubuntu に対応していないことがあるため）。OS の標準の PHP を入れる
-apt-get install -y -qq php-fpm php-cli php-mysql php-mbstring php-xml php-curl php-zip php-gd php-intl php-bcmath \
-  nginx certbot python3-certbot-nginx >/dev/null
+apt-get install -y -qq php-fpm php-cli php-mysql php-mbstring php-xml php-curl php-zip php-gd php-intl php-bcmath >/dev/null
+# nginx・certbot は無いときだけ入れる（入っているものを更新すると、同居のアプリが一瞬止まるため）
+have nginx || apt-get install -y -qq nginx >/dev/null
+have certbot || apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
+certbot_has_nginx() { local out; out="$(certbot plugins 2>/dev/null || true)"; grep -q nginx <<<"$out"; }
+if ! certbot_has_nginx; then
+  # certbot はあるが nginx 用の部品が無い（OS のパッケージで入れた certbot のときだけ足せる）
+  if dpkg -s certbot >/dev/null 2>&1; then apt-get install -y -qq python3-certbot-nginx >/dev/null; fi
+  certbot_has_nginx || { echo "certbot に nginx 用の部品が無い（certbot の入れ方を確かめてください）"; exit 1; }
+fi
 PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
 if ! php -r "exit(version_compare(PHP_VERSION, '${PHP_MIN}', '>=') ? 0 : 1);"; then
   echo "PHP ${PHP_VERSION} は古い（${PHP_MIN} 以上が必要）。runbook の「PHP が古いとき」を見てください"; exit 1
@@ -58,8 +86,7 @@ if [ ! -S "/run/php/php${PHP_VERSION}-fpm.sock" ] && ! systemctl list-unit-files
   echo "php${PHP_VERSION}-fpm が見つからない"; exit 1
 fi
 have mysql || apt-get install -y -qq mysql-server >/dev/null
-node_ok() { have node && [ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -ge "$NODE_MAJOR" ]; }
-node_ok || apt-get install -y -qq nodejs npm >/dev/null   # Ubuntu 26.04 の標準は Node 22
+node_ok || apt-get install -y -qq nodejs npm >/dev/null   # Ubuntu 26.04 の標準は Node 22（古い Node があるときは、上の確認で止まっている）
 if ! node_ok; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null && apt-get install -y -qq nodejs >/dev/null
 fi
@@ -172,7 +199,12 @@ else
   echo "nginx の設定はすでにある（触らない）"
 fi
 ln -sf /etc/nginx/sites-available/torudake /etc/nginx/sites-enabled/torudake
-rm -f /etc/nginx/sites-enabled/default
+# default のサイトは、同居のアプリが使っているかもしれないので消さない（torudake は server_name で振り分けられる）
+if [ "$REMOVE_DEFAULT_SITE" = "1" ]; then
+  rm -f /etc/nginx/sites-enabled/default
+  echo "nginx の default のサイトを外した"
+fi
+# 設定に間違いがあれば nginx -t で止まり、動いている nginx はそのまま（同居のアプリは止まらない）
 nginx -t && systemctl reload nginx
 
 step "9/10 HTTPS（Let's Encrypt。Cloudflare は灰色の雲＝DNS only のこと）"

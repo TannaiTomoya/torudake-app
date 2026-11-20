@@ -47,5 +47,5 @@ Cursor・Claude Code など、どの AI エージェントもこのファイル�
 - コマンドが失敗したら、原因の見立てと対処を1つずつ示してからやり直す
 
 ## 本番（触ってよい範囲）
-- 本番の VPS（`ssh camp-vps`、ubuntu）は**本人が操作する**。AI エージェントは本番に SSH しない。本番の DB の削除・資格情報には触れない
+- 本番の VPS（`ssh tsunagu-vps`、ubuntu。ほかのアプリと同居）は**本人が操作する**。AI エージェントは本番に SSH しない。本番の DB の削除・資格情報には触れない
 - 本番への反映は push → GitHub Actions の `deploy.sh` だけ

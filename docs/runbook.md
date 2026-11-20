@@ -1,12 +1,13 @@
 # 本番の手順書（runbook）— 撮って送るだけ帳簿
 
-本番：https://torudake-app.com（ABLENET VPS `138.248.65.29`、Ubuntu）
+本番：https://torudake-app.com（Xserver の VPS `153.115.51.65`、Ubuntu 26.04、8GB・100GB。**ほかのアプリと同居**）
 決まり：**VPS の操作は本人が行う。AI は本番に SSH しない。** AI はスクリプトとコマンドを用意するだけ。
+経緯：前の ABLENET VPS（`138.248.65.29`）は 10/25 以降つながらなくなり、11/20 に今のサーバーへ移すことにした（#57）。前のサーバーの DB と写真は取り出せていないので、空から始める。サーバーの外へのバックアップは #35。
 
 | 項目 | 値 |
 |---|---|
 | ドメイン | `torudake-app.com`（Cloudflare で登録、期限 2027-10-24、自動更新 ON） |
-| DNS | Cloudflare：`A @ 138.248.65.29`、**DNS only（灰色の雲）** |
+| DNS | Cloudflare：`A @ 153.115.51.65`、**DNS only（灰色の雲）** |
 | アプリの場所 | `/var/www/torudake` |
 | DB | `torudake`（ユーザー `torudake`、パスワードは VPS の `/root/.torudake-db-password` と `.env` にだけある） |
 | バックアップ | `~/backups/torudake/`（デプロイのたびに DB を保存、30日分） |
@@ -18,11 +19,36 @@
 ## 1. 初回の準備（1回だけ）
 
 ### 1.1 サーバーを準備する（VPS で）
+**ほかのアプリと同居するとき**は、先に今の状態を見る（何も変えない）。
+```bash
+whoami; ls -l /etc/nginx/sites-enabled/; node -v; which php mysql certbot; sudo ss -tlnp | grep -E ":(80|443|3306) "
+```
+- 最後の行（80・443・3306 を使っているもの）：80・443 が nginx 以外（Docker・Caddy など）なら、このスクリプトでは置けないので止めて相談する
+- `whoami`：ふだん SSH するユーザー（`ubuntu`）であること。このユーザーがアプリの持ち主・常駐の実行ユーザー・GitHub Actions の接続先になる
+- Node が 22 未満：スクリプトは入れ替えずに止まる。同居のアプリが Node を使っていないと分かっているときだけ `ALLOW_NODE_REPLACE=1` を付ける
+- PHP をすでに同居のアプリが使っている：スクリプトの `99-torudake.ini`（アップロード13MB・メモリ256MB）が PHP-FPM 全体に効き、PHP-FPM が数秒再起動する
+- スクリプトが同居のアプリのために**しないこと**：nginx の default のサイトを消す（消すときだけ `REMOVE_DEFAULT_SITE=1`）、入っている nginx・certbot の更新、ほかのサービスの自動再起動。nginx の設定は `nginx -t` が通ったときだけ読み直す
+
+次に、Cloudflare の DNS を今のサーバーに向ける（証明書を取るのに要る）。Mac で次が今のサーバーの IP を返してから進む。
+```bash
+dig +short A torudake-app.com
+```
+準備のスクリプトを実行する。
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TannaiTomoya/torudake-app/main/docs/server/setup-torudake.sh -o setup-torudake.sh
 sudo ADMIN_EMAIL=あなたのメール bash setup-torudake.sh
 ```
-最後に `https://torudake-app.com/login → 200` と出れば完了。途中で止まったら、表示された原因を直してもう一度実行する（何度実行しても壊れない）。
+最後に `https://torudake-app.com/login → 200` と出れば完了。途中で止まったら、表示された原因を直してもう一度実行する（何度実行しても壊れない）。同居のアプリが今までどおり開くことも確かめる。
+
+そのあと `.env` に本番の値を足し、読み直す（値は `.env` にだけ書く。画面や issue に貼らない）。
+- `ANTHROPIC_API_KEY`（AI のキー）、`AI_DRIVER=claude`
+- `CACHE_STORE=database`（`/health` の判定に要る。下の「稼働確認」）
+```bash
+nano /var/www/torudake/.env
+```
+```bash
+cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
+```
 
 ### 1.2 最初の owner を作る（VPS で）
 工程2でコマンドを足したあとに行う。
@@ -31,9 +57,14 @@ cd /var/www/torudake && php artisan torudake:create-company "丹内建機サー�
 ```
 
 ### 1.3 自動デプロイを有効にする（Mac で）
-GitHub Actions が VPS に SSH するための鍵を、このリポジトリに登録する。鍵は ticket-app で使っていた camp_actions のもの（VPS 側の公開鍵は残してある）。
+GitHub Actions が VPS に SSH するための鍵を、このリポジトリに登録する。鍵は camp_actions のもの。**サーバーを移したら、公開鍵を新しいサーバーに足し、`SSH_HOST`・`SSH_USER` を入れ直す**（秘密鍵は同じなら入れ直さなくてよい）。
+
+公開鍵を VPS に足す（Mac で。`tsunagu-vps` は `~/.ssh/config` の今のサーバーの名前）。
 ```bash
-gh secret set SSH_HOST --body "138.248.65.29"
+ssh tsunagu-vps 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys' < ~/.ssh/camp_actions.pub
+```
+```bash
+gh secret set SSH_HOST --body "153.115.51.65"
 ```
 ```bash
 gh secret set SSH_USER --body "VPSのユーザー名"
@@ -237,7 +268,9 @@ gunzip -c ~/backups/torudake/db-（日時）.sql.gz | mysql -u torudake -p torud
 
 ---
 
-## 4. ticket-app の片付け（10/31 以降）
+## 4. ticket-app の片付け（前のサーバーの話。今のサーバーでは対象外）
+前の ABLENET VPS にあったもの。本番は今のサーバーへ移すので、下のコマンドは**今のサーバーでは実行しない**（ticket-app は載っていない）。残っているのは、GitHub の ticket-app の Deploy key を画面から消すことだけ。以下は記録として残す。
+
 10/24 に止めた（nginx のリンクを外した）。1週間問題がなければ消す。**消す前にバックアップがあることを確かめる。**
 ```bash
 ls -l ~/backups/ticket-app/
@@ -252,7 +285,7 @@ MySQL のユーザー名は ticket-app の `.env`（`~/backups/ticket-app/env-20
 
 ---
 
-## 5. サーバーの版（10/24 確認）
+## 5. サーバーの版（10/24 に前のサーバーで確認。今のサーバーも Ubuntu 26.04）
 - OS：Ubuntu 26.04.1 LTS。PHP は OS 標準の **8.5**、Node は **22**、MySQL は **8.4**（外部の PPA は使わない）
 - CI（`tests.yml`）も本番に合わせて PHP 8.5 で回す。開発の Sail は 8.4（あとで 8.5 にそろえる）
 
