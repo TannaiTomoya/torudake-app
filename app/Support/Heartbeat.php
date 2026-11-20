@@ -14,6 +14,9 @@ final class Heartbeat
 
     public const QUEUE = 'queue';
 
+    /** サーバーの外へのバックアップが最後に成功した時刻（#35）。毎分ではなく、バックアップのたびに書く */
+    public const BACKUP = 'backup';
+
     public static function touch(string $name): void
     {
         Cache::forever(self::key($name), now()->getTimestamp());

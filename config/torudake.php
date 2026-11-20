@@ -19,5 +19,7 @@ return [
     'health' => [
         'scheduler_max_age_seconds' => 300,
         'queue_max_age_seconds' => 600,
+        // サーバーの外へのバックアップ（#35）。最後の成功からこの時間を超えたら 503。0 は「見ない」（開発・バックアップを設定する前）
+        'backup_max_age_hours' => (int) env('BACKUP_MAX_AGE_HOURS', 0),
     ],
 ];

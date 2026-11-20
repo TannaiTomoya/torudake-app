@@ -8,6 +8,7 @@ use Throwable;
 
 /**
  * 稼働の確認。DB につながるか、定期処理とキューの「生きている印」が新しいか。
+ * バックアップを見る設定のときは、サーバーの外へのバックアップが最近成功しているか（#35）。
  * どれが悪いかは公開の応答には出さない（ログにだけ残す）。
  */
 class HealthCheck
@@ -24,7 +25,7 @@ class HealthCheck
     }
 
     /**
-     * 問題のある項目の名前（database・scheduler・queue）。なければ空。
+     * 問題のある項目の名前（database・scheduler・queue・backup）。なければ空。
      *
      * @return list<string>
      */
@@ -44,6 +45,16 @@ class HealthCheck
 
             if ($age === null || $age > $max) {
                 $problems[] = $label;
+            }
+        }
+
+        $backupMaxHours = (int) config('torudake.health.backup_max_age_hours');
+
+        if ($backupMaxHours > 0) {
+            $age = Heartbeat::ageSeconds(Heartbeat::BACKUP);
+
+            if ($age === null || $age > $backupMaxHours * 3600) {
+                $problems[] = 'backup';
             }
         }
 

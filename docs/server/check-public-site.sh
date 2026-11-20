@@ -120,7 +120,7 @@ check_health() {
 
   if [ "$status" -eq 2 ]; then
     if [ "$CODE" = "503" ] && grep -q '"app":"torudake"' "$BODY"; then
-      echo "NG /health：アプリは応答していますが、DB・定期処理・キューのどれかが止まっています（サーバーの storage/logs の「稼働確認：問題あり」を確認）"
+      echo "NG /health：アプリは応答していますが、DB・定期処理・キューのどれかが止まっているか、外へのバックアップが古くなっています（サーバーの storage/logs の「稼働確認：問題あり」を確認）"
     else
       echo "NG /health：サーバーエラーです（HTTP $CODE）"
     fi

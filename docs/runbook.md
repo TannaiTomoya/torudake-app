@@ -2,7 +2,7 @@
 
 本番：https://torudake-app.com（Xserver の VPS `153.115.51.65`、Ubuntu 26.04、8GB・100GB。**ほかのアプリと同居**）
 決まり：**VPS の操作は本人が行う。AI は本番に SSH しない。** AI はスクリプトとコマンドを用意するだけ。
-経緯：前の ABLENET VPS（`138.248.65.29`）は 10/25 以降つながらなくなり、11/20 に今のサーバーへ移した（#57）。前のサーバーの DB と写真は取り出せなかったので、空から始めた。サーバーの外へのバックアップは #35。
+経緯：前の ABLENET VPS（`138.248.65.29`）は 10/25 以降つながらなくなり、11/20 に今のサーバーへ移した（#57）。前のサーバーの DB と写真は取り出せなかったので、空から始めた。同じことを繰り返さないための、サーバーの外へのバックアップは §1.4、戻し方は §3.4。
 
 | 項目 | 値 |
 |---|---|
@@ -10,7 +10,8 @@
 | DNS | Cloudflare：`A @ 153.115.51.65`、**DNS only（灰色の雲）** |
 | アプリの場所 | `/var/www/torudake` |
 | DB | `torudake`（ユーザー `torudake`、パスワードは VPS の `/root/.torudake-db-password` と `.env` にだけある） |
-| バックアップ | `~/backups/torudake/`（デプロイのたびに DB を保存、30日分） |
+| バックアップ | `~/backups/torudake/`（デプロイのたびに DB を保存、30日分。**同じサーバーの中**） |
+| 外へのバックアップ | Cloudflare R2（毎日1回、暗号化、30日分。§1.4 で本人が設定する。設定するまでは無い） |
 | 定期実行 | cron の `schedule:run`（毎分） |
 | ジョブの常駐 | systemd の `torudake-queue@1`・`torudake-queue@2`（2つ） |
 
@@ -88,6 +89,79 @@ gh variable set DEPLOY_ENABLED --body true
 ```
 GitHub の Settings → Environments に `production` ができる。デプロイの前に承認を挟みたいときは、そこで「Required reviewers」に自分を入れる。
 
+### 1.4 サーバーの外へのバックアップを設定する（1回だけ。#35）
+デプロイのときのバックアップは同じサーバーの中にあるので、サーバーごと失うと一緒になくなる（10/25 に実際に起きた）。毎日1回、DB・写真・`.env` を1つに束ねて暗号化し、サーバーの外（Cloudflare R2）へ送る。
+
+| 決めること | 値（11/20 の案。本人が決めたらここを直す） |
+|---|---|
+| 保管先 | Cloudflare R2（11/20 に本人が決めた） |
+| 頻度 | 毎日1回（3:30）。失うのは最大で前の日の 3:30 から後に入れた分 |
+| 残す期間 | 30日（R2 の自動削除）。アプリが30日で消した写真も、バックアップの中には最長でさらに30日残る |
+| 失敗に気づく方法 | 26時間たっても成功の印がないと `/health` が 503 になり、15分おきの見張り（monitor.yml）が Issue を立てる |
+| 戻すまでの目安 | 半日（新しいサーバーの準備 §1.1 → 下の §3.4） |
+
+入っているもの：DB の全部、写真（`storage/app/private/evidences`）、`.env`（アプリの鍵 `APP_KEY` が入っている。これがないと2段階認証を読めない）、控え（件数と貸借の合計だけ）。Excel は入れない（DB から作り直せる。§3.5 の練習で確かめた）。
+
+1. **開ける鍵を作る（Mac で）**。秘密鍵はサーバーに置かない。サーバーごと失っても、乗っ取られても、鍵は手元に残る。
+```bash
+brew install age && age-keygen -o ~/torudake-backup-key.txt && chmod 600 ~/torudake-backup-key.txt
+```
+画面に出る `Public key: age1...` が公開鍵（サーバーに置くのはこれだけ）。`~/torudake-backup-key.txt` が秘密鍵。**秘密鍵をなくすと、バックアップは誰にも開けない**。Mac のほかにもう1か所（パスワード管理アプリなど）に同じ中身を置く。秘密鍵はチャット・issue・リポジトリに貼らない。
+
+2. **R2 に置き場を作る（Cloudflare の画面で）**
+- R2 → バケットを作る（名前は例：`torudake-backup`）
+- そのバケットの Settings → Object lifecycle rules → 「30日たったら消す」を足す
+- R2 → API トークン → 作る：権限は「Object Read & Write」、対象は**このバケットだけ**。出てきた Access Key ID・Secret Access Key・エンドポイント（`https://（アカウントID）.r2.cloudflarestorage.com`）を控える（この画面は一度しか出ない。貼らない）
+
+3. **サーバーに道具と設定を置く（VPS で）**
+```bash
+sudo apt install -y age rclone
+```
+```bash
+mkdir -p ~/.config && nano ~/.config/torudake-backup.env
+```
+中身（`...` を自分の値にする）：
+```bash
+BACKUP_REMOTE=r2:torudake-backup/torudake
+BACKUP_AGE_RECIPIENT=age1...
+RCLONE_CONFIG_R2_TYPE=s3
+RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+RCLONE_CONFIG_R2_ACCESS_KEY_ID=...
+RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=...
+RCLONE_CONFIG_R2_ENDPOINT=https://（アカウントID）.r2.cloudflarestorage.com
+RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+```
+```bash
+chmod 600 ~/.config/torudake-backup.env
+```
+`NO_CHECK_BUCKET` は、バケット1つだけに絞ったトークンで要る（バケットを作る権限がないので、作る確認を省く）。
+
+4. **1回、手で取る（VPS で）**。最後に「OK 保管先の確認」「バックアップ完了」と出れば成功。Cloudflare の画面でもファイルが1つ見える。
+```bash
+bash /var/www/torudake/docs/server/backup-torudake.sh
+```
+
+5. **毎日取るようにする（VPS で）**
+```bash
+( crontab -l 2>/dev/null | grep -v backup-torudake.sh; echo '30 3 * * * bash /var/www/torudake/docs/server/backup-torudake.sh >> $HOME/backups/torudake/offsite.log 2>&1' ) | crontab -
+```
+
+6. **失敗に気づけるようにする（VPS で）**。4 が成功したあとで、`.env` に `BACKUP_MAX_AGE_HOURS=26` を足して読み直す（先に足すと、成功の印がまだないので `/health` が 503 になる）。
+```bash
+cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
+```
+
+7. **開けられることを確かめる（Mac で）**。Cloudflare の画面から束を1つダウンロードし、手元の秘密鍵で開く。`manifest.json`・`db.sql`・`env`・`evidences/` が並べば、鍵と束が合っている。確かめたら、ダウンロードした束は消す（開けた中身はディスクに書いていない）。
+```bash
+age -d -i ~/torudake-backup-key.txt ~/Downloads/torudake-（日時）.tar.gz.age | tar -tz | head
+```
+
+知っておくこと：
+- 保管先の確認だけ：`bash /var/www/torudake/docs/server/backup-torudake.sh --check`（最新が26時間以内か・32日を過ぎたものが残っていないか）
+- 成功の印はキャッシュにある。`php artisan cache:clear` を実行すると印が消えて `/health` が 503 になるので、バックアップを1回取り直す
+- R2 のトークンは「書ける」と「消せる」が分かれていない。サーバーを乗っ取られると、保管先のバックアップも消されうる（中身は読まれない。開ける鍵がサーバーにないため）
+- Cloudflare のアカウントが止まると、ドメインとバックアップが同時に使えなくなる（どちらも Cloudflare）。気になるなら、月に1回、束を1つ Mac に落としておく
+
 ---
 
 ## 2. いつもの更新
@@ -117,8 +191,8 @@ bash /var/www/torudake/deploy.sh
   - 「接続できません」「時間切れ」「証明書」→ VPS・DNS・nginx・証明書（サーバー側の問題）
   - 「サーバーエラー」→ アプリの `storage/logs` を見る
   - 「別のサイトへ移動」「ログイン画面ではありません」「アプリの印がない」→ DNS や nginx の向き先が違う
-  - 「DB・定期処理・キューのどれかが止まっています」（`/health` が 503）→ `storage/logs` の「稼働確認：問題あり」の行に `database` / `scheduler` / `queue` のどれかが出る。`schedule:run` の cron、`torudake-queue@*`、MySQL を順に確認
-- `/health` の判定：DB につながる・定期処理の印が5分以内・キューの印が10分以内（`config/torudake.php` の `health`）。印は毎分の `torudake:heartbeat` が書く（キューは空でも、この仕事を流して生きているか見る）。印の置き場はキャッシュなので、`.env` の `CACHE_STORE` は `database`（cron・PHP-FPM・キューで共有できる値）にしておく。`file` や `array` だと常に 503 になる
+  - 「DB・定期処理・キューのどれかが止まっているか、外へのバックアップが古くなっています」（`/health` が 503）→ `storage/logs` の「稼働確認：問題あり」の行に `database` / `scheduler` / `queue` / `backup` のどれかが出る。`schedule:run` の cron、`torudake-queue@*`、MySQL を順に確認。`backup` なら `~/backups/torudake/offsite.log` の最後を見て、§1.4 の 4 を手で実行する
+- `/health` の判定：DB につながる・定期処理の印が5分以内・キューの印が10分以内（`config/torudake.php` の `health`）。`.env` に `BACKUP_MAX_AGE_HOURS` があるときは、外へのバックアップの成功がその時間以内（§1.4）。印は毎分の `torudake:heartbeat` が書く（キューは空でも、この仕事を流して生きているか見る）。印の置き場はキャッシュなので、`.env` の `CACHE_STORE` は `database`（cron・PHP-FPM・キューで共有できる値）にしておく。`file` や `array` だと常に 503 になる
 - 通知まで含めた擬似障害の試験（本番は止めない）：Actions の `monitor` を手動実行し、確認先に `http://127.0.0.1:9` のようなつながらない URL を入れる → 実行が失敗し、Issue `[稼働監視]` が1件立つ（もう一度失敗させても増えない）→ 確認先を空にして手動実行 → 「復旧」と書いて閉じる。試験したら、実行の URL を #38 に貼って証拠にする。失敗の通知メールは GitHub の通知設定（Watching・Actions）が有効なときだけ届く。無効なら Issue と Actions の赤い印だけが残る
 - 擬似障害（判定だけ）の確かめ方：`vendor/bin/sail artisan test tests/Feature/PublicSiteCheckTest.php`（偽のサイトで 500・別サイトへの移動・時間切れ・接続不可などを検出できるか）。本番で止めて試さない
 - できないこと：これは「見張り」であって稼働の保証ではない。GitHub の定期実行は数分〜十数分遅れることがあり、60日間リポジトリに動きがないと止まる（Actions の画面で有効にし直す）。メールや電話では知らせない（GitHub の通知だけ）。`SITE_URL`（リポジトリの変数）で確認先を変えられる
@@ -273,6 +347,49 @@ gunzip -c ~/backups/torudake/db-（日時）.sql.gz | mysql -u torudake -p torud
 
 ### 3.3 練習
 テスト環境ができるまでは、デモの前に一度「更新 → 3.1 で戻す → もう一度更新」を通しておく（04 §8・AC10）。
+
+### 3.4 サーバーごと失ったとき（外のバックアップから戻す。#35）
+**本人が実行する。** 戻すと、最後のバックアップのあとに入ったデータは戻らない。
+1. 新しいサーバーを準備する（§1.1。空のアプリと空の DB ができる）。自動デプロイも付け直す（§1.3）
+2. Cloudflare の画面から、いちばん新しい束（`torudake-（日時）.tar.gz.age`）を Mac に落とし、束と秘密鍵をサーバーへ送る（Mac で）
+```bash
+scp ~/Downloads/torudake-（日時）.tar.gz.age ~/torudake-backup-key.txt tsunagu-vps:~/
+```
+3. 止める（VPS で）
+```bash
+cd /var/www/torudake && php artisan down && sudo systemctl stop 'torudake-queue@*'
+```
+4. 戻す（VPS で）。`RESTORE_CONFIRM` なしで実行すると、何を上書きするかを表示して止まる
+```bash
+RESTORE_CONFIRM=torudake RESTORE_OVERWRITE=1 RESTORE_EVIDENCES=1 RESTORE_TO_PRODUCTION=1 bash /var/www/torudake/docs/server/restore-torudake.sh ~/torudake-（日時）.tar.gz.age ~/torudake-backup-key.txt
+```
+5. 「APP_KEY が違います」と出たら（新しいサーバーでは必ず出る）：表示された `~/torudake-restored-env-（日時）` から `APP_KEY`・`ANTHROPIC_API_KEY` などの行を `.env` に写し、読み直して、4 をもう一度実行する
+```bash
+cd /var/www/torudake && php artisan config:cache
+```
+6. 「復元の確認：すべて合っています」（件数と貸借の合計が控えと同じ・アプリの鍵・Excel の作り直し）と出たら、動かす
+```bash
+cd /var/www/torudake && sudo systemctl start 'torudake-queue@*' && php artisan up
+```
+7. 片付ける：サーバーに置いた秘密鍵・束・`~/torudake-restored-env-*` を消す。ログインして「本番の最小確認」（§2）を通す。§1.4 の 3〜6（外へのバックアップ）を新しいサーバーにも設定する
+```bash
+rm ~/torudake-backup-key.txt ~/torudake-*.tar.gz.age ~/torudake-restored-env-*
+```
+
+### 3.5 復元の練習（架空のデータで。#35）
+本番を触らずに、取る → 暗号化 → 送る → 開ける → 戻す → 確かめる、を開発の Sail で通す。保管先は一時フォルダ、鍵は練習用、データは架空（`RestoreDrillSeeder`）、AI は偽物、メールは送らない。前準備（道具と練習用の DB）は `docs/server/restore-drill.sh` の先頭にある。
+```bash
+vendor/bin/sail bash docs/server/restore-drill.sh
+```
+**11/20 の記録（すべて通った）**
+- 取る・暗号化・送る：成功。束の中に DB の文字は見えず、違う鍵では開かない
+- 戻す：件数と貸借の合計が控えと同じ（人4・会社2・役割 owner 2／editor 2・仕訳8〔確定6・下書き1・戻し1〕・確定の借方と貸方がどちらも 396,560円）、アプリの鍵で2段階認証の秘密を読める、Excel を DB から作り直すと2社とも確定の件数と同じ行数
+- 写真：2枚とも同じ中身で戻った
+- 戻した環境で通す（処理を直接呼ぶ）：ログイン（パスワードと2段階認証のコード）、権限（自社だけ・送るだけの人は一覧を見られない）、送る → AI の下書き → 経理の保存で確定 → Excel に1行
+- 気づけること：戻したあとに1件変わると件数と合計の違いとして出る、壊れた Excel、違う鍵、期限切れ（40日前）が残っている、最新が古い（2日前）、確認の指定なし・上書きの指定なし、ほかの人が読める設定、秘密鍵の置き間違い
+- 上書き：中身が変わった DB に上書きで戻すと、控えと同じに戻る（控えにない表も消える）
+
+**練習で確かめていないこと**（本人が §1.4 で確かめる）：本物の R2 への送受信と自動削除（練習は一時フォルダ）、本番のサーバーでの cron、画面を開いての操作（練習は処理を直接呼ぶ）、本物の Mac の秘密鍵で開けること（§1.4 の 7）。
 
 ---
 

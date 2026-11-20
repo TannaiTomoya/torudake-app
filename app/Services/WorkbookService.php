@@ -118,6 +118,23 @@ class WorkbookService
         return (string) Storage::disk(self::DISK)->get($workbook->storage_key);
     }
 
+    /**
+     * 今のファイルを捨てて、DB から作り直す（バックアップから戻したあと。#35）。
+     * ファイルは DB より新しいことも古いこともあるので、DB を正にして入れ直す。
+     */
+    public function rebuild(Company $company): string
+    {
+        $this->ensureWorkbook($company);
+
+        DB::transaction(function () use ($company): void {
+            /** @var Workbook $workbook */
+            $workbook = $company->workbook()->lockForUpdate()->firstOrFail();
+            Storage::disk(self::DISK)->delete($workbook->storage_key);
+        });
+
+        return $this->contents($company);
+    }
+
     public function ensureWorkbook(Company $company): Workbook
     {
         $workbook = $company->workbook()->first();
