@@ -7,10 +7,10 @@ use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\Membership;
 use App\Models\User;
+use App\Services\PasswordSetupMail;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
 class AddMemberCommand extends Command
@@ -19,7 +19,7 @@ class AddMemberCommand extends Command
 
     protected $description = '人とメンバーを作成し、パスワード再設定のメールを送る';
 
-    public function handle(): int
+    public function handle(PasswordSetupMail $mail): int
     {
         $companyArg = trim((string) $this->argument('company'));
         $email = Str::lower(trim((string) $this->argument('email')));
@@ -100,9 +100,19 @@ class AddMemberCommand extends Command
             return ['user' => $user, 'membership' => $membership];
         });
 
-        Password::broker()->sendResetLink(['email' => $result['user']->email]);
+        // 所属の作成と、案内のメールは別のこと。メールを送れなくても所属は残るので、送り直すだけでよい（#39）
+        $this->info("メンバーを追加しました：{$result['user']->email}（{$role->label()}）");
 
-        $this->info("メンバーを追加し、パスワード再設定メールを送信しました: {$result['user']->email} ({$role->label()})");
+        $sent = $mail->send($result['user']);
+
+        if ($sent->needsRetry()) {
+            $this->error($sent->explain($result['user']->email));
+            $this->line('メンバーは追加済みです。add-member をやり直す必要はありません。');
+
+            return self::FAILURE;
+        }
+
+        $this->info($sent->explain($result['user']->email));
 
         return self::SUCCESS;
     }

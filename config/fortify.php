@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ThrottlePasswordResetLink;
 use Laravel\Fortify\Features;
 
 return [
@@ -101,7 +102,8 @@ return [
     |
     */
 
-    'middleware' => ['web'],
+    // 送信のルート（password.email）だけ、回数を抑える（#39）
+    'middleware' => ['web', ThrottlePasswordResetLink::class],
 
     /*
     |--------------------------------------------------------------------------

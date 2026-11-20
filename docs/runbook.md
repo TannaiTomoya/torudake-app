@@ -60,9 +60,10 @@ cd /var/www/torudake && php artisan torudake:create-company "丹内建機サー�
 ```bash
 php artisan torudake:add-member "丹内建機サービス" 自分のメール owner --name=表示名
 ```
-パスワードを決めるリンクを作る（下の「パスワードを決めるリンク」）。開いてパスワードを決め、ログインして2段階認証を設定する。
+メールを送れる設定（§1.5）なら、パスワードを決めるリンクがメールで届く。まだなら「メールは送られていません」と出るので、リンクを作る（下の「パスワードを決めるリンク」）。開いてパスワードを決め、ログインして2段階認証を設定する。
 
-### パスワードを決めるリンク（メールを送らない間）
+### パスワードを決めるリンク（メールを送らない間だけ）
+メールを送れるようにしたら（§1.5）、この手順は使わない（本人がメールから決める。送り直しは `php artisan torudake:send-setup-link その人のメール`）。
 メールは当面 `log` で、本番のログは「警告以上だけ」（`LOG_LEVEL=warning`）なので、**再設定のリンクはログに残らない**（11/20 に発覚。ログから grep する前の手順は働かない）。リンクはコマンドで作る。前のリンクは使えなくなり、有効なのは60分。リンクはパスワードと同じ扱いにして、チャットや issue に貼らない。
 ```bash
 cd /var/www/torudake && php artisan tinker --execute='$u = App\Models\User::where("email", "その人のメール")->firstOrFail(); echo route("password.reset", ["token" => Illuminate\Support\Facades\Password::broker()->createToken($u), "email" => $u->email]), PHP_EOL;'
@@ -192,6 +193,56 @@ vendor/bin/sail bash docs/server/restore-trial.sh /tmp/trial.tar.gz.age /tmp/tri
 - 成功の印はキャッシュにある。`php artisan cache:clear` を実行すると印が消えて `/health` が 503 になるので、バックアップを1回取り直す
 - R2 のトークンは「書ける」と「消せる」が分かれていない。サーバーを乗っ取られると、保管先のバックアップも消されうる（中身は読まれない。開ける鍵がサーバーにないため）
 - Cloudflare のアカウントが止まると、ドメインとバックアップが同時に使えなくなる（どちらも Cloudflare）。気になるなら、月に1回、束を1つ Mac に落としておく
+
+### 1.5 メールを送る（Resend。1回だけ。#39）
+今は `MAIL_MAILER=log`（送らずに書き出すだけ）。この間、「パスワードを忘れた」の画面は「今はメールを送れない設定です」と出して入力欄を出さず、`add-member` も「メールは送られていません」と出す（送ったふりをしない）。
+送信サービスは Resend（本人が決めた）。送信元は `no-reply@torudake-app.com`（案。返信は受け取らない）。値は `.env` にだけ書き、チャット・issue に貼らない。
+
+1. **Resend に登録し、ドメインを足す**：Domains → Add Domain → `torudake-app.com`（地域は Tokyo〔ap-northeast-1〕があれば選ぶ）。画面に DNS のレコード（DKIM の TXT、`send` の MX と TXT）が出る
+2. **Cloudflare の DNS に、出たレコードをそのまま足す**（Proxy はオフ＝DNS only）。Resend の画面で Verify を押し、「Verified」になるまで待つ（数分〜数時間）。`_dmarc` の TXT（`v=DMARC1; p=none;`）も足すと、迷惑メールに入りにくい
+3. **API キーを作る**：API Keys → Create。権限は「Sending access」、ドメインは `torudake-app.com` だけ。キーは一度しか表示されない
+4. **VPS の `.env` に書いて、読み直す**。`APP_URL=https://torudake-app.com` であることも見る（メールの中のリンクの先頭になる）
+```bash
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=smtp.resend.com
+MAIL_PORT=465
+MAIL_USERNAME=resend
+MAIL_PASSWORD=（Resend の API キー）
+MAIL_FROM_ADDRESS=no-reply@torudake-app.com
+MAIL_FROM_NAME="撮って送るだけ帳簿"
+```
+```bash
+cd /var/www/torudake && php artisan config:cache && php artisan queue:restart
+```
+5. **設定を確かめる**。「設定の確認：問題は見つかりません」と出ればよい。これは設定を見ただけで、届くかどうかはまだ分からない
+```bash
+cd /var/www/torudake && php artisan torudake:mail-check
+```
+6. **試しに1通送る**。「送信サービスに渡しました」と出たら、受信箱を見る。届いている・迷惑メールに入っていない・送信元が「撮って送るだけ帳簿」・ログインのリンクが `https://torudake-app.com/` で始まる、を確かめる
+```bash
+cd /var/www/torudake && php artisan torudake:mail-check --to=自分のメール
+```
+7. **本番の経路で確かめる**（ここまでやって #39 の完了。記録は #39 に日付と「通った」だけ。リンクやアドレスは貼らない）
+   - ログイン画面 →「パスワードを忘れた」→ 自分のアドレスを入れる → メールが届く → リンクが `https://torudake-app.com/reset-password/` で始まる → パスワードを決め直す → ログイン（2段階認証まで）
+   - 使ったリンクをもう一度開いて決め直そうとすると、「無効です」と出る
+   - まだパスワードを決めていない人（経理のアカウント）に送る → 本人がメールから決める → ログイン → 2段階認証を設定する
+```bash
+cd /var/www/torudake && php artisan torudake:send-setup-link その人のメール
+```
+
+知っておくこと：
+- **設定の確認（5）と、届いたことの確認（6・7）は別**。DNS が Verified で、5 が通っても、届くとは限らない
+- リンクは60分で切れる。切れたら、本人が「パスワードを忘れた」から自分で取り直せる（運営がリンクを作って渡す必要はなくなる）
+- 「パスワードを忘れた」は、登録がある・ないにかかわらず同じ文面を返す（登録の有無を外から調べられないように）。回数は、同じ接続元から1分に5回、同じ宛先に1時間に5回、同じ人には1分に1通まで
+- 送れなかったとき、画面には出ない（上の理由）。ログに残る。知らせる先はまだ決めていないので、届かないと言われたら見に行く
+```bash
+grep 'メールを送れませんでした' /var/www/torudake/storage/logs/laravel.log | tail -5
+```
+- 「Connection could not be established」と出るとき：サーバーから 465 番に出られない。`MAIL_PORT=2465` にして読み直す
+- `add-member` で「メールを送れませんでした」と出ても、メンバーは追加されている。直してから `send-setup-link` で送り直す（`add-member` はやり直さない）
+- 確かめていないこと：本番のサーバーから Resend につながること、受信箱に届くこと（どちらも本人が 5〜7 で確かめる）。届かずに戻ってきたメール（バウンス）は、アプリでは分からない。Resend の画面（Logs）で見る
+- 無料の範囲は 1日100通・月3,000通ほど（Resend の画面で確かめる）。キーが漏れたら、Resend の画面で消して作り直す
 
 ---
 
@@ -453,5 +504,5 @@ MySQL のユーザー名は ticket-app の `.env`（`~/backups/ticket-app/env-20
 `setup-torudake.sh` が「PHP x.x は古い」と止まったら、OS が古い。Laravel 13 は PHP 8.3 以上が必要。OS を上げるか、作者に相談する。
 
 ## 6. あとでやること
-- メールを本当に送る（パスワード再設定に必要）：`.env` の `MAIL_*` を送信サービスの値にする。今は `log`（`storage/logs` に書くだけ）
+- メールを本当に送る：§1.5 の手順を本人が実行する。今は `log`（送らない）
 - Cloudflare を Proxied（オレンジ）にする場合：SSL/TLS を Full (strict)、アプリに TrustProxies を入れてから（04 §5.2）

@@ -109,7 +109,8 @@
 |---|---|---|
 | 方式 | Fortify のセッション認証 | 済み |
 | 会員登録 | なし（`/register` は404。テスト T01） | 済み |
-| メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール | 工程2 |
+| メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール。送れなかった・送らない設定のときは、そう表示する（所属は残る）。送り直しは `torudake:send-setup-link {email}`（#39） | 工程2 |
+| パスワードを忘れた | 登録がある・ないにかかわらず同じ応答。同じ接続元から1分に5回、同じ宛先に1時間に5回、同じ人には1分に1通まで。メールを送れない設定のときは入力欄を出さない（#39） | 済み |
 | 2段階認証 | TOTP＋復旧コード。**有効にしていない人は会社の画面に入れず、設定画面へ回す**（`two-factor`）。画面の操作（Livewire のアクション）も `CompanyPolicy::before` で確かめ、「最初にやること」のカードを出す画面を開く（`member`・`viewHome`・`viewSubmit`）以外は拒む。Livewire の更新のたびに `company`・`two-factor` を元の画面のルートで通し直す（persistent middleware。開いたまま会社から外された・2段階認証を切った人の画面も止まる） | 工程2 |
 | セッション | 操作がなければ2時間。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） | 工程2 |
 | 顔でログイン | パスキー（Fortify の `Features::passkeys()`・`laravel/passkeys`、JS は `@laravel/passkeys` 0.2.0）。本人確認（顔・指紋・端末のパスコード）が必須なので、これだけで2段階と同じ強さ。登録・削除は設定の「セキュリティ」（`password.confirm` のあと）。ログインのあとは役割別の振り分け（`PasskeyLoginResponse`）。2段階認証（TOTP）の設定は今までどおり必須で、新しい端末で入るときの予備 | 済み |
@@ -171,7 +172,7 @@ vendor/bin/sail composer test
 | DB | `torudake`（ユーザー `torudake`、パスワードは VPS の `/root/.torudake-db-password` と `.env` だけ） |
 | 定期実行 | cron `* * * * * php artisan schedule:run`（ubuntu） |
 | ジョブ | systemd `torudake-queue@1`・`@2`（2つ。1枚に十数秒かかるため） |
-| メール | 当面 `log`（送らない）。送る設定は runbook §6 |
+| メール | 当面 `log`（送らない）。送る設定（Resend の SMTP）は runbook §1.5 を本人が実行する。設定の確認と試し送りは `torudake:mail-check [--to=]` |
 | 初回の準備 | `docs/server/setup-torudake.sh`（何度実行しても壊れない。Ubuntu 以外では止まる。同居のアプリが使う nginx の default・Node・nginx 本体には触らない） |
 
 ### 8.4 CI/CD
@@ -196,7 +197,7 @@ secrets：`SSH_HOST`・`SSH_USER`（ubuntu）・`SSH_PRIVATE_KEY`（camp_actions
 | `APP_URL` | http://localhost:8081 | https://torudake-app.com |
 | `APP_TIMEZONE` / `APP_LOCALE` | Asia/Tokyo / ja | 同じ |
 | `DB_*` | Sail（mysql / torudake / sail） | 127.0.0.1 / torudake / torudake |
-| `MAIL_MAILER` | smtp（Mailpit） | log |
+| `MAIL_MAILER` | smtp（Mailpit） | log（runbook §1.5 のあとは smtp） |
 | `EVIDENCE_DISK` / `EVIDENCE_RETENTION_DAYS` | local / 30 | 同じ |
 | `AI_DRIVER` | fake | claude（デモの保険は replay） |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | 空でよい / claude-opus-5-5 | 本番のキー / claude-opus-5-5 |
