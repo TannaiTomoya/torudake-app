@@ -42,6 +42,9 @@ python3 tools/analysis/analyze.py 書き出しのフォルダか.zip [別の月 
 ### 来月の売上の見込み（PHP と共通。#70）
 `sales_forecast.py` の `compute` は `App\Support\SalesForecastRule` と同じ規則（同じ月の過去3期・欠けた年は数えない・幅と真ん中）。共通の架空ベクトル `tests/fixtures/forecast_vectors.json` を、PHP（`SalesForecastTest`）と Python（`tests/test_sales_forecast.py`）の両方が読む。5期以上たまったら、範囲の出し方を見直す。
 
+### 取引先への依存度（PHP と共通。#75）
+`concentration.py` の `compute` は `App\Support\CustomerConcentration` と同じ規則（合計は全部の和・上位は金額の大きい順・割合は整数の%で .5 は0から遠いほうへ（100%まで）・上位2社の%が知らせる%を「超えた」ときだけ知らせる・合計が0円以下なら出さない）。受け取るのは金額だけで、取引先の名前は受け取らない。共通の架空ベクトル `tests/fixtures/concentration_vectors.json` を、PHP（`CustomerConcentrationTest`）と Python（`tests/test_concentration.py`）の両方が読む。
+
 ## テスト
 ```bash
 cd tools/analysis && python3 -m unittest discover -s tests -t .

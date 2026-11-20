@@ -490,6 +490,28 @@ new class extends Component {
                             </div>
                         @endforeach
                     </div>
+                    @php($concentration = $dashboard['customers']['concentration'])
+                    @if ($concentration !== null)
+                        <div class="space-y-2" data-test="owner-concentration">
+                            <p class="tabular-nums">
+                                @if ($concentration['customer_count'] === 1)
+                                    取引先は1社だけです（<span class="font-bold">{{ $concentration['top1_pct'] }}%</span>）
+                                @else
+                                    上位1社で <span class="font-bold">{{ $concentration['top1_pct'] }}%</span>・上位2社で <span class="font-bold">{{ $concentration['top2_pct'] }}%</span>
+                                @endif
+                            </p>
+                            @if ($concentration['over'])
+                                <p role="status" class="rounded-lg border border-warn bg-warn-soft p-3 font-bold text-warn" data-test="owner-concentration-alert">
+                                    @if ($concentration['customer_count'] === 1)
+                                        売上のすべてが1社です。会社設定の割合（{{ $concentration['alert_pct'] }}%）を超えています。
+                                    @else
+                                        上位2社で売上の{{ $concentration['top2_pct'] }}%です。会社設定の割合（{{ $concentration['alert_pct'] }}%）を超えています。
+                                    @endif
+                                </p>
+                            @endif
+                            <p class="text-note text-ink-sub">上位2社の割合が{{ $concentration['alert_pct'] }}%を超えたら、ここで知らせます。割合は会社設定で社長が変えられます。</p>
+                        </div>
+                    @endif
                 @endif
             </section>
         </div>

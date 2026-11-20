@@ -1,0 +1,135 @@
+{
+  "description": "取引先への依存度（#75）の共通ベクトル。PHP（App\\Support\\CustomerConcentration・CustomerConcentrationTest）と Python（tools/analysis/concentration.py）の両方が読む。数字はすべて架空。取引先の名前は入れない。",
+  "cases": [
+    {
+      "name": "上位2社で80%：70%を超えるので知らせる",
+      "amounts": [5000000, 3000000, 1000000, 1000000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 4, "total_yen": 10000000, "top1_yen": 5000000, "top1_pct": 50, "top2_yen": 8000000, "top2_pct": 80, "alert_pct": 70, "over": true}
+    },
+    {
+      "name": "上位2社でちょうど70%：同じ値は知らせない",
+      "amounts": [4000000, 3000000, 3000000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 3, "total_yen": 10000000, "top1_yen": 4000000, "top1_pct": 40, "top2_yen": 7000000, "top2_pct": 70, "alert_pct": 70, "over": false}
+    },
+    {
+      "name": "上位2社で71%：1%超えたら知らせる",
+      "amounts": [4100000, 3000000, 2900000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 3, "total_yen": 10000000, "top1_yen": 4100000, "top1_pct": 41, "top2_yen": 7100000, "top2_pct": 71, "alert_pct": 70, "over": true}
+    },
+    {
+      "name": "70.4%は四捨五入で70%：表示と同じ数字で比べるので知らせない",
+      "amounts": [4040000, 3000000, 2960000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 3, "total_yen": 10000000, "top1_yen": 4040000, "top1_pct": 40, "top2_yen": 7040000, "top2_pct": 70, "alert_pct": 70, "over": false}
+    },
+    {
+      "name": "70.5%は四捨五入で71%：知らせる",
+      "amounts": [4050000, 3000000, 2950000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 3, "total_yen": 10000000, "top1_yen": 4050000, "top1_pct": 41, "top2_yen": 7050000, "top2_pct": 71, "alert_pct": 70, "over": true}
+    },
+    {
+      "name": "取引先が1社だけ：上位2社も同じ100%",
+      "amounts": [3000000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 1, "total_yen": 3000000, "top1_yen": 3000000, "top1_pct": 100, "top2_yen": 3000000, "top2_pct": 100, "alert_pct": 70, "over": true}
+    },
+    {
+      "name": "知らせる割合が100%：100%でも超えないので知らせない",
+      "amounts": [3000000],
+      "alert_pct": 100,
+      "expected": {"customer_count": 1, "total_yen": 3000000, "top1_yen": 3000000, "top1_pct": 100, "top2_yen": 3000000, "top2_pct": 100, "alert_pct": 100, "over": false}
+    },
+    {
+      "name": "順番は問わない：金額の大きい順に並べ直す",
+      "amounts": [1000000, 6000000, 3000000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 3, "total_yen": 10000000, "top1_yen": 6000000, "top1_pct": 60, "top2_yen": 9000000, "top2_pct": 90, "alert_pct": 70, "over": true}
+    },
+    {
+      "name": "同じ金額が4社：上位2社でちょうど50%",
+      "amounts": [2500000, 2500000, 2500000, 2500000],
+      "alert_pct": 50,
+      "expected": {"customer_count": 4, "total_yen": 10000000, "top1_yen": 2500000, "top1_pct": 25, "top2_yen": 5000000, "top2_pct": 50, "alert_pct": 50, "over": false}
+    },
+    {
+      "name": "割り切れない割合：1/3 は33%、2/3 は67%",
+      "amounts": [1, 1, 1],
+      "alert_pct": 70,
+      "expected": {"customer_count": 3, "total_yen": 3, "top1_yen": 1, "top1_pct": 33, "top2_yen": 2, "top2_pct": 67, "alert_pct": 70, "over": false}
+    },
+    {
+      "name": "2社目が0円以下（返品だけ）：上位2社には足さない。合計には入る。割合は100%まで",
+      "amounts": [1000000, -100000],
+      "alert_pct": 70,
+      "expected": {"customer_count": 2, "total_yen": 900000, "top1_yen": 1000000, "top1_pct": 100, "top2_yen": 1000000, "top2_pct": 100, "alert_pct": 70, "over": true}
+    },
+    {
+      "name": "大きな金額でも整数のまま計算する",
+      "amounts": [600000000000, 300000000000, 100000000000],
+      "alert_pct": 90,
+      "expected": {"customer_count": 3, "total_yen": 1000000000000, "top1_yen": 600000000000, "top1_pct": 60, "top2_yen": 900000000000, "top2_pct": 90, "alert_pct": 90, "over": false}
+    },
+    {
+      "name": "返品で合計より大きくなっても100%まで：知らせる割合が100%なら知らせない",
+      "amounts": [1000000, -100000],
+      "alert_pct": 100,
+      "expected": {"customer_count": 2, "total_yen": 900000, "top1_yen": 1000000, "top1_pct": 100, "top2_yen": 1000000, "top2_pct": 100, "alert_pct": 100, "over": false}
+    },
+    {
+      "name": "2社目がちょうど0円：足しても変わらない",
+      "amounts": [500000, 0],
+      "alert_pct": 99,
+      "expected": {"customer_count": 2, "total_yen": 500000, "top1_yen": 500000, "top1_pct": 100, "top2_yen": 500000, "top2_pct": 100, "alert_pct": 99, "over": true}
+    },
+    {
+      "name": "知らせる割合が1%：上位2社で1%ちょうどは知らせない",
+      "amounts": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      "alert_pct": 1,
+      "expected": {"customer_count": 200, "total_yen": 200, "top1_yen": 1, "top1_pct": 1, "top2_yen": 2, "top2_pct": 1, "alert_pct": 1, "over": false}
+    },
+    {
+      "name": "知らせる割合が1%：上位2社で2%は知らせる",
+      "amounts": [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      "alert_pct": 1,
+      "expected": {"customer_count": 149, "total_yen": 150, "top1_yen": 2, "top1_pct": 1, "top2_yen": 3, "top2_pct": 2, "alert_pct": 1, "over": true}
+    },
+    {
+      "name": "99.5%は四捨五入で100%：知らせる割合が99%なら知らせる",
+      "amounts": [150, 49, 1],
+      "alert_pct": 99,
+      "expected": {"customer_count": 3, "total_yen": 200, "top1_yen": 150, "top1_pct": 75, "top2_yen": 199, "top2_pct": 100, "alert_pct": 99, "over": true}
+    },
+    {
+      "name": "売上の合計が0円：出さない",
+      "amounts": [0, 0],
+      "alert_pct": 70,
+      "expected": null
+    },
+    {
+      "name": "取引先がない：出さない",
+      "amounts": [],
+      "alert_pct": 70,
+      "expected": null
+    },
+    {
+      "name": "合計がマイナス（返品のほうが多い）：出さない",
+      "amounts": [200000, -500000],
+      "alert_pct": 70,
+      "expected": null
+    }
+  ],
+  "shares": [
+    {"name": "0.5%ちょうどは1%（0から遠いほうへ）", "amount": 1, "total": 200, "expected": 1},
+    {"name": "0.49%は0%", "amount": 49, "total": 10000, "expected": 0},
+    {"name": "全部なら100%", "amount": 100, "total": 100, "expected": 100},
+    {"name": "合計より大きい金額は100%まで", "amount": 150, "total": 100, "expected": 100},
+    {"name": "2/3 は67%", "amount": 2, "total": 3, "expected": 67},
+    {"name": "マイナスの −0.5%は −1%", "amount": -1, "total": 200, "expected": -1},
+    {"name": "合計が0円なら0%", "amount": 100, "total": 0, "expected": 0},
+    {"name": "合計がマイナスなら0%", "amount": 100, "total": -100, "expected": 0}
+  ]
+}

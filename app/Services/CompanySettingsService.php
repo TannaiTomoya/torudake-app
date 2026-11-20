@@ -7,6 +7,7 @@ use App\Models\BankAccount;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\User;
+use App\Support\CustomerConcentration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -49,6 +50,39 @@ class CompanySettingsService
                     'concern_amount_yen' => $locked->concern_amount_yen,
                     'busy_months' => $locked->busy_months,
                 ],
+                company: $locked,
+            );
+
+            return $locked;
+        });
+    }
+
+    /**
+     * 取引先への依存の知らせの割合（#75）を変える。同じ値なら何もしない。
+     */
+    public function updateConcentrationAlert(Company $company, User $user, int $pct): Company
+    {
+        if ($pct < CustomerConcentration::MIN_ALERT_PCT || $pct > CustomerConcentration::MAX_ALERT_PCT) {
+            throw ValidationException::withMessages(['concentrationAlertPct' => '割合は1〜100の整数で入れてください。']);
+        }
+
+        return DB::transaction(function () use ($company, $user, $pct): Company {
+            /** @var Company $locked */
+            $locked = Company::query()->lockForUpdate()->findOrFail($company->id);
+
+            $before = $locked->getAttribute('customer_concentration_alert_pct');
+            if ($before === $pct) {
+                return $locked;
+            }
+
+            $locked->forceFill(['customer_concentration_alert_pct' => $pct])->save();
+
+            AuditLog::record(
+                user: $user,
+                action: 'company.concentration_alert.update',
+                subject: $locked,
+                before: ['customer_concentration_alert_pct' => $before],
+                after: ['customer_concentration_alert_pct' => $pct],
                 company: $locked,
             );
 

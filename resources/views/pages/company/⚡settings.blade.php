@@ -3,6 +3,7 @@
 use App\Models\Company;
 use App\Models\User;
 use App\Services\CompanySettingsService;
+use App\Support\CustomerConcentration;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -24,6 +25,11 @@ new class extends Component {
 
     public string $categoryNotice = '';
 
+    /** int に絞らない：数字でない入力も、検証で「1〜100の整数」と返すため */
+    public mixed $concentrationAlertPct = CustomerConcentration::DEFAULT_ALERT_PCT;
+
+    public string $concentrationNotice = '';
+
     public function mount(Company $company): void
     {
         $this->authorize('manageSettings', $company);
@@ -34,6 +40,7 @@ new class extends Component {
         $this->fiscalYearEndMonth = $company->fiscal_year_end_month;
         $this->concernAmountYen = $company->concern_amount_yen;
         $this->busyMonths = $company->busy_months;
+        $this->concentrationAlertPct = $company->concentrationAlertPct();
     }
 
     public function saveCompany(CompanySettingsService $service): void
@@ -61,6 +68,29 @@ new class extends Component {
             'busy_months' => array_map(intval(...), array_values($validated['busyMonths'])),
         ]);
         $this->busyMonths = $this->company->busy_months;
+    }
+
+    /**
+     * 取引先への依存の知らせの割合（#75）。変えられるのは社長だけ（会社設定のほかの欄とは別の権限）。
+     */
+    public function saveConcentrationAlert(CompanySettingsService $service): void
+    {
+        $this->authorize('manageConcentrationAlert', $this->company);
+        $this->concentrationNotice = '';
+
+        /** @var array{concentrationAlertPct: int} $validated */
+        $validated = $this->validate([
+            'concentrationAlertPct' => ['required', 'integer', 'min:'.CustomerConcentration::MIN_ALERT_PCT, 'max:'.CustomerConcentration::MAX_ALERT_PCT],
+        ], [
+            'concentrationAlertPct.*' => '割合は1〜100の整数で入れてください。',
+        ]);
+
+        /** @var User $user */
+        $user = Auth::user();
+
+        $this->company = $service->updateConcentrationAlert($this->company, $user, (int) $validated['concentrationAlertPct']);
+        $this->concentrationAlertPct = $this->company->concentrationAlertPct();
+        $this->concentrationNotice = '割合を保存しました。';
     }
 
     public function renameCategory(string $categoryId, string $newName, CompanySettingsService $service): void
@@ -132,6 +162,26 @@ new class extends Component {
 
         <button type="submit" class="rounded-lg bg-ink px-4 py-2 font-bold text-paper">保存する</button>
     </form>
+
+    <div class="space-y-3 rounded-xl border border-line bg-panel p-5" data-test="concentration-alert">
+        <h2 class="text-lg font-bold text-ink">取引先への依存の知らせ</h2>
+        <p class="text-note text-ink-sub">売上の上位2社の割合がこの%を超えたら、社長の画面の「売上の柱」で知らせます。同じ値では知らせません。100 にすると知らせは出ません。</p>
+        @can('manageConcentrationAlert', $company)
+            <form wire:submit="saveConcentrationAlert" class="space-y-2">
+                <label for="concentration-alert-pct" class="block font-bold text-ink">知らせる割合</label>
+                <div class="flex flex-wrap items-center gap-2">
+                    <input id="concentration-alert-pct" type="number" min="1" max="100" step="1" inputmode="numeric" wire:model="concentrationAlertPct" class="w-32 rounded-lg border border-line bg-paper px-3 py-2 text-body text-ink" />
+                    <span class="text-body text-ink">%</span>
+                    <button type="submit" wire:loading.attr="disabled" wire:target="saveConcentrationAlert" class="rounded-lg bg-ink px-4 py-2 font-bold text-paper disabled:opacity-60">割合を保存</button>
+                </div>
+                @error('concentrationAlertPct') <p class="text-note text-ng">{{ $message }}</p> @enderror
+                @if ($concentrationNotice !== '') <p role="status" class="text-ok">{{ $concentrationNotice }}</p> @endif
+            </form>
+        @else
+            <p class="tabular-nums" data-test="concentration-alert-readonly">知らせる割合：<span class="font-bold">{{ $company->concentrationAlertPct() }}%</span></p>
+            <p class="text-note text-ink-sub">変更は社長に依頼してください。</p>
+        @endcan
+    </div>
 
     <div class="space-y-3 rounded-xl border border-line bg-panel p-5">
         <h2 class="text-lg font-bold text-ink">分類と勘定科目</h2>

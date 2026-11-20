@@ -8,6 +8,7 @@ use App\Enums\FigureMetric;
 use App\Models\Company;
 use App\Models\ExternalCustomerSale;
 use App\Models\JournalEntry;
+use App\Support\CustomerConcentration;
 use App\Support\FiscalYear;
 use App\Support\OwnerConcerns;
 use App\Support\SalesForecastRule;
@@ -43,6 +44,7 @@ use Illuminate\Support\Collection;
  * @phpstan-type Customer array{label: string, amount_yen: int, share_pct: int}
  *
  * @phpstan-import-type Forecast from SalesForecastRule as SalesForecast
+ * @phpstan-import-type Concentration from CustomerConcentration
  *
  * @phpstan-type Dashboard array{
  *     periods: array{current: string, previous: string, before: string},
@@ -61,7 +63,7 @@ use Illuminate\Support\Collection;
  *     expense_by_category: list<array{name: string, amount_yen: int}>,
  *     expense_info: array{period_from: string, period_to: string, confirmed_count: int, draft_count: int, returned_count: int, last_confirmed_at: string|null, as_of: string},
  *     concerns: Collection<int, JournalEntry>,
- *     customers: array{period_from: string, period_to: string, top: list<Customer>}|null,
+ *     customers: array{period_from: string, period_to: string, top: list<Customer>, concentration: Concentration|null}|null,
  *     sales_forecast: SalesForecast,
  * }
  */
@@ -231,9 +233,10 @@ class OwnerDashboard
     }
 
     /**
-     * 一番新しい期間の取引先ごとの売上から、上位3社の割合。
+     * 一番新しい期間の取引先ごとの売上から、上位3社の割合と、上位1社・上位2社への依存度（#75）。
+     * 割合の数え方は CustomerConcentration の1か所だけ。
      *
-     * @return array{period_from: string, period_to: string, top: list<Customer>}|null
+     * @return array{period_from: string, period_to: string, top: list<Customer>, concentration: Concentration|null}|null
      */
     private function customers(Company $company): ?array
     {
@@ -257,8 +260,12 @@ class OwnerDashboard
             'top' => array_values($rows->take(3)->map(fn (ExternalCustomerSale $row): array => [
                 'label' => $row->label,
                 'amount_yen' => $row->amount_yen,
-                'share_pct' => $total > 0 ? (int) round($row->amount_yen / $total * 100) : 0,
+                'share_pct' => CustomerConcentration::sharePct($row->amount_yen, $total),
             ])->all()),
+            'concentration' => CustomerConcentration::compute(
+                array_values($rows->map(fn (ExternalCustomerSale $row): int => $row->amount_yen)->all()),
+                $company->concentrationAlertPct(),
+            ),
         ];
     }
 }

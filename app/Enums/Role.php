@@ -76,6 +76,12 @@ enum Role: string
         return in_array($this, [self::Owner, self::Editor], true);
     }
 
+    /** 取引先への依存の知らせの割合を変える（#75 の決定）。警告のしきい値なので社長だけ。admin は見るだけ */
+    public function canManageConcentrationAlert(): bool
+    {
+        return $this === self::Owner;
+    }
+
     public function canManageSettings(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);

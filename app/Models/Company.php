@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EntryKind;
+use App\Support\CustomerConcentration;
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -22,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property int $concern_amount_yen
  * @property int|null $approval_required_yen
  * @property list<int> $busy_months
+ * @property int $customer_concentration_alert_pct
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -39,6 +41,7 @@ class Company extends Model
      */
     protected $attributes = [
         'busy_months' => '[6,7,10,11,12]',
+        'customer_concentration_alert_pct' => CustomerConcentration::DEFAULT_ALERT_PCT,
     ];
 
     /**
@@ -53,7 +56,21 @@ class Company extends Model
             'concern_amount_yen' => 'integer',
             'approval_required_yen' => 'integer',
             'busy_months' => 'array',
+            'customer_concentration_alert_pct' => 'integer',
         ];
+    }
+
+    /**
+     * 取引先への依存の知らせの割合（#75）。1〜100 の整数でなければ初期値（70）を使う。
+     * 反映の途中で列がまだないとき・DB を直接触って範囲の外が入ったときに、社長の画面を止めないため。
+     */
+    public function concentrationAlertPct(): int
+    {
+        $pct = $this->getAttribute('customer_concentration_alert_pct');
+
+        return is_int($pct) && $pct >= CustomerConcentration::MIN_ALERT_PCT && $pct <= CustomerConcentration::MAX_ALERT_PCT
+            ? $pct
+            : CustomerConcentration::DEFAULT_ALERT_PCT;
     }
 
     public function isBusyMonth(int $month): bool

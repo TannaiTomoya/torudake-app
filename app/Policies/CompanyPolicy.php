@@ -184,6 +184,18 @@ class CompanyPolicy
         return $membership->role->canManageSettings();
     }
 
+    /** 取引先への依存の知らせの割合を変える（#75）。owner だけ */
+    public function manageConcentrationAlert(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canManageConcentrationAlert();
+    }
+
     private function canSubmit(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);
