@@ -1,0 +1,137 @@
+{
+  "weekend": [
+    {"name": "土曜", "date": "2026-11-28", "expected": true},
+    {"name": "日曜", "date": "2026-11-29", "expected": true},
+    {"name": "月曜", "date": "2026-11-30", "expected": false},
+    {"name": "金曜", "date": "2026-11-27", "expected": false}
+  ],
+  "month_end_weekend": [
+    {
+      "name": "11月末は月曜なので印なし",
+      "from": "2026-11-01",
+      "to": "2026-11-30",
+      "expected": []
+    },
+    {
+      "name": "10月末は土曜",
+      "from": "2026-10-01",
+      "to": "2026-10-31",
+      "expected": ["2026-10"]
+    },
+    {
+      "name": "月末の日が範囲の外なら出さない",
+      "from": "2026-10-01",
+      "to": "2026-10-30",
+      "expected": []
+    },
+    {
+      "name": "2か月にまたがる（10月末土曜・11月末月曜）",
+      "from": "2026-10-15",
+      "to": "2026-11-15",
+      "expected": ["2026-10"]
+    }
+  ],
+  "project": [
+    {
+      "name": "予定0件",
+      "opening": 100000,
+      "from": "2026-11-21",
+      "to": "2026-11-23",
+      "items": [],
+      "expected": {
+        "days": [
+          {"date": "2026-11-21", "weekend": true, "in_yen": 0, "out_yen": 0, "balance_yen": 100000, "below_zero": false},
+          {"date": "2026-11-22", "weekend": true, "in_yen": 0, "out_yen": 0, "balance_yen": 100000, "below_zero": false},
+          {"date": "2026-11-23", "weekend": false, "in_yen": 0, "out_yen": 0, "balance_yen": 100000, "below_zero": false}
+        ],
+        "month_end_weekend_months": [],
+        "below_zero_dates": []
+      }
+    },
+    {
+      "name": "同じ日に入金と支払い",
+      "opening": 50000,
+      "from": "2026-11-25",
+      "to": "2026-11-25",
+      "items": [
+        {"due_date": "2026-11-25", "direction": "in", "amount_yen": 30000},
+        {"due_date": "2026-11-25", "direction": "out", "amount_yen": 80000}
+      ],
+      "expected": {
+        "days": [
+          {"date": "2026-11-25", "weekend": false, "in_yen": 30000, "out_yen": 80000, "balance_yen": 0, "below_zero": false}
+        ],
+        "month_end_weekend_months": [],
+        "below_zero_dates": []
+      }
+    },
+    {
+      "name": "0円ちょうどは下回らない・−1円で下回る",
+      "opening": 1000,
+      "from": "2026-11-24",
+      "to": "2026-11-25",
+      "items": [
+        {"due_date": "2026-11-24", "direction": "out", "amount_yen": 1000},
+        {"due_date": "2026-11-25", "direction": "out", "amount_yen": 1}
+      ],
+      "expected": {
+        "days": [
+          {"date": "2026-11-24", "weekend": false, "in_yen": 0, "out_yen": 1000, "balance_yen": 0, "below_zero": false},
+          {"date": "2026-11-25", "weekend": false, "in_yen": 0, "out_yen": 1, "balance_yen": -1, "below_zero": true}
+        ],
+        "month_end_weekend_months": [],
+        "below_zero_dates": ["2026-11-25"]
+      }
+    },
+    {
+      "name": "月末が土曜（2026-10）・休日の印と注意の月",
+      "opening": 10000,
+      "from": "2026-10-30",
+      "to": "2026-10-31",
+      "items": [
+        {"due_date": "2026-10-31", "direction": "out", "amount_yen": 2000}
+      ],
+      "expected": {
+        "days": [
+          {"date": "2026-10-30", "weekend": false, "in_yen": 0, "out_yen": 0, "balance_yen": 10000, "below_zero": false},
+          {"date": "2026-10-31", "weekend": true, "in_yen": 0, "out_yen": 2000, "balance_yen": 8000, "below_zero": false}
+        ],
+        "month_end_weekend_months": ["2026-10"],
+        "below_zero_dates": []
+      }
+    },
+    {
+      "name": "平日の月末（2026-11-30月曜）は印も注意もなし",
+      "opening": 5000,
+      "from": "2026-11-29",
+      "to": "2026-11-30",
+      "items": [],
+      "expected": {
+        "days": [
+          {"date": "2026-11-29", "weekend": true, "in_yen": 0, "out_yen": 0, "balance_yen": 5000, "below_zero": false},
+          {"date": "2026-11-30", "weekend": false, "in_yen": 0, "out_yen": 0, "balance_yen": 5000, "below_zero": false}
+        ],
+        "month_end_weekend_months": [],
+        "below_zero_dates": []
+      }
+    },
+    {
+      "name": "範囲の外の予定は足さない",
+      "opening": 10000,
+      "from": "2026-11-21",
+      "to": "2026-11-22",
+      "items": [
+        {"due_date": "2026-11-20", "direction": "out", "amount_yen": 9000},
+        {"due_date": "2026-11-23", "direction": "in", "amount_yen": 5000}
+      ],
+      "expected": {
+        "days": [
+          {"date": "2026-11-21", "weekend": true, "in_yen": 0, "out_yen": 0, "balance_yen": 10000, "below_zero": false},
+          {"date": "2026-11-22", "weekend": true, "in_yen": 0, "out_yen": 0, "balance_yen": 10000, "below_zero": false}
+        ],
+        "month_end_weekend_months": [],
+        "below_zero_dates": []
+      }
+    }
+  ]
+}

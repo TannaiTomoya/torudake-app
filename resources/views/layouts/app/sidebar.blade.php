@@ -74,6 +74,11 @@
                             入金と支払いの予定
                         </flux:sidebar.item>
                     @endcan
+                    @can('viewCashFlow', $navCompany)
+                        <flux:sidebar.item icon="chart-bar" :href="route('company.cashflow', $navCompany)" :current="request()->routeIs('company.cashflow')" wire:navigate data-test="sidebar-cashflow">
+                            資金繰り表
+                        </flux:sidebar.item>
+                    @endcan
                     @can('exportExcel', $navCompany)
                         <flux:sidebar.item icon="table-cells" :href="route('company.workbook', $navCompany)" data-test="sidebar-workbook">
                             Excel

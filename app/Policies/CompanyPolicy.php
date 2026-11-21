@@ -211,6 +211,21 @@ class CompanyPolicy
         return $membership->role->canManageSchedules();
     }
 
+    /**
+     * 資金繰り表（#68）。見るだけ。owner・editor だけ。
+     * 社長の画面の「残高が0円を下回る見込み」も、これが通る人にだけ出す（admin には出さない）。
+     */
+    public function viewCashFlow(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canViewCashFlow();
+    }
+
     private function canSubmit(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);

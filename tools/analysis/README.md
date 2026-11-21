@@ -48,6 +48,9 @@ python3 tools/analysis/analyze.py 書き出しのフォルダか.zip [別の月 
 ### 入金と支払いの予定の遅れ（PHP と共通。#67）
 `schedule.py` の `judge`・`summarize` は `App\Support\ScheduleDelay` と同じ規則（済みの日があれば済み・済みの日がなく予定日が今日より前なら遅れ・予定日が今日なら遅れではない・休日は見ず暦の日付だけ・入金と支払いを分けて数える）。受け取るのは日付・金額・入金か支払いかだけで、取引先の名前は受け取らない。共通の架空ベクトル `tests/fixtures/schedule_vectors.json` を、PHP（`CashScheduleTest`）と Python（`tests/test_schedule.py`）の両方が読む。
 
+### 土日と資金繰り表（PHP と共通。#68）
+`weekend.py` の `is_weekend`・`month_ends_on_weekend_in_range` は `App\Support\WeekendCalendar` と同じ規則（土日だけ。祝日は持たない。日付は動かさない）。`cashflow.py` の `project` は `App\Support\CashFlowForecast` と同じ規則（起点の残高＋日ごとの入金−支払い・同じ日は合計・0円未満だけ below_zero・土日に weekend・月末が土日の月を列挙）。受け取るのは残高・日付・金額・入金か支払いかだけで、取引先の名前は受け取らない。共通の架空ベクトル `tests/fixtures/cashflow_vectors.json` を、PHP（`CashFlowForecastTest`）と Python（`tests/test_weekend.py`・`tests/test_cashflow.py`）の両方が読む。
+
 ## テスト
 ```bash
 cd tools/analysis && python3 -m unittest discover -s tests -t .

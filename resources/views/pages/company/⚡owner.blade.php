@@ -4,6 +4,7 @@ use App\Enums\ConcernFlag;
 use App\Models\Company;
 use App\Models\OwnerInsight;
 use App\Models\User;
+use App\Services\CashFlowBoard;
 use App\Services\CashScheduleBoard;
 use App\Services\OwnerDashboard;
 use App\Services\OwnerInsights;
@@ -144,6 +145,25 @@ new class extends Component {
         }
 
         return app(CashScheduleBoard::class)->lateReceipts($this->company);
+    }
+
+    /**
+     * 残高が0円を下回る見込みの日（#68）。資金繰り表を見られる人（viewCashFlow。owner）にだけ返す。
+     * 社長の画面を開ける admin には null。取引先の名前は出さない。AI への入力にも入れない。
+     *
+     * @return array{count: int, dates: list<string>, more: int}|null
+     */
+    #[Computed]
+    public function cashShortfalls(): ?array
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+
+        if ($user === null || ! $user->can('viewCashFlow', $this->company)) {
+            return null;
+        }
+
+        return app(CashFlowBoard::class)->shortfalls($this->company);
     }
 
     public function man(?int $yen): string
@@ -337,6 +357,26 @@ new class extends Component {
             </ul>
             @if ($lateReceipts['more'] > 0)
                 <p class="text-note text-ink">ほか {{ $lateReceipts['more'] }}件</p>
+            @endif
+        </section>
+    @endif
+
+    {{-- 残高が0円を下回る見込み（#68。資金繰り表を見られる人にだけ。0件なら出さない） --}}
+    @php($cashShortfalls = $this->cashShortfalls)
+    @if ($cashShortfalls !== null && $cashShortfalls['count'] > 0)
+        <section role="status" class="space-y-3 rounded-2xl border-2 border-ng bg-ng-soft p-5" data-test="owner-cash-shortfalls">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 class="text-xl font-bold text-ng">残高が0円を下回る見込み <span class="tabular-nums" data-test="owner-cash-shortfall-count">{{ $cashShortfalls['count'] }}日</span></h2>
+                <a href="{{ route('company.cashflow', $company) }}" wire:navigate class="font-bold text-ink underline" data-test="owner-cash-shortfall-link">資金繰り表を開く</a>
+            </div>
+            <p class="text-note text-ink">今の残高に、まだ済んでいない予定を足し引きしたときに、残高が0円を下回る日です。</p>
+            <ul class="flex flex-wrap gap-2">
+                @foreach ($cashShortfalls['dates'] as $date)
+                    <li class="rounded-lg border border-ng bg-paper px-3 py-1 font-bold tabular-nums" data-test="owner-cash-shortfall-date">{{ CarbonImmutable::parse($date)->isoFormat('M月D日(ddd)') }}</li>
+                @endforeach
+            </ul>
+            @if ($cashShortfalls['more'] > 0)
+                <p class="text-note text-ink">ほか {{ $cashShortfalls['more'] }}日</p>
             @endif
         </section>
     @endif

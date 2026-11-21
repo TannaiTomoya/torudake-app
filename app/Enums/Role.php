@@ -91,6 +91,14 @@ enum Role: string
         return in_array($this, [self::Owner, self::Editor], true);
     }
 
+    /**
+     * 資金繰り表を見る（#68 の決定）。残高と予定の金額から見込みを出すので、owner と editor だけ。admin にも与えない
+     */
+    public function canViewCashFlow(): bool
+    {
+        return in_array($this, [self::Owner, self::Editor], true);
+    }
+
     public function canManageSettings(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);
