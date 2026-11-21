@@ -1,0 +1,29 @@
+{
+  "description": "入金と支払いの予定の「遅れ」（#67）の共通ベクトル。PHP（App\\Support\\ScheduleDelay・CashScheduleTest）と Python（tools/analysis/schedule.py）の両方が読む。日付と金額はすべて架空。取引先の名前は入れない。",
+  "judgements": [
+    {"name": "予定日がきのうで済みの印がない：1日の遅れ", "due_date": "2026-11-20", "settled_on": null, "today": "2026-11-21", "expected": {"status": "late", "days_late": 1}},
+    {"name": "予定日が今日：遅れではない", "due_date": "2026-11-21", "settled_on": null, "today": "2026-11-21", "expected": {"status": "due_today", "days_late": 0}},
+    {"name": "予定日があした：これから", "due_date": "2026-11-22", "settled_on": null, "today": "2026-11-21", "expected": {"status": "upcoming", "days_late": 0}},
+    {"name": "予定日より前に済んだ：済み", "due_date": "2026-11-30", "settled_on": "2026-11-20", "today": "2026-11-21", "expected": {"status": "settled", "days_late": 0}},
+    {"name": "予定日に済んだ：済み", "due_date": "2026-11-10", "settled_on": "2026-11-10", "today": "2026-11-21", "expected": {"status": "settled", "days_late": 0}},
+    {"name": "予定日より後に済んだ：いまは遅れではない", "due_date": "2026-10-31", "settled_on": "2026-11-05", "today": "2026-11-21", "expected": {"status": "settled", "days_late": 0}},
+    {"name": "月をまたぐ：10月31日の予定は11月1日に1日の遅れ", "due_date": "2026-10-31", "settled_on": null, "today": "2026-11-01", "expected": {"status": "late", "days_late": 1}},
+    {"name": "年をまたぐ：12月31日の予定は1月1日に1日の遅れ", "due_date": "2026-12-31", "settled_on": null, "today": "2027-01-01", "expected": {"status": "late", "days_late": 1}},
+    {"name": "うるう年：2月28日の予定は3月1日に2日の遅れ", "due_date": "2028-02-28", "settled_on": null, "today": "2028-03-01", "expected": {"status": "late", "days_late": 2}},
+    {"name": "うるう年でない年：2月28日の予定は3月1日に1日の遅れ", "due_date": "2027-02-28", "settled_on": null, "today": "2027-03-01", "expected": {"status": "late", "days_late": 1}},
+    {"name": "1年前の予定：365日の遅れ", "due_date": "2025-11-21", "settled_on": null, "today": "2026-11-21", "expected": {"status": "late", "days_late": 365}},
+    {"name": "うるう日をはさむ1年：366日の遅れ", "due_date": "2028-02-01", "settled_on": null, "today": "2029-02-01", "expected": {"status": "late", "days_late": 366}},
+    {"name": "月末が休日でも、暦の日付だけで判定する（11月30日の予定は12月1日に遅れ）", "due_date": "2026-11-30", "settled_on": null, "today": "2026-12-01", "expected": {"status": "late", "days_late": 1}},
+    {"name": "ずっと先の予定：これから", "due_date": "2031-11-21", "settled_on": null, "today": "2026-11-21", "expected": {"status": "upcoming", "days_late": 0}}
+  ],
+  "summaries": [
+    {"name": "予定が0件：すべて0", "today": "2026-11-21", "items": [], "expected": {"in": {"open_count": 0, "open_yen": 0, "late_count": 0, "late_yen": 0}, "out": {"open_count": 0, "open_yen": 0, "late_count": 0, "late_yen": 0}}},
+    {"name": "入金の遅れが2件：件数と金額を足す", "today": "2026-11-21", "items": [{"direction": "in", "amount_yen": 1200000, "due_date": "2026-10-31", "settled_on": null}, {"direction": "in", "amount_yen": 800000, "due_date": "2026-11-20", "settled_on": null}, {"direction": "in", "amount_yen": 500000, "due_date": "2026-11-30", "settled_on": null}], "expected": {"in": {"open_count": 3, "open_yen": 2500000, "late_count": 2, "late_yen": 2000000}, "out": {"open_count": 0, "open_yen": 0, "late_count": 0, "late_yen": 0}}},
+    {"name": "入金と支払いは分けて数える", "today": "2026-11-21", "items": [{"direction": "in", "amount_yen": 1000000, "due_date": "2026-11-10", "settled_on": null}, {"direction": "out", "amount_yen": 300000, "due_date": "2026-11-15", "settled_on": null}, {"direction": "out", "amount_yen": 450000, "due_date": "2026-11-25", "settled_on": null}], "expected": {"in": {"open_count": 1, "open_yen": 1000000, "late_count": 1, "late_yen": 1000000}, "out": {"open_count": 2, "open_yen": 750000, "late_count": 1, "late_yen": 300000}}},
+    {"name": "済みの予定は数えない（遅れて済んだものも）", "today": "2026-11-21", "items": [{"direction": "in", "amount_yen": 1000000, "due_date": "2026-10-31", "settled_on": "2026-11-05"}, {"direction": "out", "amount_yen": 200000, "due_date": "2026-11-10", "settled_on": "2026-11-10"}, {"direction": "in", "amount_yen": 300000, "due_date": "2026-11-01", "settled_on": null}], "expected": {"in": {"open_count": 1, "open_yen": 300000, "late_count": 1, "late_yen": 300000}, "out": {"open_count": 0, "open_yen": 0, "late_count": 0, "late_yen": 0}}},
+    {"name": "同じ日に入金と支払い：今日の予定は遅れに入れない", "today": "2026-11-21", "items": [{"direction": "in", "amount_yen": 700000, "due_date": "2026-11-21", "settled_on": null}, {"direction": "out", "amount_yen": 700000, "due_date": "2026-11-21", "settled_on": null}], "expected": {"in": {"open_count": 1, "open_yen": 700000, "late_count": 0, "late_yen": 0}, "out": {"open_count": 1, "open_yen": 700000, "late_count": 0, "late_yen": 0}}},
+    {"name": "同じ取引先・同じ金額・同じ日の予定が2件あっても、2件として数える", "today": "2026-11-21", "items": [{"direction": "in", "amount_yen": 100000, "due_date": "2026-11-01", "settled_on": null}, {"direction": "in", "amount_yen": 100000, "due_date": "2026-11-01", "settled_on": null}], "expected": {"in": {"open_count": 2, "open_yen": 200000, "late_count": 2, "late_yen": 200000}, "out": {"open_count": 0, "open_yen": 0, "late_count": 0, "late_yen": 0}}},
+    {"name": "大きな金額（1兆円が2件）も整数のまま足す", "today": "2026-11-21", "items": [{"direction": "out", "amount_yen": 1000000000000, "due_date": "2026-11-01", "settled_on": null}, {"direction": "out", "amount_yen": 1000000000000, "due_date": "2026-12-01", "settled_on": null}], "expected": {"in": {"open_count": 0, "open_yen": 0, "late_count": 0, "late_yen": 0}, "out": {"open_count": 2, "open_yen": 2000000000000, "late_count": 1, "late_yen": 1000000000000}}},
+    {"name": "1円の予定", "today": "2026-11-21", "items": [{"direction": "in", "amount_yen": 1, "due_date": "2026-11-20", "settled_on": null}], "expected": {"in": {"open_count": 1, "open_yen": 1, "late_count": 1, "late_yen": 1}, "out": {"open_count": 0, "open_yen": 0, "late_count": 0, "late_yen": 0}}}
+  ]
+}

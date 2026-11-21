@@ -34,6 +34,7 @@ class BackupManifest
      */
     public const TABLES = [
         'users', 'companies', 'memberships', 'accounts', 'categories', 'bank_accounts', 'bank_balances',
+        'business_partners', 'cash_schedules',
         'source_records', 'evidences', 'journal_entries', 'journal_lines',
         'ai_runs', 'ai_corrections', 'audit_logs', 'reading_confirmations', 'duplicate_reviews',
         'first_confirmations', 'entry_post_events', 'report_imports', 'external_monthly_figures',

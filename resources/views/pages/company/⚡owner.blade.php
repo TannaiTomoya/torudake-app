@@ -4,6 +4,7 @@ use App\Enums\ConcernFlag;
 use App\Models\Company;
 use App\Models\OwnerInsight;
 use App\Models\User;
+use App\Services\CashScheduleBoard;
 use App\Services\OwnerDashboard;
 use App\Services\OwnerInsights;
 use App\Services\OwnerReviewService;
@@ -124,6 +125,25 @@ new class extends Component {
     public function insights(): array
     {
         return app(OwnerInsights::class)->refresh($this->company, $this->dashboard);
+    }
+
+    /**
+     * 入金の遅れ（#67）。取引先の名前と金額が入るので、予定を見られる人（manageSchedules。owner）にだけ返す。
+     * 社長の画面を開ける admin には null（件数・合計・名前のどれも応答に入れない）。AI への入力（dashboard）にも入れない。
+     *
+     * @return array{count: int, total_yen: int, rows: list<array{due_date: string, days_late: int, amount_yen: int, party: string}>, more: int}|null
+     */
+    #[Computed]
+    public function lateReceipts(): ?array
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+
+        if ($user === null || ! $user->can('manageSchedules', $this->company)) {
+            return null;
+        }
+
+        return app(CashScheduleBoard::class)->lateReceipts($this->company);
     }
 
     public function man(?int $yen): string
@@ -293,6 +313,33 @@ new class extends Component {
             </div>
         @endif
     </section>
+
+    {{-- 入金の遅れ（#67。予定を見られる人にだけ。0件なら出さない） --}}
+    @php($lateReceipts = $this->lateReceipts)
+    @if ($lateReceipts !== null && $lateReceipts['count'] > 0)
+        <section role="status" class="space-y-3 rounded-2xl border-2 border-ng bg-ng-soft p-5" data-test="owner-late-receipts">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 class="text-xl font-bold text-ng">入金の遅れ <span class="tabular-nums" data-test="owner-late-count">{{ $lateReceipts['count'] }}件</span>・合計 <span class="tabular-nums" data-test="owner-late-total">{{ $this->yen($lateReceipts['total_yen']) }}</span></h2>
+                <a href="{{ route('company.schedules', $company) }}" wire:navigate class="font-bold text-ink underline" data-test="owner-late-link">入金と支払いの予定を開く</a>
+            </div>
+            <p class="text-note text-ink">入金の予定日を過ぎて、まだ入金済みの印がないものです。</p>
+            <ul class="divide-y divide-line">
+                @foreach ($lateReceipts['rows'] as $row)
+                    <li class="flex flex-wrap items-center justify-between gap-2 py-2" data-test="owner-late-row">
+                        <span>
+                            <span class="font-bold">{{ CarbonImmutable::parse($row['due_date'])->isoFormat('M月D日(ddd)') }}の予定</span>
+                            <span class="ml-2">{{ $row['party'] }}</span>
+                            <span class="ml-2 font-bold text-ng">{{ $row['days_late'] }}日の遅れ</span>
+                        </span>
+                        <span class="whitespace-nowrap font-bold tabular-nums">{{ $this->yen($row['amount_yen']) }}</span>
+                    </li>
+                @endforeach
+            </ul>
+            @if ($lateReceipts['more'] > 0)
+                <p class="text-note text-ink">ほか {{ $lateReceipts['more'] }}件</p>
+            @endif
+        </section>
+    @endif
 
     @if ($notice !== null)
         <p wire:key="notice-{{ $noticeSeq }}" x-data="{ show: true }" x-init="setTimeout(() => show = false, 3000)" x-show="show" x-transition.opacity.duration.500ms

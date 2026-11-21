@@ -69,6 +69,11 @@
                             通帳の残高
                         </flux:sidebar.item>
                     @endcan
+                    @can('manageSchedules', $navCompany)
+                        <flux:sidebar.item icon="calendar-days" :href="route('company.schedules', $navCompany)" :current="request()->routeIs('company.schedules')" wire:navigate data-test="sidebar-schedules">
+                            入金と支払いの予定
+                        </flux:sidebar.item>
+                    @endcan
                     @can('exportExcel', $navCompany)
                         <flux:sidebar.item icon="table-cells" :href="route('company.workbook', $navCompany)" data-test="sidebar-workbook">
                             Excel

@@ -196,6 +196,21 @@ class CompanyPolicy
         return $membership->role->canManageConcentrationAlert();
     }
 
+    /**
+     * 入金と支払いの予定（#67）。見る・入れる・直す・済みにする・取り消す・取引先の操作は同じ判定。owner・editor だけ。
+     * 社長の画面の「入金の遅れ」も、これが通る人にだけ出す（admin には出さない）。
+     */
+    public function manageSchedules(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canManageSchedules();
+    }
+
     private function canSubmit(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);

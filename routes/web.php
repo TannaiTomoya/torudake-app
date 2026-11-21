@@ -54,6 +54,7 @@ Route::middleware(['auth', 'verified', 'company', 'two-factor'])
         Route::livewire('owner', 'pages::company.owner')->can('viewOwner', 'company')->name('owner');
         Route::livewire('reports', 'pages::company.reports')->can('importReports', 'company')->name('reports');
         Route::livewire('balances', 'pages::company.balances')->can('enterBankBalance', 'company')->name('balances');
+        Route::livewire('schedules', 'pages::company.schedules')->can('manageSchedules', 'company')->name('schedules');
         Route::livewire('trial-balance', 'pages::company.trial-balance')->can('viewTrialBalance', 'company')->name('trial-balance');
         Route::livewire('opening', 'pages::company.opening')->can('enterOpeningEntry', 'company')->name('opening');
         Route::livewire('live', 'pages::company.live')->can('viewLive', 'company')->name('live');

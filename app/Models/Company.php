@@ -129,6 +129,26 @@ class Company extends Model
     }
 
     /**
+     * 取引先（#67）。本当の名前を持つので、予定の画面と社長の画面（manageSchedules の人だけ）のほかでは引かない。
+     *
+     * @return HasMany<BusinessPartner, $this>
+     */
+    public function businessPartners(): HasMany
+    {
+        return $this->hasMany(BusinessPartner::class);
+    }
+
+    /**
+     * 入金・支払いの予定（#67）。
+     *
+     * @return HasMany<CashSchedule, $this>
+     */
+    public function cashSchedules(): HasMany
+    {
+        return $this->hasMany(CashSchedule::class);
+    }
+
+    /**
      * @return HasMany<AuditLog, $this>
      */
     public function auditLogs(): HasMany

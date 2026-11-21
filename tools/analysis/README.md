@@ -45,6 +45,9 @@ python3 tools/analysis/analyze.py 書き出しのフォルダか.zip [別の月 
 ### 取引先への依存度（PHP と共通。#75）
 `concentration.py` の `compute` は `App\Support\CustomerConcentration` と同じ規則（合計は全部の和・上位は金額の大きい順・割合は整数の%で .5 は0から遠いほうへ（100%まで）・上位2社の%が知らせる%を「超えた」ときだけ知らせる・合計が0円以下なら出さない）。受け取るのは金額だけで、取引先の名前は受け取らない。共通の架空ベクトル `tests/fixtures/concentration_vectors.json` を、PHP（`CustomerConcentrationTest`）と Python（`tests/test_concentration.py`）の両方が読む。
 
+### 入金と支払いの予定の遅れ（PHP と共通。#67）
+`schedule.py` の `judge`・`summarize` は `App\Support\ScheduleDelay` と同じ規則（済みの日があれば済み・済みの日がなく予定日が今日より前なら遅れ・予定日が今日なら遅れではない・休日は見ず暦の日付だけ・入金と支払いを分けて数える）。受け取るのは日付・金額・入金か支払いかだけで、取引先の名前は受け取らない。共通の架空ベクトル `tests/fixtures/schedule_vectors.json` を、PHP（`CashScheduleTest`）と Python（`tests/test_schedule.py`）の両方が読む。
+
 ## テスト
 ```bash
 cd tools/analysis && python3 -m unittest discover -s tests -t .

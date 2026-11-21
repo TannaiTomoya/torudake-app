@@ -82,6 +82,15 @@ enum Role: string
         return $this === self::Owner;
     }
 
+    /**
+     * 入金と支払いの予定を見る・入れる・直す・済みにする・取り消す（#67 の決定）。
+     * 取引先の本当の名前と金額が見えるので、owner と editor だけ。admin にも与えない
+     */
+    public function canManageSchedules(): bool
+    {
+        return in_array($this, [self::Owner, self::Editor], true);
+    }
+
     public function canManageSettings(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);
