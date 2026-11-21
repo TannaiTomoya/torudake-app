@@ -34,6 +34,7 @@ use LogicException;
  * @property array<string, mixed>|null $ai_check
  * @property array<string, mixed>|null $reading_review
  * @property string|null $draft_payment_origin
+ * @property string|null $draft_category_origin rule（分類ルール）／ai／none
  * @property array<string, mixed>|null $recommendation 下書きを作った時点の、履歴からの推薦の記録（EntryRecommendation::snapshot）
  * @property list<string>|null $concern_flags
  * @property Carbon|null $owner_seen_at

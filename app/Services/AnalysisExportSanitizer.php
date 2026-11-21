@@ -202,7 +202,7 @@ class AnalysisExportSanitizer
                 'date' => $this->enum($draft['date'] ?? null, $origins),
                 'vendor' => $this->enum($draft['vendor'] ?? null, $origins),
                 'amount' => $this->enum($draft['amount'] ?? null, $origins),
-                'category' => $this->enum($draft['category'] ?? null, ['ai', 'none']),
+                'category' => $this->enum($draft['category'] ?? null, ['ai', 'rule', 'none']),
                 'payment' => $this->enum($draft['payment'] ?? null, ['history', 'invoice_rule', 'ai', 'default', 'unknown', 'none']),
             ],
             'reading_methods' => $methods,

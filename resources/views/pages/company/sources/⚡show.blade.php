@@ -459,6 +459,15 @@ new #[Title('直して確定')] class extends Component {
                             宛名：{{ $check['addressee'] ?? '（書かれていない）' }}@if ($addresseeFlag !== null)<span data-test="addressee-flag">　{{ $addresseeFlag->label() }}</span>@endif
                         </p>
                     @endif
+                    @if (is_string($check['category_rule'] ?? null))
+                        <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="category-rule-applied">分類のルール「{{ $check['category_rule'] }}」から入れました</p>
+                    @endif
+                    @if (is_string($check['category_history_differs'] ?? null))
+                        <p class="text-note text-ink" data-test="category-history-differs">過去は{{ $check['category_history_differs'] }}で保存しています</p>
+                    @endif
+                    @if (is_array($check['other_matched_rules'] ?? null) && $check['other_matched_rules'] !== [])
+                        <p class="text-note text-ink-sub" data-test="other-matched-rules">ほかにも当たったルール：{{ implode('、', array_map('strval', $check['other_matched_rules'])) }}</p>
+                    @endif
                     @if (is_string($check['remembered_payment'] ?? null))
                         <p class="inline-block rounded bg-brand-soft px-2 py-1 font-bold text-brand-ink" data-test="remembered-payment">過去の確認（同じ店）から『{{ $check['remembered_payment'] }}』にしました</p>
                     @elseif (($check['remembered'] ?? false) === true)

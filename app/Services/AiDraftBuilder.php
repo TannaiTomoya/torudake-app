@@ -9,6 +9,7 @@ use App\Enums\SourceStatus;
 use App\Models\AiRun;
 use App\Models\AuditLog;
 use App\Models\BankAccount;
+use App\Models\Category;
 use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\SourceRecord;
@@ -23,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * L1・L2 の出力から下書きの仕訳を作る。分類・口座は会社の中のものだけに対応させ、
  * 借方・貸方の行はコードが組む。金額の記載がない書類は、行のない下書きにする。
+ * 分類は規則（#69）→ 過去の確認（#54）の食い違い表示 → AI の順。既存の下書きは書き換えない。
  */
 class AiDraftBuilder
 {
@@ -31,6 +33,7 @@ class AiDraftBuilder
         private readonly ConcernRules $concernRules,
         private readonly EntryRecommender $recommender,
         private readonly JournalBalanceChecker $balanceChecker,
+        private readonly CategoryRuleBoard $categoryRules,
     ) {}
 
     /**
@@ -47,22 +50,26 @@ class AiDraftBuilder
                 return null;
             }
 
-            $categories = $company->categories()
-                ->whereNull('archived_at')
-                ->where('name', is_string($draft['category'] ?? null) ? $draft['category'] : '')
-                ->limit(2)->get();
+            $vendor = is_string($draft['vendor'] ?? null) ? $draft['vendor'] : (is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null);
 
-            if ($categories->count() > 1) {
-                throw new AiException('同じ名前の分類が複数あります。会社設定で分類名を確認してください。');
+            $aiCategory = $this->resolveAiCategory($company, $draft);
+            $ruleMatch = $this->categoryRules->matchVendor($company, $vendor);
+            $ruleCategory = null;
+            if ($ruleMatch !== null) {
+                $ruleCategory = $company->categories()
+                    ->whereKey($ruleMatch['category_id'])
+                    ->whereNull('archived_at')
+                    ->first();
             }
 
-            $category = $categories->first();
+            // 規則 →（履歴は分類の自動適用には使わず、食い違い表示だけ）→ AI
+            $category = $ruleCategory ?? $aiCategory;
+            $categoryOrigin = $ruleCategory !== null ? 'rule' : 'ai';
 
             if ($category === null) {
                 throw AiException::invalidOutput('分類が会社の一覧にありません');
             }
 
-            $vendor = is_string($draft['vendor'] ?? null) ? $draft['vendor'] : (is_string($reading['vendor'] ?? null) ? $reading['vendor'] : null);
             // 同じ店の確定履歴からの候補（#54）。十分にそろった履歴だけを支払い元に当て、保留の候補は参考として記録する
             $paymentMethod = is_string($reading['payment_method'] ?? null) ? $reading['payment_method'] : null;
             $recommendation = $this->recommender->for($company, $vendor, $paymentMethod);
@@ -80,6 +87,24 @@ class AiDraftBuilder
             $total = $reading['total_yen'] ?? null;
             $amountYen = is_int($total) && $total >= 1 ? $total : null;
 
+            $aiCheck = [];
+            if ($rememberedPayment !== null) {
+                $aiCheck['remembered_payment'] = $rememberedPayment->name;
+            }
+            if ($ruleMatch !== null && $ruleCategory !== null) {
+                $aiCheck['category_rule'] = $ruleMatch['keyword'];
+                if ($ruleMatch['other'] !== []) {
+                    $aiCheck['other_matched_rules'] = array_map(
+                        fn (array $row): string => $row['label'] ?? $row['keyword'],
+                        $ruleMatch['other'],
+                    );
+                }
+                // 規則と過去の確認の分類が違うとき（#69）
+                if ($applicable !== null && $applicable['category_id'] !== $ruleCategory->id) {
+                    $aiCheck['category_history_differs'] = $applicable['category_name'];
+                }
+            }
+
             $entry = new JournalEntry;
             $entry->forceFill([
                 'company_id' => $company->id,
@@ -93,14 +118,15 @@ class AiDraftBuilder
                 'created_by' => null,
                 'ai_run_id' => $run->id,
                 'concern_flags' => $this->concernRules->for($company, $amountYen, null, false, $amountYen === null),
-                'ai_check' => $rememberedPayment !== null ? ['remembered_payment' => $rememberedPayment->name] : null,
+                'ai_check' => $aiCheck === [] ? null : $aiCheck,
                 'reading_review' => ReadingReview::forDraft($reading, $vendor),
                 'draft_payment_origin' => $paymentOrigin,
+                'draft_category_origin' => $categoryOrigin,
                 // 元の AI（L2）の案・履歴の候補・当てたかを分けて残す（#54）
                 'recommendation' => $recommendation->status === EntryRecommendation::NONE && $recommendation->reasons === []
                     ? null
                     : $recommendation->snapshot($rememberedPayment !== null, [
-                        'category_id' => $category->id,
+                        'category_id' => $aiCategory?->id,
                         'bank_account_id' => $resolvedAccount?->id,
                     ], $paymentMethod),
             ])->save();
@@ -129,6 +155,23 @@ class AiDraftBuilder
 
             return $entry;
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $draft
+     */
+    private function resolveAiCategory(Company $company, array $draft): ?Category
+    {
+        $categories = $company->categories()
+            ->whereNull('archived_at')
+            ->where('name', is_string($draft['category'] ?? null) ? $draft['category'] : '')
+            ->limit(2)->get();
+
+        if ($categories->count() > 1) {
+            throw new AiException('同じ名前の分類が複数あります。会社設定で分類名を確認してください。');
+        }
+
+        return $categories->first();
     }
 
     /**

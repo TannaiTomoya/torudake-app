@@ -305,7 +305,7 @@ class ConfirmEntryService
                 'date' => $origin('date'),
                 'vendor' => $origin('vendor'),
                 'amount' => $origin('amount'),
-                'category' => $isAi ? 'ai' : 'none',
+                'category' => $isAi ? ($entry->draft_category_origin ?? 'ai') : 'none',
                 'payment' => $isAi ? ($entry->draft_payment_origin ?? 'unknown') : 'none',
             ],
             'reading_methods' => $confirmations,

@@ -226,6 +226,20 @@ class CompanyPolicy
         return $membership->role->canViewCashFlow();
     }
 
+    /**
+     * 分類のルール（#69）。見る・足す・直す・消す・並べ替え・候補から採用。owner・editor だけ。
+     */
+    public function manageCategoryRules(User $user, Company $company): bool
+    {
+        $membership = $this->activeMembership($user, $company);
+
+        if ($membership === null || $membership->submit_only) {
+            return false;
+        }
+
+        return $membership->role->canManageCategoryRules();
+    }
+
     private function canSubmit(User $user, Company $company): bool
     {
         $membership = $this->activeMembership($user, $company);

@@ -99,6 +99,14 @@ enum Role: string
         return in_array($this, [self::Owner, self::Editor], true);
     }
 
+    /**
+     * 分類のルールを見る・足す・直す・消す・並べ替え・候補から採用する（#69 の決定）。owner と editor だけ。admin にも与えない
+     */
+    public function canManageCategoryRules(): bool
+    {
+        return in_array($this, [self::Owner, self::Editor], true);
+    }
+
     public function canManageSettings(): bool
     {
         return in_array($this, [self::Owner, self::Admin], true);

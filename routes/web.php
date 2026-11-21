@@ -56,6 +56,7 @@ Route::middleware(['auth', 'verified', 'company', 'two-factor'])
         Route::livewire('balances', 'pages::company.balances')->can('enterBankBalance', 'company')->name('balances');
         Route::livewire('schedules', 'pages::company.schedules')->can('manageSchedules', 'company')->name('schedules');
         Route::livewire('cashflow', 'pages::company.cashflow')->can('viewCashFlow', 'company')->name('cashflow');
+        Route::livewire('category-rules', 'pages::company.category-rules')->can('manageCategoryRules', 'company')->name('category-rules');
         Route::livewire('trial-balance', 'pages::company.trial-balance')->can('viewTrialBalance', 'company')->name('trial-balance');
         Route::livewire('opening', 'pages::company.opening')->can('enterOpeningEntry', 'company')->name('opening');
         Route::livewire('live', 'pages::company.live')->can('viewLive', 'company')->name('live');

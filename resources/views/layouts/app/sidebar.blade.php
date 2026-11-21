@@ -79,6 +79,11 @@
                             資金繰り表
                         </flux:sidebar.item>
                     @endcan
+                    @can('manageCategoryRules', $navCompany)
+                        <flux:sidebar.item icon="list-bullet" :href="route('company.category-rules', $navCompany)" :current="request()->routeIs('company.category-rules')" wire:navigate data-test="sidebar-category-rules">
+                            分類のルール
+                        </flux:sidebar.item>
+                    @endcan
                     @can('exportExcel', $navCompany)
                         <flux:sidebar.item icon="table-cells" :href="route('company.workbook', $navCompany)" data-test="sidebar-workbook">
                             Excel

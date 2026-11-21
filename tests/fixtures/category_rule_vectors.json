@@ -1,0 +1,107 @@
+{
+  "cases": [
+    {
+      "name": "1件だけ当たる",
+      "vendor": "ホームセンター架空店",
+      "rules": [
+        {"keyword": "ホーム", "category_id": "cat-supply", "id": "r1", "label": "ホーム"}
+      ],
+      "expected": {
+        "category_id": "cat-supply",
+        "keyword": "ホーム",
+        "id": "r1",
+        "label": "ホーム",
+        "other": []
+      }
+    },
+    {
+      "name": "上の例外が下の大まかなルールより先",
+      "vendor": "ホームセンター架空店",
+      "rules": [
+        {"keyword": "ホームセンター", "category_id": "cat-repair", "id": "r-top", "label": "ホームセンター"},
+        {"keyword": "ホーム", "category_id": "cat-supply", "id": "r-broad", "label": "ホーム"}
+      ],
+      "expected": {
+        "category_id": "cat-repair",
+        "keyword": "ホームセンター",
+        "id": "r-top",
+        "label": "ホームセンター",
+        "other": [
+          {"category_id": "cat-supply", "keyword": "ホーム", "id": "r-broad", "label": "ホーム"}
+        ]
+      }
+    },
+    {
+      "name": "大まかなほうが上だと例外は other だけ",
+      "vendor": "ホームセンター架空店",
+      "rules": [
+        {"keyword": "ホーム", "category_id": "cat-supply", "id": "r-broad", "label": "ホーム"},
+        {"keyword": "ホームセンター", "category_id": "cat-repair", "id": "r-top", "label": "ホームセンター"}
+      ],
+      "expected": {
+        "category_id": "cat-supply",
+        "keyword": "ホーム",
+        "id": "r-broad",
+        "label": "ホーム",
+        "other": [
+          {"category_id": "cat-repair", "keyword": "ホームセンター", "id": "r-top", "label": "ホームセンター"}
+        ]
+      }
+    },
+    {
+      "name": "当たらない",
+      "vendor": "みちのく架空燃料",
+      "rules": [
+        {"keyword": "ホーム", "category_id": "cat-supply", "id": "r1"}
+      ],
+      "expected": null
+    },
+    {
+      "name": "店名が空",
+      "vendor": "   ",
+      "rules": [
+        {"keyword": "ホーム", "category_id": "cat-supply", "id": "r1"}
+      ],
+      "expected": null
+    },
+    {
+      "name": "店名が null",
+      "vendor": null,
+      "rules": [
+        {"keyword": "ホーム", "category_id": "cat-supply", "id": "r1"}
+      ],
+      "expected": null
+    },
+    {
+      "name": "全角半角・大文字をそろえて当たる",
+      "vendor": "ＡＢＣ　Shop",
+      "rules": [
+        {"keyword": "abcshop", "category_id": "cat-supply", "id": "r1", "label": "abcshop"}
+      ],
+      "expected": {
+        "category_id": "cat-supply",
+        "keyword": "abcshop",
+        "id": "r1",
+        "label": "abcshop",
+        "other": []
+      }
+    },
+    {
+      "name": "同じ入力なら何度でも同じ",
+      "vendor": "北上サンプル商事",
+      "rules": [
+        {"keyword": "サンプル", "category_id": "cat-a", "id": "ra"},
+        {"keyword": "北上", "category_id": "cat-b", "id": "rb"}
+      ],
+      "expected": {
+        "category_id": "cat-a",
+        "keyword": "サンプル",
+        "id": "ra",
+        "label": "サンプル",
+        "other": [
+          {"category_id": "cat-b", "keyword": "北上", "id": "rb", "label": "北上"}
+        ]
+      }
+    }
+  ]
+}

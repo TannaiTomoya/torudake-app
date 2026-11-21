@@ -149,6 +149,14 @@ class Company extends Model
     }
 
     /**
+     * @return HasMany<CategoryRule, $this>
+     */
+    public function categoryRules(): HasMany
+    {
+        return $this->hasMany(CategoryRule::class);
+    }
+
+    /**
      * @return HasMany<AuditLog, $this>
      */
     public function auditLogs(): HasMany
