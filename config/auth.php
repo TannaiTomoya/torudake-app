@@ -41,6 +41,8 @@ return [
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+            // ログイン状態の保持は30日（分）。docs/02 §5
+            'remember' => 60 * 24 * 30,
         ],
     ],
 

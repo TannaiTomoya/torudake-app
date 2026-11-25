@@ -112,9 +112,9 @@
 | メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール。送れなかった・送らない設定のときは、そう表示する（所属は残る）。送り直しは `torudake:send-setup-link {email}`（#39） | 工程2 |
 | パスワードを忘れた | 登録がある・ないにかかわらず同じ応答。同じ接続元から1分に5回、同じ宛先に1時間に5回、同じ人には1分に1通まで。メールを送れない設定のときは入力欄を出さない（#39） | 済み |
 | 2段階目（秘密の質問） | 質問は1問だけ「いま、住んでいる町は？」（#78。TOTP はやめた。古い列は残す）。**答えを決めていない人は会社の画面に入れず、ホームの前の「答えを決める画面」（`/setup/security-answer`）へ回す**（`security-answer`）。ホームに初期設定のカードは出さない。画面の操作（Livewire のアクション）も `CompanyPolicy::before` で確かめ、`member` 以外は拒む。Livewire の更新のたびに `company`・`security-answer` を元の画面のルートで通し直す（persistent middleware）。答えは `Hash::make` で保存し、比べる前に全角半角・カタカナひらがな・大文字小文字・空白・最後の「町・市・村」をそろえる。24文字まで。5回まちがえたら15分止める。決めた・まちがえた・止めた・消したは監査記録（答えは残さない）。変えるのは設定の「セキュリティ」（`password.confirm` のあと）。忘れたら `torudake:reset-security-answer {email}`（`SecurityAnswer`） | #78 |
-| セッション | 操作がなければ2時間。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） | 工程2 |
+| セッション | 操作がなければ2時間（`SESSION_LIFETIME`）。「ログイン状態を保持する」を選ばなかったログインは、24時間で必ず切れる（`AbsoluteSessionTimeout`） | #79 |
 | 信頼できる端末 | 秘密の質問の画面・はじめの設定の画面の「この端末を覚える（30日は質問しません）」（最初からチェック）。覚えた端末からは、30日のあいだパスワードだけで入れる。クッキー `torudake_device`（ID｜乱数、暗号化、HttpOnly、SameSite=Lax）、DB の `trusted_devices` には乱数のハッシュだけ。パスワードの変更・再設定、秘密の質問の変更・消去、設定の「すべて解除」で忘れる。覚える・解除は監査記録（`TrustedDevices`・`ChallengeUnlessTrustedDevice`） | #78 |
-| ログイン状態の保持 | しない。ログイン画面にチェックを出さず、remember が送られても捨て（ログインの流れの先頭）、保持のクッキー（remember）で来たら切ってログイン画面へ戻す（`AbsoluteSessionTimeout`） | 済み |
+| ログイン状態の保持 | **30日**（`config/auth.php` の `guards.web.remember`）。ログイン画面の「ログイン状態を保持する（30日）」は最初からチェック（共用のパソコンでは外す）。ブラウザを閉じても、2時間・24時間を過ぎても入ったまま。保持のクッキーは秘密の質問を通ったあとにだけ作る。パスワードを変える（クッキーがパスワードのハッシュも照合する）・ログアウト・`torudake:reset-security-answer` で無効になる。ログアウトは、ほかの端末の保持も無効にする（Fortify の既定） | #79 |
 | パスワード | 12文字以上。漏えい済みは拒否 | 工程2 |
 
 ## 6. AI（Anthropic）の決まり
