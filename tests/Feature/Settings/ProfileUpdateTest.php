@@ -54,36 +54,27 @@ class ProfileUpdateTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
-    public function test_user_can_delete_their_account(): void
+    public function test_the_app_has_no_way_to_delete_an_account(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->withSecurityAnswer()->create();
 
-        $this->actingAs($user);
+        $this->actingAs($user)->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSeeInOrder(['<title>', 'プロフィール設定 - ', '</title>'], false)
+            ->assertDontSee('アカウントを削除')
+            ->assertDontSee('delete-user', false);
 
-        $response = Livewire::test('pages::settings.delete-user-modal')
-            ->set('password', 'password')
-            ->call('deleteUser');
-
-        $response
-            ->assertHasNoErrors()
-            ->assertRedirect('/');
-
-        $this->assertNull($user->fresh());
-        $this->assertFalse(auth()->check());
+        foreach (['pages::settings.delete-user-form', 'pages::settings.delete-user-modal'] as $name) {
+            $this->assertFalse(app('livewire')->exists($name), $name);
+        }
     }
 
-    public function test_correct_password_must_be_provided_to_delete_account(): void
+    public function test_settings_pages_have_japanese_titles(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->withSecurityAnswer()->create();
+        $this->actingAs($user)->withSession(['auth.password_confirmed_at' => time()]);
 
-        $this->actingAs($user);
-
-        $response = Livewire::test('pages::settings.delete-user-modal')
-            ->set('password', 'wrong-password')
-            ->call('deleteUser');
-
-        $response->assertHasErrors(['password']);
-
-        $this->assertNotNull($user->fresh());
+        $this->get(route('security.edit'))->assertSeeInOrder(['<title>', 'セキュリティ設定 - ', '</title>'], false);
+        $this->get(route('appearance.edit'))->assertSeeInOrder(['<title>', 'テーマ設定 - ', '</title>'], false);
     }
 }

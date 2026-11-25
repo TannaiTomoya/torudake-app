@@ -11,7 +11,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Security settings')] class extends Component {
+new #[Title('セキュリティ設定')] class extends Component {
     use PasswordValidationRules;
 
     public string $current_password = '';
@@ -155,26 +155,19 @@ new #[Title('Security settings')] class extends Component {
                     />
                     <flux:button variant="primary" type="submit" data-test="security-answer-change">答えを変える</flux:button>
                 </form>
-            @else
-                <p class="mt-4"><flux:link :href="route('security-answer.setup')">答えを決める</flux:link></p>
-            @endif
-        </section>
 
-        @if (auth()->user()->hasSecurityAnswer())
-            <section class="mt-12" data-test="trusted-devices">
-                <flux:heading>信頼している端末</flux:heading>
-                <flux:subheading>「この端末を覚える」を選んだ端末は、30日のあいだ秘密の質問を聞きません。パスワードや秘密の質問を変えると、すべて解除されます。</flux:subheading>
-
-                <div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
-                    <p>今は <span class="font-bold" data-test="trusted-device-count">{{ $this->trustedDeviceCount }}台</span></p>
+                <div class="mt-6 space-y-2 text-body text-ink-sub" data-test="trusted-devices">
+                    <p>質問を省いている端末は、今 <span class="font-bold text-ink" data-test="trusted-device-count">{{ $this->trustedDeviceCount }}台</span>です（「この端末を覚える」を選んでから30日）。端末をなくしたときは解除してください。</p>
                     @if ($this->trustedDeviceCount > 0)
-                        <flux:button size="sm" variant="danger" wire:click="revokeTrustedDevices" wire:confirm="信頼している端末をすべて解除しますか？次に入るときは、どの端末でも秘密の質問を聞きます。" data-test="trusted-devices-revoke">
+                        <flux:button size="sm" variant="danger" wire:click="revokeTrustedDevices" wire:confirm="覚えている端末をすべて解除しますか？次に入るときは、どの端末でも秘密の質問を聞きます。" data-test="trusted-devices-revoke">
                             すべて解除
                         </flux:button>
                     @endif
                 </div>
-            </section>
-        @endif
+            @else
+                <p class="mt-4"><flux:link :href="route('security-answer.setup')">答えを決める</flux:link></p>
+            @endif
+        </section>
 
     </x-pages::settings.layout>
 
