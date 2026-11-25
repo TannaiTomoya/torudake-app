@@ -12,7 +12,7 @@
 | 画面 | **Livewire 4** の単一ファイルコンポーネント（`resources/views/pages/**/⚡*.blade.php`） | 実装済み（スターターキット）。Volt は使わない |
 | UI | **Flux UI 無料版 ＋ Tailwind CSS 4** | 色・文字はデザイントークン（§4.3）だけを使う |
 | 画面の組み立て | Vite（`vite-plus 1.4.0`） | `npm run build` |
-| 認証 | **Laravel Fortify**（Livewire スターターキット） | 実装済み：ログイン・パスワード再設定・メール確認・2段階認証・パスワード再確認。**会員登録とパスキーは外した** |
+| 認証 | **Laravel Fortify**（Livewire スターターキット） | 実装済み：ログイン・パスワード再設定・メール確認・パスワード再確認。2段階目は秘密の質問（§5）。**会員登録・TOTP・パスキーは使わない** |
 | 権限 | Policy / Gate ＋ `company` ミドルウェア | 工程2で作る |
 | DB | **MySQL 8.4** | 金額は `BIGINT` の整数円。ID は UUIDv7（`HasUuids`）。users は既定の bigint のまま |
 | 写真 | `evidence` ディスク（`storage/app/private/evidences`、非公開） | JPEG・PNG・WebP・PDFを受け付ける。HEIC/HEIFはブラウザー内でJPEGに変換してから送る。S3互換は将来 |
@@ -111,10 +111,9 @@
 | 会員登録 | なし（`/register` は404。テスト T01） | 済み |
 | メンバーの作成 | `torudake:add-member {company} {email} {role} [--submit-only]` → パスワード再設定のメール。送れなかった・送らない設定のときは、そう表示する（所属は残る）。送り直しは `torudake:send-setup-link {email}`（#39） | 工程2 |
 | パスワードを忘れた | 登録がある・ないにかかわらず同じ応答。同じ接続元から1分に5回、同じ宛先に1時間に5回、同じ人には1分に1通まで。メールを送れない設定のときは入力欄を出さない（#39） | 済み |
-| 2段階認証 | TOTP＋復旧コード。**有効にしていない人は会社の画面に入れず、設定画面へ回す**（`two-factor`）。画面の操作（Livewire のアクション）も `CompanyPolicy::before` で確かめ、「最初にやること」のカードを出す画面を開く（`member`・`viewHome`・`viewSubmit`）以外は拒む。Livewire の更新のたびに `company`・`two-factor` を元の画面のルートで通し直す（persistent middleware。開いたまま会社から外された・2段階認証を切った人の画面も止まる） | 工程2 |
+| 2段階目（秘密の質問） | 質問は1問だけ「いま、住んでいる町は？」（#78。TOTP はやめた。古い列は残す）。**答えを決めていない人は会社の画面に入れず、ホームの前の「答えを決める画面」（`/setup/security-answer`）へ回す**（`security-answer`）。ホームに初期設定のカードは出さない。画面の操作（Livewire のアクション）も `CompanyPolicy::before` で確かめ、`member` 以外は拒む。Livewire の更新のたびに `company`・`security-answer` を元の画面のルートで通し直す（persistent middleware）。答えは `Hash::make` で保存し、比べる前に全角半角・カタカナひらがな・大文字小文字・空白・最後の「町・市・村」をそろえる。24文字まで。5回まちがえたら15分止める。決めた・まちがえた・止めた・消したは監査記録（答えは残さない）。変えるのは設定の「セキュリティ」（`password.confirm` のあと）。忘れたら `torudake:reset-security-answer {email}`（`SecurityAnswer`） | #78 |
 | セッション | 操作がなければ2時間。ログインから24時間で必ず切れる（`AbsoluteSessionTimeout`） | 工程2 |
-| 顔でログイン | パスキー（Fortify の `Features::passkeys()`・`laravel/passkeys`、JS は `@laravel/passkeys` 0.2.0）。本人確認（顔・指紋・端末のパスコード）が必須なので、これだけで2段階と同じ強さ。登録・削除は設定の「セキュリティ」（`password.confirm` のあと）。ログインのあとは役割別の振り分け（`PasskeyLoginResponse`）。2段階認証（TOTP）の設定は今までどおり必須で、新しい端末で入るときの予備 | 済み |
-| 信頼できる端末 | 2段階認証の画面の「この端末を覚える（30日はコードを聞きません）」（最初からチェック）。覚えた端末からは、30日のあいだパスワードだけで入れる（端末を持っている＋パスワードの2つ）。クッキー `torudake_device`（ID｜乱数、暗号化、HttpOnly、SameSite=Lax）、DB の `trusted_devices` には乱数のハッシュだけ。パスワードの変更・再設定、2段階認証を切ったとき、設定の「すべて解除」で忘れる。覚える・解除は監査記録（`TrustedDevices`・`ChallengeUnlessTrustedDevice`） | 済み |
+| 信頼できる端末 | 秘密の質問の画面・はじめの設定の画面の「この端末を覚える（30日は質問しません）」（最初からチェック）。覚えた端末からは、30日のあいだパスワードだけで入れる。クッキー `torudake_device`（ID｜乱数、暗号化、HttpOnly、SameSite=Lax）、DB の `trusted_devices` には乱数のハッシュだけ。パスワードの変更・再設定、秘密の質問の変更・消去、設定の「すべて解除」で忘れる。覚える・解除は監査記録（`TrustedDevices`・`ChallengeUnlessTrustedDevice`） | #78 |
 | ログイン状態の保持 | しない。ログイン画面にチェックを出さず、remember が送られても捨て（ログインの流れの先頭）、保持のクッキー（remember）で来たら切ってログイン画面へ戻す（`AbsoluteSessionTimeout`） | 済み |
 | パスワード | 12文字以上。漏えい済みは拒否 | 工程2 |
 
@@ -160,7 +159,7 @@ vendor/bin/sail composer test
 | 画面 | http://localhost:8081 |
 | MySQL | localhost:3307（DB `torudake`、テストは `testing`） |
 | Mailpit | http://localhost:8026 |
-| 初期データでのログイン | 2段階認証の鍵は16文字以上の固定の値にする（`secret` では短すぎて6桁のコードが作れない。10/24 に発覚）。開発用の鍵と復旧コードは README に書く |
+| 初期データでのログイン | 開発用の秘密の質問の答えは固定の架空の値にし、README に書く（#78） |
 | 注意 | フォルダ名が日本語なので `.env` の `COMPOSE_PROJECT_NAME=torudake` が必要。`node_modules` はコンテナで入れたので、**Mac で `npm run dev` は動かない**（Sail の中で動かす） |
 
 ### 8.3 本番（稼働中。11/20 に Xserver の VPS へ移した。ほかのアプリと同居）

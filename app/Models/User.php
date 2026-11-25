@@ -14,9 +14,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
-use Laravel\Fortify\Contracts\PasskeyUser;
-use Laravel\Fortify\PasskeyAuthenticatable;
-use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
  * @property int $id
@@ -28,15 +25,19 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
+ * @property string|null $security_answer_hash
+ * @property Carbon|null $security_answer_set_at
+ * @property int $security_answer_failed_attempts
+ * @property Carbon|null $security_answer_locked_until
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'security_answer_hash'])]
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    use HasFactory, Notifiable;
 
     /** 最後に開いた会社の ID（EnsureCompanyMember が入れる） */
     public const CURRENT_COMPANY_SESSION_KEY = 'current_company_id';
@@ -51,18 +52,26 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
+            'security_answer_set_at' => 'datetime',
+            'security_answer_failed_attempts' => 'integer',
+            'security_answer_locked_until' => 'datetime',
             'password' => 'hashed',
         ];
     }
 
     protected static function booted(): void
     {
-        // パスワードを変えた・2段階認証を切った（作り直した）ら、信頼した端末はすべて忘れる
+        // パスワードか秘密の質問の答えを変えた（消した）ら、信頼した端末はすべて忘れる
         static::updated(function (User $user): void {
-            if ($user->wasChanged(['password', 'two_factor_secret'])) {
+            if ($user->wasChanged(['password', 'security_answer_hash'])) {
                 app(TrustedDevices::class)->revokeAll($user);
             }
         });
+    }
+
+    public function hasSecurityAnswer(): bool
+    {
+        return $this->security_answer_hash !== null;
     }
 
     /**
@@ -138,7 +147,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 
     /**
      * その人の最初の画面。送るだけの人は送る画面、ほかの人は会社のホーム。会社がなければ dashboard。
-     * ログインのあと・設定の「戻る」・2段階認証を終えたあとは、必ずここを使う。
+     * ログインのあと・設定の「戻る」・はじめの設定を終えたあとは、必ずここを使う。
      */
     public function homeUrl(): string
     {

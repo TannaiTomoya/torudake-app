@@ -13,7 +13,7 @@ test('ログイン画面に「ログイン状態を保持する」を出さな�
 
 test('ログイン状態の保持のクッキーだけで来たら、ログイン画面に戻してゲストにする', function (): void {
     $token = Str::random(60);
-    $user = User::factory()->withTwoFactor()->create(['remember_token' => $token]);
+    $user = User::factory()->withSecurityAnswer()->create(['remember_token' => $token]);
 
     /** @var SessionGuard $guard */
     $guard = auth()->guard('web');
@@ -27,7 +27,7 @@ test('ログイン状態の保持のクッキーだけで来たら、ログイ�
 });
 
 test('ログインから24時間たったセッションは切れる', function (): void {
-    $user = User::factory()->withTwoFactor()->create();
+    $user = User::factory()->withSecurityAnswer()->create();
 
     $this->actingAs($user)
         ->withSession(['auth.login_at' => now()->subDay()->getTimestamp()])
@@ -38,7 +38,7 @@ test('ログインから24時間たったセッションは切れる', function 
 });
 
 test('ログインから24時間たつ前は、そのまま使える', function (): void {
-    $user = User::factory()->withTwoFactor()->create();
+    $user = User::factory()->withSecurityAnswer()->create();
 
     $this->actingAs($user)
         ->withSession(['auth.login_at' => now()->subHours(23)->getTimestamp()])

@@ -226,9 +226,6 @@ new #[Title('レシートを送る')] class extends Component {
         </div>
     </header>
 
-    @if (auth()->user()?->two_factor_confirmed_at === null)
-        @include('partials.two-factor-first')
-    @else
     <p x-show="converting" x-cloak class="rounded-lg bg-panel p-3 text-center text-note text-ink-sub" role="status">HEIC/HEIFをこの端末でJPEGに変換しています…</p>
     <p x-show="error" x-cloak x-text="error" class="rounded-lg bg-ng-soft p-3 text-note font-bold text-ng" role="alert"></p>
     {{-- 1 待ち --}}
@@ -355,6 +352,5 @@ new #[Title('レシートを送る')] class extends Component {
             <p class="text-note text-warn">{{ $duplicateOf }}</p>
         </div>
         <button type="button" wire:click="retake" class="w-full rounded-xl bg-brand py-3 text-lg font-bold text-ink">別のレシートを撮る</button>
-    @endif
     @endif
 </section>

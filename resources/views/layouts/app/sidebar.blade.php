@@ -6,7 +6,7 @@
     }
     $navMembership = $navCompany !== null ? $navUser?->activeMembershipFor($navCompany) : null;
     $submitOnly = $navMembership?->submit_only === true;
-    $businessReady = $navUser?->hasVerifiedEmail() && $navUser->two_factor_confirmed_at !== null;
+    $businessReady = $navUser?->hasVerifiedEmail() && $navUser->hasSecurityAnswer();
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">

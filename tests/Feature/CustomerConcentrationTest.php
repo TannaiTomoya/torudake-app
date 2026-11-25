@@ -291,7 +291,7 @@ test('T57 権限：役割ごとの可否（許可は社長だけ。送るだけ�
 test('T57 権限：2段階認証がまだの社長・他社の社長・止められた社長は割合を変えられない', function (): void {
     ['company' => $company, 'user' => $owner, 'membership' => $membership] = createCompanyWithMember(Role::Owner);
     ['company' => $otherCompany, 'user' => $otherOwner] = createCompanyWithMember(Role::Owner);
-    ['user' => $noTwoFactor] = createCompanyWithMember(Role::Owner, withTwoFactor: false, company: $company);
+    ['user' => $noTwoFactor] = createCompanyWithMember(Role::Owner, withSecurityAnswer: false, company: $company);
 
     expect(Gate::forUser($noTwoFactor)->allows('manageConcentrationAlert', $company))->toBeFalse()
         ->and(Gate::forUser($otherOwner)->allows('manageConcentrationAlert', $company))->toBeFalse();

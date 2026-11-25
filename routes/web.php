@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\EvidenceImageController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\SecurityQuestionController;
 use App\Http\Controllers\TrainingDataExportController;
 use App\Http\Controllers\TrialBalanceDownloadController;
 use App\Http\Controllers\WorkbookDownloadController;
@@ -29,9 +30,18 @@ Route::get('/', function (Request $request) use ($dispatchAuthenticatedUser): Re
     }
 
     return $dispatchAuthenticatedUser($user);
-})->middleware(['auth', 'verified'])->name('home');
+})->middleware(['auth', 'verified', 'security-answer'])->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () use ($dispatchAuthenticatedUser): void {
+// ログインの2段階目（パスワードが合って、まだログインしていない人だけ）
+Route::middleware('guest')->group(function (): void {
+    Route::get('login/question', [SecurityQuestionController::class, 'show'])->name('security-question.show');
+    Route::post('login/question', [SecurityQuestionController::class, 'store'])->middleware('throttle:security-question')->name('security-question.store');
+});
+
+// はじめの1回だけ：秘密の質問の答えを決める（ホームの前）
+Route::livewire('setup/security-answer', 'pages::setup.security-answer')->middleware(['auth', 'verified'])->name('security-answer.setup');
+
+Route::middleware(['auth', 'verified', 'security-answer'])->group(function () use ($dispatchAuthenticatedUser): void {
     Route::get('dashboard', function (Request $request) use ($dispatchAuthenticatedUser): RedirectResponse|View {
         /** @var User $user */
         $user = $request->user();
@@ -40,7 +50,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($dispatchAuthent
     })->name('dashboard');
 });
 
-Route::middleware(['auth', 'verified', 'company', 'two-factor'])
+Route::middleware(['auth', 'verified', 'company', 'security-answer'])
     ->prefix('c/{company}')
     ->name('company.')
     ->scopeBindings()

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\User;
+use App\Services\SecurityAnswer;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -18,14 +19,15 @@ class UserFactory extends Factory
      */
     public const DEV_PASSWORD = 'password';
 
-    public const DEV_TWO_FACTOR_SECRET = 'TORUDAKEDEVLOCAL';
-
-    public const DEV_RECOVERY_CODE = 'recovery-code-1';
+    /** 秘密の質問の答え（架空の町） */
+    public const DEV_SECURITY_ANSWER = 'テスト町';
 
     /**
      * The current password being used by the factory.
      */
     protected static ?string $password;
+
+    protected static ?string $securityAnswerHash = null;
 
     /**
      * Define the model's default state.
@@ -59,23 +61,22 @@ class UserFactory extends Factory
     }
 
     /**
-     * Indicate that the model has two-factor authentication configured.
+     * 秘密の質問の答えを決めてある人。
      */
-    public function withTwoFactor(): static
+    public function withSecurityAnswer(): static
     {
         self::assertNotProduction();
 
         return $this->state(fn (array $attributes) => [
-            'two_factor_secret' => encrypt(self::DEV_TWO_FACTOR_SECRET),
-            'two_factor_recovery_codes' => encrypt(json_encode([self::DEV_RECOVERY_CODE])),
-            'two_factor_confirmed_at' => now(),
+            'security_answer_hash' => static::$securityAnswerHash ??= Hash::make(SecurityAnswer::normalize(self::DEV_SECURITY_ANSWER)),
+            'security_answer_set_at' => now(),
         ]);
     }
 
     private static function assertNotProduction(): void
     {
         if (app()->isProduction()) {
-            throw new LogicException('開発用のパスワードと2段階認証の鍵は、本番では使えません。本番の人は torudake:add-member で作ります。');
+            throw new LogicException('開発用のパスワードと秘密の質問の答えは、本番では使えません。本番の人は torudake:add-member で作ります。');
         }
     }
 }

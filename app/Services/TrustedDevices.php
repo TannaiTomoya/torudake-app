@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Str;
 
 /**
- * 信頼できる端末（docs/02 §5）。パスワード＋2段階認証で入った端末を30日覚え、その間はパスワードだけで入れる。
+ * 信頼できる端末（docs/02 §5）。パスワード＋秘密の質問で入った端末を30日覚え、その間はパスワードだけで入れる。
  * クッキーには「端末の ID|乱数」を入れ（Laravel が暗号化する）、DB には乱数のハッシュだけを置く。
  */
 class TrustedDevices
@@ -71,7 +71,7 @@ class TrustedDevices
     }
 
     /**
-     * その人の端末をすべて忘れる（パスワードを変えた・2段階認証を切った・設定で「すべて解除」）。
+     * その人の端末をすべて忘れる（パスワードか秘密の質問を変えた・答えを消した・設定で「すべて解除」）。
      */
     public function revokeAll(User $user): int
     {

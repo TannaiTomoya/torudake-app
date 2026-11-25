@@ -2,6 +2,7 @@
 
 namespace App\Actions\Fortify;
 
+use App\Http\Controllers\SecurityQuestionController;
 use App\Models\User;
 use App\Services\TrustedDevices;
 use Illuminate\Contracts\Auth\StatefulGuard;
@@ -10,8 +11,9 @@ use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
 use Laravel\Fortify\LoginRateLimiter;
 
 /**
- * パスワードのあとに2段階認証のコードを聞く。信頼できる端末（TrustedDevices）からなら聞かずに進む。
- * それ以外は Fortify の RedirectIfTwoFactorAuthenticatable（confirm => true のとき）と同じ。
+ * パスワードのあとに秘密の質問を聞く。信頼できる端末（TrustedDevices）からなら聞かずに進む。
+ * 答えをまだ決めていない人はそのまま入り、ホームの前の画面で決める。
+ * パスワードの確かめ方は Fortify の RedirectIfTwoFactorAuthenticatable と同じ。
  */
 class ChallengeUnlessTrustedDevice extends RedirectIfTwoFactorAuthenticatable
 {
@@ -29,12 +31,20 @@ class ChallengeUnlessTrustedDevice extends RedirectIfTwoFactorAuthenticatable
     {
         $user = $this->validateCredentials($request);
 
-        if (! $user instanceof User || $user->two_factor_secret === null || $user->two_factor_confirmed_at === null) {
+        if (! $user instanceof User || ! $user->hasSecurityAnswer() || $this->devices->trusts($request, $user)) {
             return $next($request);
         }
 
-        return $this->devices->trusts($request, $user)
-            ? $next($request)
-            : $this->twoFactorChallengeResponse($request, $user);
+        // ここではまだログインさせない。答えが合ったら SecurityQuestionController がログインさせる
+        $request->session()->put(SecurityQuestionController::PENDING_KEY, [
+            'user_id' => $user->id,
+            'password' => hash('sha256', $user->password),
+            'remember' => $request->boolean('remember'),
+            'expires_at' => now()->addMinutes(SecurityQuestionController::PENDING_MINUTES)->getTimestamp(),
+        ]);
+
+        return $request->wantsJson()
+            ? response()->json(['two_factor' => true])
+            : redirect()->route('security-question.show');
     }
 }

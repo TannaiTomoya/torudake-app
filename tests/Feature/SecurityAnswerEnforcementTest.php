@@ -2,10 +2,9 @@
 
 use App\Enums\Role;
 use App\Http\Middleware\EnsureCompanyMember;
-use App\Http\Middleware\EnsureTwoFactorEnabled;
+use App\Http\Middleware\EnsureSecurityAnswerSet;
 use App\Models\User;
 use App\Policies\CompanyPolicy;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -40,25 +39,18 @@ function livewireRefresh(User $user, string $snapshot): TestResponse
         ]);
 }
 
-test('T32 2段階認証がまだの人は、送る画面を開けてカードが出る。写真を選ぶ・送るは 403 で、原資料もファイルも増えない', function (bool $submitOnly): void {
-    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor, submitOnly: $submitOnly, withTwoFactor: false);
+test('T32 答えを決めていない人は、送る画面の操作を直接呼んでも 403 で、原資料もファイルも増えない', function (bool $submitOnly): void {
+    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Editor, submitOnly: $submitOnly, withSecurityAnswer: false);
 
     Livewire::actingAs($user)->test('pages::company.submit', ['company' => $company])
-        ->assertSeeHtml('data-test="two-factor-first"')
-        ->set('photo', UploadedFile::fake()->image('receipt.jpg'))
-        ->assertForbidden();
-
-    Livewire::actingAs($user)->test('pages::company.submit', ['company' => $company])
-        ->set('photos', [UploadedFile::fake()->image('receipt.jpg')])
-        ->call('send')
         ->assertForbidden();
 
     expect($company->sourceRecords()->count())->toBe(0)
         ->and(Storage::disk('local')->allFiles('companies'))->toBe([]);
 })->with(['送るだけの人' => true, '経理' => false]);
 
-test('T32 2段階認証がまだの人は、カードを出す画面を開く（member・viewHome・viewSubmit）以外の権限をすべて拒まれる。済んだ人は今までどおり', function (): void {
-    ['company' => $company, 'user' => $before] = createCompanyWithMember(Role::Owner, withTwoFactor: false);
+test('T32 答えを決めていない人は、会社のメンバーかの確認（member）以外の権限をすべて拒まれる。決めた人は今までどおり', function (): void {
+    ['company' => $company, 'user' => $before] = createCompanyWithMember(Role::Owner, withSecurityAnswer: false);
     ['user' => $after] = createCompanyWithMember(Role::Owner, company: $company);
 
     $abilities = collect((new ReflectionClass(CompanyPolicy::class))->getMethods(ReflectionMethod::IS_PUBLIC))
@@ -68,37 +60,35 @@ test('T32 2段階認証がまだの人は、カードを出す画面を開く（
     expect($abilities)->toContain('submit', 'editDraft', 'returnToBookkeeper', 'manageSettings', 'importReports');
 
     foreach ($abilities as $ability) {
-        $allowedBefore = in_array($ability, ['member', 'viewHome', 'viewSubmit'], true);
-
-        expect(Gate::forUser($before)->allows($ability, $company))->toBe($allowedBefore, $ability)
+        expect(Gate::forUser($before)->allows($ability, $company))->toBe($ability === 'member', $ability)
             ->and(Gate::forUser($after)->allows($ability, $company))->toBeTrue($ability);
     }
 });
 
 test('T32 ホームの件数（remaining・concerns）は、画面の外から呼べない', function (string $method): void {
-    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Owner, withTwoFactor: false);
+    ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Owner);
 
     expect(fn () => Livewire::actingAs($user)->test('pages::company.home', ['company' => $company])->call($method))
         ->toThrow(CannotCallComputedDirectlyException::class);
 })->with(['remaining', 'concerns']);
 
-test('T32 Livewire の更新のたびに、会社のメンバーか・2段階認証が済んだかを確かめ直す', function (): void {
-    expect(Livewire::getPersistentMiddleware())->toContain(EnsureCompanyMember::class, EnsureTwoFactorEnabled::class);
+test('T32 Livewire の更新のたびに、会社のメンバーか・秘密の質問を決めたかを確かめ直す', function (): void {
+    expect(Livewire::getPersistentMiddleware())->toContain(EnsureCompanyMember::class, EnsureSecurityAnswerSet::class);
 });
 
-test('T32 2段階認証が済んだ会社のメンバーは、今までどおり更新できる', function (): void {
+test('T32 秘密の質問を決めた会社のメンバーは、今までどおり更新できる', function (): void {
     ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Owner);
 
     livewireRefresh($user, pageSnapshot($user, route('company.ai', $company)))->assertOk();
 });
 
-test('T32 画面を開いたまま2段階認証を切った人は、次の更新でホームへ戻される', function (): void {
+test('T32 画面を開いたまま秘密の質問の答えを消された人は、次の更新で答えを決める画面へ回る', function (): void {
     ['company' => $company, 'user' => $user] = createCompanyWithMember(Role::Owner);
     $snapshot = pageSnapshot($user, route('company.ai', $company));
 
-    $user->forceFill(['two_factor_secret' => null, 'two_factor_recovery_codes' => null, 'two_factor_confirmed_at' => null])->save();
+    $user->forceFill(['security_answer_hash' => null, 'security_answer_set_at' => null])->save();
 
-    livewireRefresh($user, $snapshot)->assertRedirect(route('company.home', $company));
+    livewireRefresh($user, $snapshot)->assertRedirect(route('security-answer.setup'));
 });
 
 test('T32 画面を開いたまま会社から外された人は、次の更新で 404 になる', function (): void {

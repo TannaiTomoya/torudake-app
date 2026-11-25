@@ -40,7 +40,7 @@ test('送るだけの人の画面も dark を付けない', function (): void {
 });
 
 test('設定のテーマ画面は切替を出さず、ライト固定の案内だけを出す', function (): void {
-    $this->actingAs(User::factory()->withTwoFactor()->create());
+    $this->actingAs(User::factory()->withSecurityAnswer()->create());
 
     $this->get(route('appearance.edit'))
         ->assertOk()

@@ -4,38 +4,16 @@ use App\Enums\Role;
 use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\User;
+use App\Services\SecurityAnswer;
 use Database\Seeders\CompanyDefaultSeeder;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Livewire\Livewire;
-use PragmaRX\Google2FA\Google2FA;
 
-test('T02: 2段階認証がまだの人は、ホーム（送るだけは送る画面）だけ開けて「最初にやること」のカードだけが出る。ほかの画面はホームへ戻される', function (): void {
-    ['company' => $company, 'user' => $user] = createCompanyWithMember(role: Role::Owner, withTwoFactor: false);
-    ['user' => $worker] = createCompanyWithMember(Role::Editor, submitOnly: true, withTwoFactor: false, company: $company);
-
-    $this->actingAs($user)->get(route('dashboard'))->assertRedirect(route('company.home', $company));
-    $this->actingAs($user)->get(route('company.home', $company))
-        ->assertOk()
-        ->assertSee('data-test="two-factor-first"', false)
-        ->assertDontSee('次にやること')
-        ->assertDontSee('data-test="owner-link"', false);
-
-    foreach (['company.owner', 'company.entries.index', 'company.live', 'company.ai', 'company.settings', 'company.workbook'] as $name) {
-        $this->actingAs($user)->get(route($name, $company))->assertRedirect(route('company.home', $company));
-    }
-
-    $this->actingAs($worker)->get(route('dashboard'))->assertRedirect(route('company.submit', $company));
-    $this->actingAs($worker)->get(route('company.submit', $company))
-        ->assertOk()
-        ->assertSee('data-test="two-factor-first"', false)
-        ->assertDontSee('data-test="camera-input"', false);
-});
-
-test('T02: 新しい人：パスワードを決める → ログイン → ホームで2段階認証 → 復旧コード → ふつうのホーム', function (): void {
-    ['company' => $company, 'user' => $user] = createCompanyWithMember(role: Role::Admin, withTwoFactor: false);
+test('T02: 新しい人：パスワードを決める → ログイン → 秘密の質問の答えを決める → ふつうのホーム', function (): void {
+    ['company' => $company, 'user' => $user] = createCompanyWithMember(role: Role::Admin, withSecurityAnswer: false);
 
     $token = Password::broker()->createToken($user);
     $this->post(route('password.update'), ['token' => $token, 'email' => $user->email, 'password' => 'Atarashii-Pass-2026', 'password_confirmation' => 'Atarashii-Pass-2026'])
@@ -43,32 +21,14 @@ test('T02: 新しい人：パスワードを決める → ログイン → ホ�
 
     $this->post(route('login'), ['email' => $user->email, 'password' => 'Atarashii-Pass-2026'])
         ->assertRedirect(route('dashboard'));
-    $this->get(route('dashboard'))->assertRedirect(route('company.home', $company));
-    $this->get(route('company.home', $company))->assertSee('data-test="two-factor-start"', false);
+    $this->get(route('dashboard'))->assertRedirect(route('security-answer.setup'));
 
-    $modal = Livewire::actingAs($user)
-        ->test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
-        ->call('startTwoFactorSetup')
-        ->assertSet('qrCodeSvg', fn (string $svg): bool => str_contains($svg, '<svg'))
-        ->call('showVerificationIfNecessary')
-        ->assertSet('showVerificationStep', true);
-
-    $code = app(Google2FA::class)->getCurrentOtp(decrypt((string) $user->fresh()?->two_factor_secret));
-
-    $modal->set('code', $code)
-        ->call('confirmTwoFactor')
-        ->assertHasNoErrors()
-        ->assertSet('setupComplete', true)
-        ->assertSee('紙に書きました')
-        ->assertSet('recoveryCodes', fn (array $codes): bool => count($codes) === 8)
-        ->call('finish')
+    Livewire::actingAs($user->fresh())->test('pages::setup.security-answer')
+        ->set('answer', 'かくう')
+        ->call('save')
         ->assertRedirect(route('company.home', $company));
 
-    expect($user->fresh()?->two_factor_confirmed_at)->not->toBeNull();
-
-    $this->actingAs($user->fresh())->get(route('company.home', $company))
-        ->assertSee('次にやること')
-        ->assertDontSee('data-test="two-factor-first"', false);
+    $this->actingAs($user->fresh())->get(route('company.home', $company))->assertSee('次にやること');
     $this->actingAs($user->fresh())->get(route('company.owner', $company))->assertOk();
 });
 
@@ -286,11 +246,7 @@ test('T20: 監査記録に各操作が残り、機密情報が含まれず、更
     $owner = User::where('email', 'boss@example.com')->firstOrFail();
     Notification::assertSentTo($owner, ResetPassword::class);
 
-    $owner->forceFill([
-        'two_factor_secret' => encrypt('secret'),
-        'two_factor_recovery_codes' => encrypt(json_encode(['code-1'])),
-        'two_factor_confirmed_at' => now(),
-    ])->save();
+    app(SecurityAnswer::class)->set($owner, 'かくう');
 
     Livewire::actingAs($owner)
         ->test('pages::company.settings', ['company' => $company])

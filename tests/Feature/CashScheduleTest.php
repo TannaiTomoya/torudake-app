@@ -555,7 +555,7 @@ test('T58 権限：予定の画面を開けるのは owner・editor だけ（adm
 
 test('T58 権限：未ログイン・2段階認証がまだ・無効な所属・所属なしの人は、予定の画面を開けない', function (): void {
     ['company' => $company, 'user' => $owner, 'membership' => $membership] = createCompanyWithMember(Role::Owner);
-    ['user' => $noTwoFactor] = createCompanyWithMember(Role::Owner, withTwoFactor: false, company: $company);
+    ['user' => $noTwoFactor] = createCompanyWithMember(Role::Owner, withSecurityAnswer: false, company: $company);
     ['user' => $outsider] = createCompanyWithMember(Role::Owner);
 
     $this->get(route('company.schedules', $company))->assertRedirect(route('login'));
