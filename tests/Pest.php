@@ -33,7 +33,7 @@ pest()->extend(TestCase::class)
 function createCompanyWithMember(
     Role $role = Role::Owner,
     bool $submitOnly = false,
-    bool $withTwoFactor = true,
+    bool $withSecurityAnswer = true,
     ?Company $company = null,
 ): array {
     if ($company === null) {
@@ -42,8 +42,8 @@ function createCompanyWithMember(
     }
 
     $userFactory = User::factory();
-    if ($withTwoFactor) {
-        $userFactory = $userFactory->withTwoFactor();
+    if ($withSecurityAnswer) {
+        $userFactory = $userFactory->withSecurityAnswer();
     }
     $user = $userFactory->create();
 

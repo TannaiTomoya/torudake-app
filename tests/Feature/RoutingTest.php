@@ -5,7 +5,7 @@ use App\Models\Company;
 use App\Models\SourceRecord;
 use App\Models\User;
 use Database\Factories\UserFactory;
-use PragmaRX\Google2FA\Google2FA;
+use Livewire\Livewire;
 
 /** @return array<string, string> */
 function companyRoutingTargets(Company $company, SourceRecord $source): array
@@ -38,32 +38,31 @@ dataset('landing roles', [
 ]);
 
 test('ログイン前の古い遷移先より役割別のホームを優先する', function (Role $role, bool $submitOnly, string $landing): void {
-    ['company' => $company, 'user' => $user] = createCompanyWithMember($role, submitOnly: $submitOnly, withTwoFactor: false);
+    ['company' => $company, 'user' => $user] = createCompanyWithMember($role, submitOnly: $submitOnly, withSecurityAnswer: false);
 
     $this->get(route('company.owner', $company))->assertRedirect(route('login'));
     $this->post(route('login.store'), ['email' => $user->email, 'password' => UserFactory::DEV_PASSWORD])
         ->assertRedirect(route('dashboard', absolute: false))
         ->assertSessionMissing('url.intended');
-    $this->get(route('dashboard'))->assertRedirect(route($landing, $company));
-    $this->get(route($landing, $company))->assertOk()->assertSee('data-test="two-factor-first"', false);
+    $this->get(route('dashboard'))->assertRedirect(route('security-answer.setup'));
+    $this->get(route($landing, $company))->assertRedirect(route('security-answer.setup'));
 })->with('landing roles');
 
-test('2段階認証ログイン後も古い遷移先を消し役割別のホームを開く', function (Role $role, bool $submitOnly, string $landing): void {
+test('秘密の質問のログイン後も古い遷移先を消し役割別のホームを開く', function (Role $role, bool $submitOnly, string $landing): void {
     ['company' => $company, 'user' => $user] = createCompanyWithMember($role, submitOnly: $submitOnly);
 
     $this->get(route('company.owner', $company))->assertRedirect(route('login'));
     $this->post(route('login.store'), ['email' => $user->email, 'password' => UserFactory::DEV_PASSWORD])
-        ->assertRedirect(route('two-factor.login'));
-    $code = app(Google2FA::class)->getCurrentOtp(UserFactory::DEV_TWO_FACTOR_SECRET);
-    $this->post(route('two-factor.login.store'), ['code' => $code])
-        ->assertRedirect(route('dashboard', absolute: false))
+        ->assertRedirect(route('security-question.show'));
+    $this->post(route('security-question.store'), ['answer' => UserFactory::DEV_SECURITY_ANSWER])
+        ->assertRedirect(route('dashboard'))
         ->assertSessionMissing('url.intended');
     $this->get(route('dashboard'))->assertRedirect(route($landing, $company));
-    $this->get(route($landing, $company))->assertOk()->assertDontSee('data-test="two-factor-first"', false);
+    $this->get(route($landing, $company))->assertOk();
 })->with('landing roles');
 
 test('認証前の他社会社URLと無効な所属はホームへ転送せず404にする', function (bool $disabled): void {
-    ['company' => $company, 'user' => $user, 'membership' => $membership] = createCompanyWithMember(Role::Owner, withTwoFactor: false);
+    ['company' => $company, 'user' => $user, 'membership' => $membership] = createCompanyWithMember(Role::Owner, withSecurityAnswer: false);
     if ($disabled) {
         $membership->forceFill(['disabled_at' => now()])->save();
     } else {
@@ -75,33 +74,29 @@ test('認証前の他社会社URLと無効な所属はホームへ転送せず40
     }
 })->with([false, true]);
 
-test('2段階認証前に別の所属会社を開いたらその会社の入口へ戻る', function (bool $submitOnly, string $landing): void {
-    ['company' => $first, 'user' => $user] = createCompanyWithMember(Role::Editor, withTwoFactor: false);
+test('答えを決める前に別の所属会社を開いても、答えを決めたあとはその会社の入口へ進む', function (bool $submitOnly, string $landing): void {
+    ['company' => $first, 'user' => $user] = createCompanyWithMember(Role::Editor, withSecurityAnswer: false);
     ['company' => $second, 'membership' => $membership] = createCompanyWithMember(Role::Editor, submitOnly: $submitOnly);
     $membership->forceFill(['user_id' => $user->id])->save();
 
-    $this->actingAs($user)->get(route('company.home', $first))->assertOk();
+    $this->actingAs($user)->get(route('company.home', $first))->assertRedirect(route('security-answer.setup'));
     $this->get(route('company.evidences.image', [$second, '01900000-0000-7000-8000-000000000001']))
-        ->assertRedirect(route($landing, $second))
+        ->assertRedirect(route('security-answer.setup'))
         ->assertSessionHas(User::CURRENT_COMPANY_SESSION_KEY, $second->id);
-    $this->get(route($landing, $second))->assertOk()->assertSee('data-test="two-factor-first"', false);
+    Livewire::test('pages::setup.security-answer')->set('answer', 'かくう')->call('save')
+        ->assertRedirect(route($landing, $second));
 })->with([
     '経理' => [false, 'company.home'],
     '送るだけ' => [true, 'company.submit'],
 ]);
 
-test('2段階認証前のホームには会社の業務リンクや件数を出さない', function (Role $role): void {
-    ['company' => $company, 'user' => $user] = createCompanyWithMember($role, withTwoFactor: false);
+test('答えを決める画面には会社の業務リンクを出さない', function (Role $role): void {
+    ['company' => $company, 'user' => $user] = createCompanyWithMember($role, withSecurityAnswer: false);
 
-    $this->actingAs($user)->get(route('company.home', $company))->assertOk()
-        ->assertSee('data-test="sidebar-home"', false)
-        ->assertSee('data-test="two-factor-first"', false)
+    $this->actingAs($user)->get(route('security-answer.setup'))->assertOk()
         ->assertDontSee('data-test="sidebar-owner"', false)
-        ->assertDontSee('data-test="sidebar-sources"', false)
-        ->assertDontSee('data-test="sidebar-entries"', false)
-        ->assertDontSee('data-test="sidebar-workbook"', false)
-        ->assertDontSee('data-test="sidebar-live"', false)
-        ->assertDontSee(route('company.settings', $company));
+        ->assertDontSee(route('company.home', $company))
+        ->assertDontSee($company->name);
 })->with([Role::Owner, Role::Editor]);
 
 test('社長のホームから送る・直す・AIの記録にも進める', function (): void {
@@ -163,9 +158,7 @@ test('認証APIのJSON応答はFortifyの形式を保つ', function (): void {
         ->assertOk()->assertExactJson(['two_factor' => false]);
 
     $this->post(route('logout'));
-    $user = User::factory()->withTwoFactor()->create();
+    $user = User::factory()->withSecurityAnswer()->create();
     $this->postJson(route('login.store'), ['email' => $user->email, 'password' => UserFactory::DEV_PASSWORD])
         ->assertOk()->assertExactJson(['two_factor' => true]);
-    $code = app(Google2FA::class)->getCurrentOtp(UserFactory::DEV_TWO_FACTOR_SECRET);
-    $this->postJson(route('two-factor.login.store'), ['code' => $code])->assertNoContent();
 });

@@ -22,7 +22,7 @@ class MembershipFactory extends Factory
     {
         return [
             'company_id' => Company::factory(),
-            'user_id' => User::factory()->withTwoFactor(),
+            'user_id' => User::factory()->withSecurityAnswer(),
             'role' => Role::Editor,
             'submit_only' => false,
             'disabled_at' => null,

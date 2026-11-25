@@ -3,9 +3,7 @@
 use App\Enums\EntryStatus;
 use App\Enums\Role;
 use App\Models\User;
-use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
 use Livewire\Livewire;
-use PragmaRX\Google2FA\Google2FA;
 
 beforeEach(fn () => $this->travelTo(now()->setDate(2026, 10, 24)->setTime(9, 0)));
 
@@ -147,42 +145,29 @@ test('2社に入っている人は、設定の「戻る」もログイン後の�
     $this->actingAs($user)->get(route('dashboard'))->assertRedirect(route('company.submit', $second));
 });
 
-test('2段階認証を設定し終えると、その人の最初の画面へ移る（送るだけは送る画面・admin はホーム・2社なら今の会社）', function (Role $role, bool $submitOnly, string $route): void {
-    ['company' => $company, 'user' => $user] = createCompanyWithMember($role, submitOnly: $submitOnly, withTwoFactor: false);
+test('秘密の質問の答えを決め終えると、その人の最初の画面へ移る（送るだけは送る画面・admin はホーム）', function (Role $role, bool $submitOnly, string $route): void {
+    ['company' => $company, 'user' => $user] = createCompanyWithMember($role, submitOnly: $submitOnly, withSecurityAnswer: false);
 
-    app(EnableTwoFactorAuthentication::class)($user);
-    $code = app(Google2FA::class)->getCurrentOtp(decrypt((string) $user->fresh()?->two_factor_secret));
-
-    Livewire::actingAs($user)
-        ->test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
-        ->set('code', $code)
-        ->call('confirmTwoFactor')
+    Livewire::actingAs($user)->test('pages::setup.security-answer')
+        ->set('answer', 'かくう')
+        ->call('save')
         ->assertHasNoErrors()
-        ->assertNoRedirect()
-        ->call('finish')
         ->assertRedirect(route($route, $company));
-
-    expect($user->fresh()?->two_factor_confirmed_at)->not->toBeNull();
 })->with([
     '送るだけ' => [Role::Editor, true, 'company.submit'],
     'admin' => [Role::Admin, false, 'company.home'],
 ]);
 
-test('2社に入っている人は、2段階認証を設定し終えると今の会社へ移る', function (): void {
-    ['company' => $first, 'user' => $user] = createCompanyWithMember(Role::Admin, withTwoFactor: false);
+test('2社に入っている人は、秘密の質問の答えを決め終えると今の会社へ移る', function (): void {
+    ['company' => $first, 'user' => $user] = createCompanyWithMember(Role::Admin, withSecurityAnswer: false);
     ['company' => $second] = createCompanyWithMember(Role::Owner);
     createCompanyWithMember(Role::Admin, company: $second)['membership']->forceFill(['user_id' => $user->id])->save();
 
-    app(EnableTwoFactorAuthentication::class)($user);
-    $code = app(Google2FA::class)->getCurrentOtp(decrypt((string) $user->fresh()?->two_factor_secret));
-
     session([User::CURRENT_COMPANY_SESSION_KEY => $second->id]);
 
-    Livewire::actingAs($user)
-        ->test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
-        ->set('code', $code)
-        ->call('confirmTwoFactor')
-        ->call('finish')
+    Livewire::actingAs($user)->test('pages::setup.security-answer')
+        ->set('answer', 'かくう')
+        ->call('save')
         ->assertRedirect(route('company.home', $second));
 });
 

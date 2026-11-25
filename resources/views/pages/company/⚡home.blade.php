@@ -22,7 +22,7 @@ new #[Title('ホーム')] class extends Component {
         $this->companyId = $company->id;
     }
 
-    /** computed なので、画面の外から呼べない（2段階認証の前の人に件数を出さない） */
+    /** computed なので、画面の外から呼べない */
     #[Computed]
     public function remaining(): int
     {
@@ -53,9 +53,6 @@ new #[Title('ホーム')] class extends Component {
         <p class="mt-1 text-note text-ink-sub">決算月：{{ $company->fiscal_year_end_month }}月</p>
     </header>
 
-    @if (auth()->user()?->two_factor_confirmed_at === null)
-        @include('partials.two-factor-first')
-    @else
     <p class="text-note font-bold text-ink-sub">次にやること</p>
 
     @php($homeMembership = auth()->user()?->activeMembershipFor($company))
@@ -121,6 +118,5 @@ new #[Title('ホーム')] class extends Component {
                 <span class="inline-block rounded-xl bg-ink px-6 py-3 text-lg font-bold text-paper">仕訳の一覧を開く</span>
             </a>
         @endcan
-    @endif
     @endif
 </section>

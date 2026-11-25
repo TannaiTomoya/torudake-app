@@ -1,5 +1,4 @@
 import { createHeicUploads } from './heic-uploads';
-import { PasskeyExistsError, Passkeys, UserCancelledError } from '@laravel/passkeys';
 
 const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(`--color-${name}`).trim();
 
@@ -85,55 +84,6 @@ document.addEventListener('alpine:init', () => {
 
         destroy() {
             this.chart?.destroy();
-        },
-    }));
-
-    // 顔でログイン（パスキー）。ログイン画面のボタン
-    window.Alpine.data('passkeyLogin', () => ({
-        supported: Passkeys.isSupported(),
-        busy: false,
-        error: '',
-
-        async login() {
-            this.busy = true;
-            this.error = '';
-
-            try {
-                const response = await Passkeys.verify();
-                window.location.href = response.redirect ?? '/';
-            } catch (e) {
-                this.busy = false;
-                if (!(e instanceof UserCancelledError)) {
-                    this.error = 'うまくいきませんでした。もう一度押すか、下のパスワードで入ってください。';
-                }
-            }
-        },
-    }));
-
-    // 顔でログイン（パスキー）。設定の画面で、この端末を登録する
-    window.Alpine.data('passkeyRegister', () => ({
-        supported: Passkeys.isSupported(),
-        busy: false,
-        error: '',
-        name: '',
-
-        async register() {
-            this.busy = true;
-            this.error = '';
-
-            try {
-                await Passkeys.register({ name: this.name.trim() || 'この端末' });
-                this.name = '';
-                await this.$wire.$refresh();
-            } catch (e) {
-                if (e instanceof PasskeyExistsError) {
-                    this.error = 'この端末はもう登録されています。';
-                } else if (!(e instanceof UserCancelledError)) {
-                    this.error = '登録できませんでした。もう一度押してください。';
-                }
-            } finally {
-                this.busy = false;
-            }
         },
     }));
 

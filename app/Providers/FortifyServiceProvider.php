@@ -5,9 +5,7 @@ namespace App\Providers;
 use App\Actions\Fortify\ChallengeUnlessTrustedDevice;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Http\Responses\LoginResponse;
-use App\Http\Responses\PasskeyLoginResponse;
 use App\Http\Responses\PasswordResetLinkRequested;
-use App\Http\Responses\TwoFactorLoginResponse;
 use App\Http\Responses\VerifyEmailResponse;
 use Closure;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -22,10 +20,8 @@ use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse;
-use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Laravel\Fortify\Contracts\VerifyEmailResponse as VerifyEmailResponseContract;
 use Laravel\Fortify\Fortify;
-use Laravel\Passkeys\Contracts\PasskeyLoginResponse as PasskeyLoginResponseContract;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -35,8 +31,6 @@ class FortifyServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
-        $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
-        $this->app->singleton(PasskeyLoginResponseContract::class, PasskeyLoginResponse::class);
         $this->app->singleton(VerifyEmailResponseContract::class, VerifyEmailResponse::class);
 
         // 「パスワードを忘れた」の応答は、登録がある・ないにかかわらず同じにする（#39）
@@ -61,7 +55,7 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
-        // パスワードでのログイン。Fortify の既定の流れから、2段階認証のところだけ信頼できる端末を見るものに替える
+        // パスワードでのログイン。Fortify の既定の流れから、2段階目だけ秘密の質問（信頼できる端末なら省く）に替える
         Fortify::authenticateThrough(fn (Request $request): array => array_filter([
             function (Request $request, Closure $next): mixed {
                 // ログイン状態の保持はしない（docs/02 §5）。remember が送られてきても捨てる
@@ -84,7 +78,6 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::loginView(fn () => view('pages::auth.login'));
         Fortify::verifyEmailView(fn () => view('pages::auth.verify-email'));
-        Fortify::twoFactorChallengeView(fn () => view('pages::auth.two-factor-challenge'));
         Fortify::confirmPasswordView(fn () => view('pages::auth.confirm-password'));
         Fortify::resetPasswordView(fn () => view('pages::auth.reset-password'));
         Fortify::requestPasswordResetLinkView(fn () => view('pages::auth.forgot-password'));
@@ -95,8 +88,9 @@ class FortifyServiceProvider extends ServiceProvider
      */
     private function configureRateLimiting(): void
     {
-        RateLimiter::for('two-factor', function (Request $request) {
-            return Limit::perMinute(5)->by($request->session()->get('login.id'));
+        // 秘密の質問。人ごとの停止（5回で15分）は SecurityAnswer が持つ。ここは送る回数を抑えるだけ
+        RateLimiter::for('security-question', function (Request $request) {
+            return Limit::perMinute(10)->by((string) $request->ip());
         });
 
         RateLimiter::for('login', function (Request $request) {

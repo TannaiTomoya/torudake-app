@@ -46,10 +46,9 @@ class DatabaseSeeder extends Seeder
         $this->seedMember($koumuten, '他社社長', 'other@example.com', Role::Owner, false);
 
         $this->command?->info(sprintf(
-            'ログイン：owner@ / editor@ / submitter@ / other@example.com、パスワード %s、2段階認証の鍵 %s（認証アプリに手入力）、復旧コード %s',
+            'ログイン：owner@ / editor@ / submitter@ / other@example.com、パスワード %s、秘密の質問の答え %s',
             UserFactory::DEV_PASSWORD,
-            UserFactory::DEV_TWO_FACTOR_SECRET,
-            UserFactory::DEV_RECOVERY_CODE,
+            UserFactory::DEV_SECURITY_ANSWER,
         ));
     }
 
@@ -57,7 +56,7 @@ class DatabaseSeeder extends Seeder
     {
         $existingUser = User::where('email', $email)->first();
 
-        $user = $existingUser ?? User::factory()->withTwoFactor()->create([
+        $user = $existingUser ?? User::factory()->withSecurityAnswer()->create([
             'name' => $name,
             'email' => $email,
         ]);

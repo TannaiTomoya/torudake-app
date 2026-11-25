@@ -23,7 +23,7 @@
 | API・業務ロジック | PHP 8.4 + Laravel 13 |
 | 画面 | Livewire 4 ＋ Flux UI（スマホのブラウザで使う） |
 | DB | MySQL 8.4（金額は整数円） |
-| 認証 | Laravel Fortify（スターターキット。メール確認・2段階認証） |
+| 認証 | Laravel Fortify（スターターキット。メール確認）＋秘密の質問 |
 | 権限 | Policy / Gate（会社所属とロールを先に検証） |
 | 証憑 | 非公開ディスク（SHA-256で重複を止め、30日で削除。S3互換は次の週） |
 | ジョブ | Laravel のスケジューラ（写真の30日削除） |
@@ -35,7 +35,7 @@ Laravel は「間違った数字を確定させない」ために使います。
 
 `vendor/bin/sail up -d` で起動し、http://localhost:8081 を開きます。詳しくは [技術仕様書 §8.2](docs/02-technical-spec.md)。
 
-- 初期データ（`vendor/bin/sail artisan migrate:fresh --seed`）のログイン：owner@ / editor@ / submitter@ / other@example.com、パスワード `password`、2段階認証の鍵 `TORUDAKEDEVLOCAL`（認証アプリに手入力）、復旧コード `recovery-code-1`（1回使うと消えるので、流し直すと戻る）。手元の開発専用の架空の値で、本番では使えません（本番の人は `torudake:add-member` で作り、パスワードと2段階認証は本人が設定します）。
+- 初期データ（`vendor/bin/sail artisan migrate:fresh --seed`）のログイン：owner@ / editor@ / submitter@ / other@example.com、パスワード `password`、秘密の質問の答え `テスト町`。手元の開発専用の架空の値で、本番では使えません（本番の人は `torudake:add-member` で作り、パスワードと秘密の質問は本人が設定します）。
 
 ## 実データを扱うときの決まり
 

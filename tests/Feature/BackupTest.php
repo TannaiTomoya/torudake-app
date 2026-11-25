@@ -23,6 +23,8 @@ function writeManifest(?array $manifest = null): string
 function backupFixture(): array
 {
     $fixture = createCompanyWithMember();
+    // 前の2段階認証の秘密（アプリの鍵で暗号化した列）。復元の確認はこれで鍵を確かめる
+    $fixture['user']->forceFill(['two_factor_secret' => encrypt('TORUDAKEDEVLOCAL')])->save();
     putEntry($fixture['company'], '2026-08-03', '燃料', 5200);
     putEntry($fixture['company'], '2026-08-21', '売上', 220000);
     putEntry($fixture['company'], '2026-09-20', '雑費', 640, EntryStatus::Draft);
@@ -155,7 +157,7 @@ test('復元の確認：アプリの鍵が違うと失敗する（2段階認証�
 });
 
 test('復元の確認：2段階認証を設定した人がいなければ、鍵は確かめられないと出して先へ進む', function (): void {
-    createCompanyWithMember(withTwoFactor: false);
+    createCompanyWithMember(withSecurityAnswer: false);
 
     $this->artisan('torudake:verify-restore', ['manifest' => writeManifest(), '--skip-workbooks' => true])
         ->expectsOutputToContain('確かめられない')

@@ -2,19 +2,14 @@
 
 use App\Concerns\PasswordValidationRules;
 use App\Models\User;
+use App\Services\SecurityAnswer;
 use App\Services\TrustedDevices;
 use Flux\Flux;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
-use Laravel\Fortify\Features;
-use Laravel\Fortify\Fortify;
-use Laravel\Passkeys\Passkey;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
-use Livewire\Attributes\On;
 
 new #[Title('Security settings')] class extends Component {
     use PasswordValidationRules;
@@ -23,33 +18,7 @@ new #[Title('Security settings')] class extends Component {
     public string $password = '';
     public string $password_confirmation = '';
 
-    public bool $canManageTwoFactor;
-
-    public bool $twoFactorEnabled;
-
-    public bool $requiresConfirmation;
-
-    public bool $canManagePasskeys;
-
-
-    /**
-     * Mount the component.
-     */
-    public function mount(DisableTwoFactorAuthentication $disableTwoFactorAuthentication): void
-    {
-        $this->canManagePasskeys = Features::canManagePasskeys();
-        $this->canManageTwoFactor = Features::canManageTwoFactorAuthentication();
-
-        if ($this->canManageTwoFactor) {
-            if (Fortify::confirmsTwoFactorAuthentication() && is_null(auth()->user()->two_factor_confirmed_at)) {
-                $disableTwoFactorAuthentication(auth()->user());
-            }
-
-            $this->twoFactorEnabled = auth()->user()->hasEnabledTwoFactorAuthentication();
-            $this->requiresConfirmation = Features::optionEnabled(Features::twoFactorAuthentication(), 'confirm');
-        }
-
-    }
+    public string $security_answer = '';
 
     /**
      * Update the password for the currently authenticated user.
@@ -76,50 +45,31 @@ new #[Title('Security settings')] class extends Component {
         Flux::toast(variant: 'success', text: __('Password updated.'));
     }
 
-
     /**
-     * Handle the two-factor authentication enabled event.
+     * 秘密の質問の答えを変える（パスワード再確認のあとの画面）。ほかの端末は、次のログインで新しい答えを聞く。
      */
-    #[On('two-factor-enabled')]
-    public function onTwoFactorEnabled(): void
+    public function changeSecurityAnswer(SecurityAnswer $answers): void
     {
-        $this->twoFactorEnabled = true;
-    }
+        $this->validate(
+            ['security_answer' => ['required', 'string', 'max:'.SecurityAnswer::MAX_LENGTH]],
+            attributes: ['security_answer' => '答え'],
+        );
 
-    /**
-     * Disable two-factor authentication for the user.
-     */
-    public function disable(DisableTwoFactorAuthentication $disableTwoFactorAuthentication): void
-    {
-        $disableTwoFactorAuthentication(auth()->user());
+        if (SecurityAnswer::normalize($this->security_answer) === '') {
+            $this->addError('security_answer', '答えを入れてください。');
 
-        $this->twoFactorEnabled = false;
-    }
+            return;
+        }
 
-    /**
-     * 顔でログインに登録した端末（自分のものだけ）。
-     *
-     * @return Collection<int, Passkey>
-     */
-    #[Computed]
-    public function passkeys(): Collection
-    {
         /** @var User $user */
         $user = Auth::user();
 
-        return $user->passkeys()->latest()->get();
-    }
+        $answers->set($user, $this->security_answer);
 
-    public function deletePasskey(int $passkeyId): void
-    {
-        /** @var User $user */
-        $user = Auth::user();
+        $this->reset('security_answer');
+        unset($this->trustedDeviceCount);
 
-        $user->passkeys()->findOrFail($passkeyId)->delete();
-
-        unset($this->passkeys);
-
-        Flux::toast(variant: 'success', text: '登録を消しました。');
+        Flux::toast(variant: 'success', text: '秘密の質問の答えを変えました。');
     }
 
     /**
@@ -188,96 +138,37 @@ new #[Title('Security settings')] class extends Component {
             </div>
         </form>
 
-        @if ($canManageTwoFactor)
-            <section class="mt-12">
-                <flux:heading>{{ __('Two-factor authentication') }}</flux:heading>
-                <flux:subheading>{{ __('Manage your two-factor authentication settings') }}</flux:subheading>
+        <section class="mt-12" data-test="security-question">
+            <flux:heading>秘密の質問を変える</flux:heading>
+            <flux:subheading>新しい端末で入るときに聞きます。変えると、信頼している端末はすべて解除されます。</flux:subheading>
 
-                <div class="flex flex-col w-full mx-auto space-y-6 text-sm" wire:cloak>
-                    @if ($twoFactorEnabled)
-                        <div class="space-y-4">
-                            <flux:text>
-                                {{ __('You will be prompted for a secure, random pin during login, which you can retrieve from the TOTP-supported application on your phone.') }}
-                            </flux:text>
+            @if (auth()->user()->hasSecurityAnswer())
+                <form wire:submit="changeSecurityAnswer" class="mt-4 space-y-4">
+                    <flux:input
+                        wire:model="security_answer"
+                        :label="\App\Services\SecurityAnswer::QUESTION"
+                        :description="\App\Services\SecurityAnswer::HINT"
+                        type="text"
+                        maxlength="{{ \App\Services\SecurityAnswer::MAX_LENGTH }}"
+                        required
+                        autocomplete="off"
+                    />
+                    <flux:button variant="primary" type="submit" data-test="security-answer-change">答えを変える</flux:button>
+                </form>
+            @else
+                <p class="mt-4"><flux:link :href="route('security-answer.setup')">答えを決める</flux:link></p>
+            @endif
+        </section>
 
-                            <div class="flex justify-start">
-                                <flux:button
-                                    variant="danger"
-                                    wire:click="disable"
-                                >
-                                    {{ __('Disable 2FA') }}
-                                </flux:button>
-                            </div>
-
-                            <livewire:pages::settings.two-factor.recovery-codes :$requiresConfirmation />
-                        </div>
-                    @else
-                        <div class="space-y-4">
-                            <flux:text variant="subtle">
-                                {{ __('When you enable two-factor authentication, you will be prompted for a secure pin during login. This pin can be retrieved from a TOTP-supported application on your phone.') }}
-                            </flux:text>
-
-                            <flux:modal.trigger name="two-factor-setup-modal">
-                                <flux:button
-                                    variant="primary"
-                                    wire:click="$dispatch('start-two-factor-setup')"
-                                >
-                                    {{ __('Enable 2FA') }}
-                                </flux:button>
-                            </flux:modal.trigger>
-
-                            <livewire:pages::settings.two-factor-setup-modal :requires-confirmation="$requiresConfirmation" />
-                        </div>
-                    @endif
-                </div>
-            </section>
-        @endif
-
-        @if ($canManagePasskeys)
-            <section class="mt-12" data-test="passkeys">
-                <flux:heading>顔でログイン</flux:heading>
-                <flux:subheading>このスマホ（パソコン）を登録すると、次からログイン画面の「顔でログイン」を押して、顔を見せるだけで入れます。</flux:subheading>
-
-                <div class="mt-4 space-y-4 text-sm" x-data="passkeyRegister">
-                    @if ($this->passkeys->isNotEmpty())
-                        <ul class="divide-y divide-line rounded-lg border border-line">
-                            @foreach ($this->passkeys as $passkey)
-                                <li class="flex items-center justify-between gap-3 p-3" wire:key="passkey-{{ $passkey->id }}">
-                                    <div>
-                                        <p class="font-bold">{{ $passkey->name }}</p>
-                                        <p class="text-ink-sub">
-                                            {{ $passkey->created_at?->isoFormat('M月D日(ddd)') }}に登録・最後に使った日 {{ $passkey->last_used_at?->isoFormat('M月D日(ddd)') ?? 'まだ使っていません' }}
-                                        </p>
-                                    </div>
-                                    <flux:button size="sm" variant="danger" wire:click="deletePasskey({{ $passkey->id }})" wire:confirm="「{{ $passkey->name }}」の登録を消しますか？" data-test="passkey-delete">
-                                        消す
-                                    </flux:button>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @endif
-
-                    <div x-show="supported" class="flex flex-wrap items-end gap-3">
-                        <flux:input x-model="name" label="端末の名前" placeholder="例：父のiPhone" class="max-w-xs" />
-                        <flux:button variant="primary" icon="face-smile" x-on:click="register()" x-bind:disabled="busy" data-test="passkey-register">
-                            この端末を登録する
-                        </flux:button>
-                    </div>
-                    <p x-show="!supported" x-cloak class="text-ink-sub">このブラウザは顔でログインに対応していません。</p>
-                    <p x-show="error" x-text="error" x-cloak class="font-bold text-ng" role="alert"></p>
-                </div>
-            </section>
-        @endif
-
-        @if ($canManageTwoFactor && $twoFactorEnabled)
+        @if (auth()->user()->hasSecurityAnswer())
             <section class="mt-12" data-test="trusted-devices">
                 <flux:heading>信頼している端末</flux:heading>
-                <flux:subheading>2段階認証のときに「この端末を覚える」を選んだ端末は、30日のあいだパスワードだけで入れます。パスワードを変えると、すべて解除されます。</flux:subheading>
+                <flux:subheading>「この端末を覚える」を選んだ端末は、30日のあいだ秘密の質問を聞きません。パスワードや秘密の質問を変えると、すべて解除されます。</flux:subheading>
 
                 <div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
                     <p>今は <span class="font-bold" data-test="trusted-device-count">{{ $this->trustedDeviceCount }}台</span></p>
                     @if ($this->trustedDeviceCount > 0)
-                        <flux:button size="sm" variant="danger" wire:click="revokeTrustedDevices" wire:confirm="信頼している端末をすべて解除しますか？次にパスワードで入るときは、どの端末でもコードを聞きます。" data-test="trusted-devices-revoke">
+                        <flux:button size="sm" variant="danger" wire:click="revokeTrustedDevices" wire:confirm="信頼している端末をすべて解除しますか？次に入るときは、どの端末でも秘密の質問を聞きます。" data-test="trusted-devices-revoke">
                             すべて解除
                         </flux:button>
                     @endif

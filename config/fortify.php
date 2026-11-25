@@ -118,7 +118,6 @@ return [
 
     'limiters' => [
         'login' => 'login',
-        'two-factor' => 'two-factor',
     ],
 
     /*
@@ -148,13 +147,7 @@ return [
     'features' => [
         Features::resetPasswords(),
         Features::emailVerification(),
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-            // 'window' => 0
-        ]),
-        // 顔でログイン。本人確認（顔・指紋・端末のパスコード）が必須なので、これだけで2段階と同じ強さ
-        Features::passkeys(),
+        // 2段階目は Fortify の TOTP・パスキーを使わず、秘密の質問（ChallengeUnlessTrustedDevice、docs/02 §5）
     ],
 
 ];

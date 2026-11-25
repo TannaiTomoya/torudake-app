@@ -207,7 +207,7 @@ test('T59 権限：開けるのは owner・editor だけ', function (Role $role,
 
 test('T59 権限：未ログイン・2段階認証がまだ・他社・無効な所属は開けない', function (): void {
     ['company' => $company, 'user' => $owner] = createCompanyWithMember(Role::Owner);
-    ['user' => $noTwoFactor] = createCompanyWithMember(Role::Owner, withTwoFactor: false, company: $company);
+    ['user' => $noTwoFactor] = createCompanyWithMember(Role::Owner, withSecurityAnswer: false, company: $company);
     ['company' => $other, 'user' => $outsider] = createCompanyWithMember(Role::Owner);
 
     $this->get(route('company.cashflow', $company))->assertRedirect();

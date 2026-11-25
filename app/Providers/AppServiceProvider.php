@@ -3,7 +3,7 @@
 namespace App\Providers;
 
 use App\Http\Middleware\EnsureCompanyMember;
-use App\Http\Middleware\EnsureTwoFactorEnabled;
+use App\Http\Middleware\EnsureSecurityAnswerSet;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\ClaudeClient;
 use App\Services\Ai\FakeClaudeClient;
@@ -47,12 +47,12 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
 
-        // Livewire の更新（ボタン・読み直し）のたびに、元の画面のルートで「会社のメンバーか」「2段階認証が済んだか」を確かめ直す。
-        // 開いたまま会社から外された・2段階認証を切った人の画面を止めるため（docs/02 §5）
+        // Livewire の更新（ボタン・読み直し）のたびに、元の画面のルートで「会社のメンバーか」「秘密の質問を決めたか」を確かめ直す。
+        // 開いたまま会社から外された・秘密の質問の答えを消された人の画面を止めるため（docs/02 §5）
         Livewire::addPersistentMiddleware([
             EnsureEmailIsVerified::class,
             EnsureCompanyMember::class,
-            EnsureTwoFactorEnabled::class,
+            EnsureSecurityAnswerSet::class,
             RequirePassword::class,
         ]);
     }

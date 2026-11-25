@@ -2,7 +2,7 @@
 
 use App\Http\Middleware\AbsoluteSessionTimeout;
 use App\Http\Middleware\EnsureCompanyMember;
-use App\Http\Middleware\EnsureTwoFactorEnabled;
+use App\Http\Middleware\EnsureSecurityAnswerSet;
 use App\Http\Responses\PasswordResetLinkRequested;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -24,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'company' => EnsureCompanyMember::class,
-            'two-factor' => EnsureTwoFactorEnabled::class,
+            'security-answer' => EnsureSecurityAnswerSet::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
