@@ -7,7 +7,6 @@ use App\Actions\Fortify\ResetUserPassword;
 use App\Http\Responses\LoginResponse;
 use App\Http\Responses\PasswordResetLinkRequested;
 use App\Http\Responses\VerifyEmailResponse;
-use Closure;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -57,12 +56,6 @@ class FortifyServiceProvider extends ServiceProvider
 
         // パスワードでのログイン。Fortify の既定の流れから、2段階目だけ秘密の質問（信頼できる端末なら省く）に替える
         Fortify::authenticateThrough(fn (Request $request): array => array_filter([
-            function (Request $request, Closure $next): mixed {
-                // ログイン状態の保持はしない（docs/02 §5）。remember が送られてきても捨てる
-                $request->merge(['remember' => false]);
-
-                return $next($request);
-            },
             config('fortify.limiters.login') ? null : EnsureLoginIsNotThrottled::class,
             config('fortify.lowercase_usernames') ? CanonicalizeUsername::class : null,
             ChallengeUnlessTrustedDevice::class,

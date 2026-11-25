@@ -39,6 +39,9 @@
                 @endif
             </div>
 
+            <flux:checkbox name="remember" value="1" :checked="old('email') === null || old('remember') !== null" label="ログイン状態を保持する（30日）" data-test="remember" />
+            <p class="-mt-4 text-body text-ink-sub">共用のパソコンでは、チェックを外してください。</p>
+
             <div class="flex items-center justify-end">
                 <flux:button variant="primary" type="submit" class="w-full" data-test="login-button">
                     {{ __('Log in') }}

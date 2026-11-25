@@ -2,16 +2,19 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\AbsoluteSessionTimeout;
 use App\Http\Middleware\EnsureCompanyMember;
 use App\Http\Middleware\EnsureSecurityAnswerSet;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\ClaudeClient;
 use App\Services\Ai\FakeClaudeClient;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Livewire;
@@ -46,6 +49,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // 24時間はログインした時から数える。保持を選んだログイン（保持のクッキーで入り直したときも）は打ち切らない
+        Event::listen(function (Login $event): void {
+            session([
+                AbsoluteSessionTimeout::REMEMBERED_KEY => $event->remember,
+                'auth.login_at' => now()->getTimestamp(),
+            ]);
+        });
 
         // Livewire の更新（ボタン・読み直し）のたびに、元の画面のルートで「会社のメンバーか」「秘密の質問を決めたか」を確かめ直す。
         // 開いたまま会社から外された・秘密の質問の答えを消された人の画面を止めるため（docs/02 §5）
