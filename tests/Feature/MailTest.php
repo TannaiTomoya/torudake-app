@@ -420,6 +420,8 @@ test('リンク：一度使ったら、もう使えない', function (): void {
     $this->post(route('password.update'), $form)->assertSessionHasNoErrors();
     expect(Hash::check('new-password-12345', (string) $user->refresh()->password))->toBeTrue();
 
+    // 決めたあとはそのままログインしている（#80）。別の人がリンクを使い回す場合を確かめるため、いったん出る
+    $this->post(route('logout'));
     $again = [...$form, 'password' => 'another-password-12345', 'password_confirmation' => 'another-password-12345'];
     $this->post(route('password.update'), $again)->assertSessionHasErrors('email');
     expect(Hash::check('new-password-12345', (string) $user->refresh()->password))->toBeTrue();

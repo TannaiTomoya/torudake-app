@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\OfferLogoutBeforePasswordReset;
 use App\Http\Middleware\ThrottlePasswordResetLink;
 use Laravel\Fortify\Features;
 
@@ -102,8 +103,9 @@ return [
     |
     */
 
-    // 送信のルート（password.email）だけ、回数を抑える（#39）
-    'middleware' => ['web', ThrottlePasswordResetLink::class],
+    // 送信のルート（password.email）だけ、回数を抑える（#39）。
+    // パスワードを決める画面（password.reset）をログインしたまま開いたら、ログアウトを案内する（#80）
+    'middleware' => ['web', ThrottlePasswordResetLink::class, OfferLogoutBeforePasswordReset::class],
 
     /*
     |--------------------------------------------------------------------------

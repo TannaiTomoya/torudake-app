@@ -36,12 +36,7 @@ class ChallengeUnlessTrustedDevice extends RedirectIfTwoFactorAuthenticatable
         }
 
         // ここではまだログインさせない。答えが合ったら SecurityQuestionController がログインさせる
-        $request->session()->put(SecurityQuestionController::PENDING_KEY, [
-            'user_id' => $user->id,
-            'password' => hash('sha256', $user->password),
-            'remember' => $request->boolean('remember'),
-            'expires_at' => now()->addMinutes(SecurityQuestionController::PENDING_MINUTES)->getTimestamp(),
-        ]);
+        SecurityQuestionController::begin($request, $user, $request->boolean('remember'));
 
         return $request->wantsJson()
             ? response()->json(['two_factor' => true])

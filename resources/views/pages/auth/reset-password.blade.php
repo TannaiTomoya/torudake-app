@@ -44,6 +44,9 @@
                 viewable
             />
 
+            <flux:checkbox name="remember" value="1" :checked="old('email') === null || old('remember') !== null" label="ログイン状態を保持する（30日）" />
+            <p class="-mt-4 text-body text-ink-sub">共用のパソコンでは、チェックを外してください。</p>
+
             <div class="flex items-center justify-end">
                 <flux:button type="submit" variant="primary" class="w-full" data-test="reset-password-button">
                     {{ __('Reset password') }}
