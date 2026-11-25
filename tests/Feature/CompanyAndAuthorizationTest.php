@@ -12,15 +12,13 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Livewire\Livewire;
 
-test('T02: 新しい人：パスワードを決める → ログイン → 秘密の質問の答えを決める → ふつうのホーム', function (): void {
+test('T02: 新しい人：パスワードを決める → そのまま秘密の質問の答えを決める → ふつうのホーム', function (): void {
     ['company' => $company, 'user' => $user] = createCompanyWithMember(role: Role::Admin, withSecurityAnswer: false);
 
     $token = Password::broker()->createToken($user);
     $this->post(route('password.update'), ['token' => $token, 'email' => $user->email, 'password' => 'Atarashii-Pass-2026', 'password_confirmation' => 'Atarashii-Pass-2026'])
-        ->assertRedirect(route('login'));
-
-    $this->post(route('login'), ['email' => $user->email, 'password' => 'Atarashii-Pass-2026'])
         ->assertRedirect(route('dashboard'));
+
     $this->get(route('dashboard'))->assertRedirect(route('security-answer.setup'));
 
     Livewire::actingAs($user->fresh())->test('pages::setup.security-answer')

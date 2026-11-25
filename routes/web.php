@@ -9,6 +9,7 @@ use App\Http\Controllers\WorkbookDownloadController;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
@@ -37,6 +38,17 @@ Route::middleware('guest')->group(function (): void {
     Route::get('login/question', [SecurityQuestionController::class, 'show'])->name('security-question.show');
     Route::post('login/question', [SecurityQuestionController::class, 'store'])->middleware('throttle:security-question')->name('security-question.store');
 });
+
+// ログインしたまま「パスワードを決める」リンクを開いた人が、ログアウトしてその画面へ進む（#80）
+Route::post('password-reset/switch', function (Request $request): RedirectResponse {
+    $input = $request->validate(['token' => ['required', 'string', 'max:255'], 'email' => ['nullable', 'string', 'max:255']]);
+
+    Auth::guard('web')->logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    return redirect()->route('password.reset', ['token' => $input['token'], 'email' => $input['email'] ?? null]);
+})->middleware('auth')->name('password.reset.switch');
 
 // はじめの1回だけ：秘密の質問の答えを決める（ホームの前）
 Route::livewire('setup/security-answer', 'pages::setup.security-answer')->middleware(['auth', 'verified'])->name('security-answer.setup');

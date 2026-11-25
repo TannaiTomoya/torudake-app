@@ -21,6 +21,19 @@ class SecurityQuestionController extends Controller
 
     public const PENDING_MINUTES = 10;
 
+    /**
+     * パスワードが合った（または決め直した）人に、秘密の質問を聞く状態にする。ここではまだログインさせない。
+     */
+    public static function begin(Request $request, User $user, bool $remember): void
+    {
+        $request->session()->put(self::PENDING_KEY, [
+            'user_id' => $user->id,
+            'password' => hash('sha256', $user->password),
+            'remember' => $remember,
+            'expires_at' => now()->addMinutes(self::PENDING_MINUTES)->getTimestamp(),
+        ]);
+    }
+
     public function show(Request $request): View|RedirectResponse
     {
         return $this->pendingUser($request) === null

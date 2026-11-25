@@ -232,9 +232,9 @@ cd /var/www/torudake && php artisan torudake:mail-check
 cd /var/www/torudake && php artisan torudake:mail-check --to=自分のメール
 ```
 7. **本番の経路で確かめる**（ここまでやって #39 の完了。記録は #39 に日付と「通った」だけ。リンクやアドレスは貼らない）
-   - ログイン画面 →「パスワードを忘れた」→ 自分のアドレスを入れる → メールが届く → リンクが `https://torudake-app.com/reset-password/` で始まる → パスワードを決め直す → ログイン（秘密の質問まで）
+   - ログイン画面 →「パスワードを忘れた」→ 自分のアドレスを入れる → メールが届く → リンクが `https://torudake-app.com/reset-password/` で始まる → パスワードを決め直す → そのまま秘密の質問 → ホーム
    - 使ったリンクをもう一度開いて決め直そうとすると、「無効です」と出る
-   - まだパスワードを決めていない人（経理のアカウント）に送る → 本人がメールから決める → ログイン → 秘密の質問の答えを決める
+   - まだパスワードを決めていない人（経理のアカウント）に送る → 本人がメールから決める → そのまま秘密の質問の答えを決める → ホーム
 ```bash
 cd /var/www/torudake && php artisan torudake:send-setup-link その人のメール
 ```

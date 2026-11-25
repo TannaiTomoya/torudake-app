@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Actions\Fortify\ChallengeUnlessTrustedDevice;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Http\Responses\LoginResponse;
+use App\Http\Responses\PasswordResetCompleted;
 use App\Http\Responses\PasswordResetLinkRequested;
 use App\Http\Responses\VerifyEmailResponse;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -18,6 +19,7 @@ use Laravel\Fortify\Actions\EnsureLoginIsNotThrottled;
 use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
+use Laravel\Fortify\Contracts\PasswordResetResponse as PasswordResetResponseContract;
 use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Contracts\VerifyEmailResponse as VerifyEmailResponseContract;
 use Laravel\Fortify\Fortify;
@@ -31,6 +33,9 @@ class FortifyServiceProvider extends ServiceProvider
     {
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(VerifyEmailResponseContract::class, VerifyEmailResponse::class);
+
+        // パスワードを決めたら、そのまま秘密の質問（まだの人は答えを決める画面）へ進める（#80）
+        $this->app->bind(PasswordResetResponseContract::class, PasswordResetCompleted::class);
 
         // 「パスワードを忘れた」の応答は、登録がある・ないにかかわらず同じにする（#39）
         $this->app->bind(SuccessfulPasswordResetLinkRequestResponse::class, PasswordResetLinkRequested::class);
